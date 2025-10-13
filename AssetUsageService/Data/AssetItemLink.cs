@@ -1,8 +1,21 @@
-using System;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
+
+namespace AssetUsageService.Data;
 
 public class AssetItemLink
 {
-    public AssetItemLink()
-    {
-    }
+    [BsonId]
+    [BsonRepresentation(BsonType.String)]
+    public Guid ItemId { get; set; }
+
+    [BsonElement("assetIds")]
+    [BsonRepresentation(BsonType.String)]
+    public List<Guid> AssetIds { get; set; } = new();
+
+    [BsonElement("createdAt")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [BsonElement("updatedAt")]
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
