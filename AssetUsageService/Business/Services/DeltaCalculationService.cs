@@ -1,4 +1,4 @@
-using System;
+namespace AssetUsageService.Business.Services;
 
 public class DeltaCalculationService
 {
