@@ -148,7 +148,6 @@ namespace iO.Sitecore.Publishing.Events
                     return;
                 }
 
-                // *** THIS IS THE KEY FIX: Process items like your old code did ***
                 IEnumerable<Item> itemsToLog = options.Deep
                     ? rootItem.Axes.GetDescendants().Concat(new[] { rootItem })
                     : new[] { rootItem };
@@ -271,7 +270,6 @@ namespace iO.Sitecore.Publishing.Events
 
                     var typeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
 
-                    // Log when inspecting image/link fields
                     if (typeKey == "image" || typeKey == "general link" || typeKey == "link")
                     {
                         Log.Info($"[GetAssetIds] Inspecting field '{field.Name}' (type='{typeKey}')", typeof(PublishingEventHandler));
