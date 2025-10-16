@@ -1,4 +1,4 @@
-using System;
+namespace AssetUsageService.Infrastructure;
 
 public class AssetItemLinkRepository
 {
