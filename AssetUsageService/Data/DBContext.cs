@@ -33,32 +33,21 @@ public class DBContext
             new AssetItemLink
             {
                 ItemId = Guid.NewGuid(),
-                AssetIds = new List<Guid>
-                {
-                    Guid.NewGuid(),
-                    Guid.Parse("3FFF377C-986E-45A1-A854-2131EC2647C5")
-                },
+                AssetIds = new List<int>{34013, 13343},
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
             new AssetItemLink
             {
                 ItemId = Guid.NewGuid(),
-                AssetIds = new List<Guid>
-                {
-                    Guid.NewGuid(),
-                    Guid.NewGuid()
-                },
+                AssetIds = new List<int>{23213, 34013},
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
             new AssetItemLink
             {
                 ItemId = Guid.NewGuid(),
-                AssetIds = new List<Guid>
-                {
-                    Guid.Parse("3FFF377C-986E-45A1-A854-2131EC2647C5")
-                },
+                AssetIds = new List<int>{34323, 34013, 32432},
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             }

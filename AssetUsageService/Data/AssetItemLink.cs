@@ -11,7 +11,7 @@ public class AssetItemLink
 
     [BsonElement("assetIds")]
     [BsonRepresentation(BsonType.String)]
-    public List<Guid> AssetIds { get; set; } = new();
+    public List<int> AssetIds { get; set; } = new();
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
