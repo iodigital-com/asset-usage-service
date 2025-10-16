@@ -1,4 +1,4 @@
-﻿using System;
+﻿namespace AssetUsageService.Integration;
 
 public class APIGateway
 {
