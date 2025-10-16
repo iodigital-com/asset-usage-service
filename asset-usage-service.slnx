@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="AssetUsageService/AssetUsageService.csproj" />
+  <Project Path="AssetUsageServiceTests/AssetUsageServiceTests.csproj" Id="a6a9fd4a-441f-4691-bddf-efa45b777cf5" />
 </Solution>
