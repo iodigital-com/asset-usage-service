@@ -1,4 +1,4 @@
-using System;
+namespace AssetUsageService.Business.Controllers;
 
 public class AssetItemController
 {

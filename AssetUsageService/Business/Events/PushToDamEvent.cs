@@ -1,4 +1,4 @@
-using System;
+namespace AssetUsageService.Business.Events;
 
 public class PushToDamEvent
 {
