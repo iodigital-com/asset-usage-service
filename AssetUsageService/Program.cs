@@ -1,9 +1,11 @@
 using AssetUsageService.Data;
+using AssetUsageService.Integration;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 
 var builder = FunctionsApplication.CreateBuilder(args);
@@ -14,6 +16,8 @@ builder.Services
     .AddApplicationInsightsTelemetryWorkerService()
     .ConfigureFunctionsApplicationInsights();
 
+builder.Services.AddHttpClient();
+
 builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -23,6 +27,8 @@ builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
 });
 
 builder.Services.AddSingleton<DBContext>();
+builder.Services.AddSingleton<ContentHubConnectionService>();
+builder.Services.AddSingleton<APIGateway>();
 
 var app = builder.Build();
 
@@ -32,6 +38,19 @@ using (var scope = app.Services.CreateScope())
     if (services.GetRequiredService<IConfiguration>().GetValue<bool>("MongoDB:SeedData", false))
     {
         await services.GetRequiredService<DBContext>().SeedDataAsync();
+    }
+
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var gateway = services.GetRequiredService<APIGateway>();
+
+    try
+    {
+        var reachable = await gateway.IsContentHubReachableAsync();
+        var client = await gateway.GetContentHubClientAsync();
+    }
+    catch (Exception exception)
+    {
+        logger.LogError(exception, "ContentHub test failed");
     }
 }
 
