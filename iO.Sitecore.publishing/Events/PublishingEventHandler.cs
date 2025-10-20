@@ -25,7 +25,7 @@ namespace iO.Sitecore.Publishing.Events
     {
         public PublishingEventHandler() { }
 
-        private static readonly string LogFilePath = @"C:\inetpub\wwwroot\SitecoreXPLocalsc.dev.local\App_Data\logs\published-items.json";
+        private static readonly string LogFilePath = @"C:\inetpub\wwwroot\Sitecore-xp-localsc.dev.local\App_Data\logs\published-items.json";
         private static readonly object FileLock = new object();
         private static readonly Regex GatewayIdRegex = new Regex(@"/api/gateway/(\d+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly AssetUsageServiceClient _client = new AssetUsageServiceClient();
