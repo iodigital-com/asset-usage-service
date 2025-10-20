@@ -1,4 +1,5 @@
-﻿using Sitecore.Configuration;
+﻿using iO.Sitecore.publishing.Events;
+using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
 using Sitecore.Data.Fields;
@@ -13,6 +14,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Xml.Linq;
 using Version = Sitecore.Data.Version;
@@ -26,10 +28,10 @@ namespace iO.Sitecore.Publishing.Events
         private static readonly string LogFilePath = @"C:\inetpub\wwwroot\SitecoreXPLocalsc.dev.local\App_Data\logs\published-items.json";
         private static readonly object FileLock = new object();
         private static readonly Regex GatewayIdRegex = new Regex(@"/api/gateway/(\d+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly AssetUsageServiceClient _client = new AssetUsageServiceClient();
 
         public void OnItemProcessed(object sender, EventArgs args)
         {
-            Log.Info($"[OnItemProcessed] Enter. ArgsType={args?.GetType().FullName ?? "null"}", this);
             try
             {
                 var itemProcessedArgs = args as ItemProcessedEventArgs;
@@ -78,10 +80,22 @@ namespace iO.Sitecore.Publishing.Events
                     return;
                 }
 
-                Log.Info($"[OnItemProcessed] Processing item: ID={item.ID}, Path={item.Paths.FullPath}", this);
-
                 var ids = GetAssetIds(item);
-                Log.Info($"[OnItemProcessed] Extracted {ids.Count} AssetId(s) for item {item.ID}", this);
+                var azurePayload = new AssetUsageEvent
+                {
+                    ItemId = item.ID.ToString(),
+                    ItemPath = item.Paths.FullPath,
+                    ItemName = item.Name,
+                    TemplateName = item.TemplateName,
+                    Language = item.Language.Name,
+                    Version = item.Version.Number,
+                    PublishedAtUtc = DateTime.UtcNow,
+                    PublishedBy = System.Security.Principal.WindowsIdentity.GetCurrent()?.Name ?? "system",
+                    AssetIds = ids,
+                    TargetDatabase = options.TargetDatabase?.Name ?? string.Empty
+                };
+
+                Task.Run(async () => await _client.SendAsync(azurePayload));
 
                 var publishItemData = new
                 {
@@ -102,9 +116,7 @@ namespace iO.Sitecore.Publishing.Events
                     DeepPublish = options.Deep
                 };
 
-                Log.Info($"[OnItemProcessed] Writing JSON for item {item.ID}", this);
                 WriteToJsonFile(publishItemData);
-                Log.Info($"[OnItemProcessed] Successfully wrote JSON for item {item.ID}", this);
             }
             catch (Exception ex)
             {
@@ -118,7 +130,6 @@ namespace iO.Sitecore.Publishing.Events
 
         public void OnPublishEnd(object sender, EventArgs args)
         {
-            Log.Info($"[OnPublishEnd] Enter. SenderType={sender?.GetType().FullName ?? "null"}, ArgsType={args?.GetType().FullName ?? "null"}", this);
             try
             {
                 var publisher = Event.ExtractParameter<Publisher>(args, 0) as Publisher;
@@ -138,10 +149,6 @@ namespace iO.Sitecore.Publishing.Events
                 var rootItem = options.RootItem;
                 var targetDbName = options.TargetDatabase?.Name ?? string.Empty;
 
-                Log.Info($"[OnPublishEnd] RootItem={(rootItem != null ? rootItem.Paths.FullPath : "null")}", this);
-                Log.Info($"[OnPublishEnd] TargetDatabase={targetDbName}", this);
-                Log.Info($"[OnPublishEnd] Mode={options.Mode}, Deep={options.Deep}", this);
-
                 if (rootItem == null)
                 {
                     Log.Info("[OnPublishEnd] RootItem is null; returning.", this);
@@ -156,10 +163,7 @@ namespace iO.Sitecore.Publishing.Events
                 foreach (var item in itemsToLog)
                 {
                     total++;
-                    Log.Info($"[OnPublishEnd] Processing item {total}: ID={item.ID}, Path={item.Paths.FullPath}", this);
-
                     var ids = GetAssetIds(item);
-                    Log.Info($"[OnPublishEnd] Extracted AssetIds count={ids.Count} for item {item.ID}", this);
 
                     var publishItemData = new
                     {
@@ -180,12 +184,9 @@ namespace iO.Sitecore.Publishing.Events
                         DeepPublish = options.Deep
                     };
 
-                    Log.Info($"[OnPublishEnd] Writing JSON for item {item.ID}", this);
                     WriteToJsonFile(publishItemData);
-                    Log.Info($"[OnPublishEnd] Wrote JSON for item {item.ID}", this);
                 }
 
-                Log.Info($"[OnPublishEnd] Completed. Logged {total} item(s) to {targetDbName}.", this);
             }
             catch (Exception ex)
             {
@@ -199,7 +200,6 @@ namespace iO.Sitecore.Publishing.Events
 
         public void OnPublishEndRemote(object sender, EventArgs args)
         {
-            Log.Info($"[OnPublishEndRemote] Enter. SenderType={sender?.GetType().FullName ?? "null"}, ArgsType={args?.GetType().FullName ?? "null"}", this);
             try
             {
                 var remoteArgs = args as PublishEndRemoteEventArgs;
@@ -208,9 +208,6 @@ namespace iO.Sitecore.Publishing.Events
                     Log.Info("[OnPublishEndRemote] PublishEndRemoteEventArgs is null; returning.", this);
                     return;
                 }
-
-                Log.Info($"[OnPublishEndRemote] EventQueueName={remoteArgs.EventQueueName}", this);
-
                 var dbs = Factory.GetDatabases()
                     .Where(db => db.RemoteEvents.EventQueue.Name == remoteArgs.EventQueueName)
                     .ToList();
@@ -235,9 +232,7 @@ namespace iO.Sitecore.Publishing.Events
                     DatabasesRaised = dbs.Select(d => d.Name).ToList()
                 };
 
-                Log.Info("[OnPublishEndRemote] Writing JSON summary.", this);
                 WriteToJsonFile(summary);
-                Log.Info("[OnPublishEndRemote] Wrote JSON summary.", this);
             }
             catch (Exception ex)
             {
@@ -260,9 +255,7 @@ namespace iO.Sitecore.Publishing.Events
 
             try
             {
-                Log.Info($"[GetAssetIds] Begin for item: {item.Paths.FullPath}", typeof(PublishingEventHandler));
                 item.Fields.ReadAll();
-                Log.Info($"[GetAssetIds] Field count: {item.Fields.Count}", typeof(PublishingEventHandler));
 
                 foreach (Field field in item.Fields)
                 {
@@ -319,7 +312,6 @@ namespace iO.Sitecore.Publishing.Events
                     }
                 }
 
-                Log.Info($"[GetAssetIds] Completed for item: {item.Paths.FullPath}. Found {ids.Count} id(s).", typeof(PublishingEventHandler));
             }
             catch (Exception ex)
             {
@@ -357,7 +349,6 @@ namespace iO.Sitecore.Publishing.Events
                 var serializer = new JavaScriptSerializer();
                 var json = serializer.Serialize(data);
 
-                Log.Info("[WriteToJsonFile] Begin append.", this);
                 lock (FileLock)
                 {
                     File.AppendAllText(LogFilePath, json + Environment.NewLine);

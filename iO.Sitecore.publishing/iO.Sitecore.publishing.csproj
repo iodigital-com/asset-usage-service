@@ -636,6 +636,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Start\RazorGeneratorMvcStart.cs" />
+    <Compile Include="Events\AssetUsageEvent.cs" />
+    <Compile Include="Events\AssetUsageServiceClient.cs" />
     <Compile Include="Events\PublishingEventHandler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
