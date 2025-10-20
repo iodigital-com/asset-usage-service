@@ -1,4 +1,5 @@
-﻿using iO.Sitecore.publishing.Events;
+﻿
+using iO.Sitecore.publishing.Events;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
@@ -7,8 +8,10 @@ using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
 using Sitecore.Events;
 using Sitecore.Globalization;
+using Sitecore.Links;
 using Sitecore.Publishing;
 using Sitecore.Publishing.Pipelines.PublishItem;
+using Sitecore.Resources.Media;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -79,10 +82,11 @@ namespace iO.Sitecore.Publishing.Events
                     Log.Info($"[OnItemProcessed] Could not retrieve item {itemId} from {sourceDb.Name}; returning.", this);
                     return;
                 }
-
                 var ids = GetAssetIds(item);
+               
                 var azurePayload = new AssetUsageEvent
                 {
+                    PublicLink = GetLinkField(item),
                     ItemId = item.ID.ToString(),
                     ItemPath = item.Paths.FullPath,
                     ItemName = item.Name,
@@ -99,6 +103,7 @@ namespace iO.Sitecore.Publishing.Events
 
                 var publishItemData = new
                 {
+                    PublicLink = GetLinkField(item),
                     Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                     EventType = "ItemProcessed",
                     ItemId = item.ID.ToString(),
@@ -167,6 +172,7 @@ namespace iO.Sitecore.Publishing.Events
 
                     var publishItemData = new
                     {
+                        PublicLink = GetLinkField(item),
                         Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                         EventType = "PublishEnd",
                         ItemId = item.ID.ToString(),
@@ -289,6 +295,7 @@ namespace iO.Sitecore.Publishing.Events
                                 AddIfNotEmpty(ids, (string)x.Attribute("DamId"));
                                 AddIfNotEmpty(ids, (string)x.Attribute("dam-id"));
                                 AddIfNotEmpty(ids, (string)x.Attribute("stylelabs-content-id"));
+                                ExtractIdsFromUrl(ids, (string)x.Attribute("Source"));
                                 ExtractIdsFromUrl(ids, (string)x.Attribute("href"));
                                 ExtractIdsFromUrl(ids, (string)x.Attribute("url"));
                             }
@@ -340,6 +347,131 @@ namespace iO.Sitecore.Publishing.Events
                 sink.Add(val);
                 Log.Info($"[ExtractIdsFromUrl] Extracted id '{val}' from URL '{url}'", typeof(PublishingEventHandler));
             }
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            foreach (var v in values)
+            {
+                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+            }
+            return string.Empty;
+        }
+
+        private static string GetLinkField(Item item)
+        {
+            if (item == null) return string.Empty;
+
+            try
+            {
+                item.Fields.ReadAll();
+
+                foreach (Field field in item.Fields)
+                {
+                    if (string.IsNullOrEmpty(field?.Value)) continue;
+
+                    var typeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
+
+                    switch (typeKey)
+                    {
+                        case "image":
+                            {
+                                var imageField = (ImageField)field;
+
+                                var chUrl = FirstNonEmpty(
+                                    imageField.GetAttribute("Source"),
+                                    imageField.GetAttribute("source"),
+                                    imageField.GetAttribute("src"),
+                                    imageField.GetAttribute("url"),
+                                    imageField.GetAttribute("public_link")
+                                );
+                                if (!string.IsNullOrEmpty(chUrl))
+                                {
+                                    Log.Info($"[GetLinkField] Image '{field.Name}' → CH URL: {chUrl}", typeof(PublishingEventHandler));
+                                    return chUrl;
+                                }
+
+                                if (imageField.MediaItem != null)
+                                {
+                                    var mediaUrl = MediaManager.GetMediaUrl(imageField.MediaItem);
+                                    if (!string.IsNullOrWhiteSpace(mediaUrl))
+                                    {
+                                        Log.Info($"[GetLinkField] Image '{field.Name}' → Media URL: {mediaUrl}", typeof(PublishingEventHandler));
+                                        return mediaUrl;
+                                    }
+                                }
+                                break;
+                            }
+
+                        case "general link":
+                        case "link":
+                            {
+                                var linkField = new LinkField(field);
+                                var lfUrl = FirstNonEmpty(linkField.Url);
+                                if (!string.IsNullOrEmpty(lfUrl))
+                                {
+                                    Log.Info($"[GetLinkField] Link '{field.Name}' → Url: {lfUrl}", typeof(PublishingEventHandler));
+                                    return lfUrl;
+                                }
+
+                                try
+                                {
+                                    var x = XElement.Parse(field.Value);
+                                    var mappedUrl = FirstNonEmpty(
+                                        (string)x.Attribute("url"),    
+                                        (string)x.Attribute("href"),
+                                        (string)x.Attribute("Source"),
+                                        (string)x.Attribute("source"),
+                                        (string)x.Attribute("public_link")
+                                    );
+                                    if (!string.IsNullOrEmpty(mappedUrl))
+                                    {
+                                        Log.Info($"[GetLinkField] Link '{field.Name}' → XML URL: {mappedUrl}", typeof(PublishingEventHandler));
+                                        return mappedUrl;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Warn($"[GetLinkField] Malformed link XML in field '{field.Name}'", ex, typeof(PublishingEventHandler));
+                                }
+                                break;
+                            }
+
+                        case "file":
+                            {
+                                try
+                                {
+                                    var x = XElement.Parse(field.Value);
+                                    var fileUrl = FirstNonEmpty(
+                                        (string)x.Attribute("url"),
+                                        (string)x.Attribute("href"),
+                                        (string)x.Attribute("Source"),
+                                        (string)x.Attribute("src"),
+                                        (string)x.Attribute("public_link")
+                                    );
+                                    if (!string.IsNullOrEmpty(fileUrl))
+                                    {
+                                        Log.Info($"[GetLinkField] File '{field.Name}' → URL: {fileUrl}", typeof(PublishingEventHandler));
+                                        return fileUrl;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Warn($"[GetLinkField] Malformed file XML in field '{field.Name}'", ex, typeof(PublishingEventHandler));
+                                }
+                                break;
+                            }
+                    }
+                }
+
+                Log.Info($"[GetLinkField] No public link found for item {item.Paths.FullPath}", typeof(PublishingEventHandler));
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[GetLinkField] Error extracting public link from item {item.Paths.FullPath}", ex, typeof(PublishingEventHandler));
+            }
+
+            return string.Empty;
         }
 
         private void WriteToJsonFile(object data)

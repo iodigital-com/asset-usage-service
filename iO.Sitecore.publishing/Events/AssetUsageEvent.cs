@@ -8,6 +8,7 @@ namespace iO.Sitecore.publishing.Events
 {
     public class AssetUsageEvent
     {
+            public string PublicLink { get; set; }
             public string ItemId { get; set; }
             public string ItemPath { get; set; }
             public string ItemName { get; set; }
