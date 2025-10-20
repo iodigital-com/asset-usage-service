@@ -9,10 +9,13 @@ namespace AssetUsageService.Integration;
 public class APIGateway
 {
     private readonly ContentHubConnectionService _contentHubConnection;
-
-    public APIGateway(ContentHubConnectionService contentHubConnection)
+    private readonly MessageHandler _messageHandler;
+    private readonly ILogger<APIGateway> _logger;
+    public APIGateway(ContentHubConnectionService contentHubConnection, MessageHandler messageHandler, ILogger<APIGateway> logger)
     {
         _contentHubConnection = contentHubConnection;
+        _messageHandler = messageHandler;
+        _logger = logger;
     }
 
     public Task<IWebMClient> GetContentHubClientAsync(CancellationToken cancellationToken = default)
@@ -27,16 +30,24 @@ public class APIGateway
     }
 
     [Function("SitecorePublishAPI")]
-    public async Task<IActionResult> SitecorePublishRequest(
-       [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req,
-       FunctionContext context)
+    public async Task<IActionResult> SitecorePublishRequest([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req, CancellationToken cancellationToken = default)
     {
-        var logger = context.GetLogger("SitecorePublishAPI");
+        try
+        {
+            _logger.LogInformation("Received publish request");
 
-        string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-        logger.LogInformation("Received payload: {Payload}", requestBody);
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync(cancellationToken);
+            _logger.LogDebug("Payload: {Payload}", requestBody);
 
-        return new AcceptedResult();
+            await _messageHandler.HandleMessageAsync(requestBody, cancellationToken);
+
+            return new AcceptedResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing request");
+            return new BadRequestObjectResult(new { error = ex.Message });
+        }
     }
 
 }
