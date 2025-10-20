@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Xml.Linq;
 using Version = Sitecore.Data.Version;
@@ -93,6 +94,8 @@ namespace iO.Sitecore.Publishing.Events
                     AssetIds = ids,
                     TargetDatabase = options.TargetDatabase?.Name ?? string.Empty
                 };
+
+                Task.Run(async () => await _client.SendAsync(azurePayload));
 
                 var publishItemData = new
                 {
