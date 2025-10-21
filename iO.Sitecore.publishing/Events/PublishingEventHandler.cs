@@ -1,4 +1,4 @@
-﻿using iO.Sitecore.publishing.Events;
+﻿using iO.Sitecore.Publishing.Models;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
