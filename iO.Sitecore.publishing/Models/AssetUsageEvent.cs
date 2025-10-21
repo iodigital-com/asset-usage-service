@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace iO.Sitecore.publishing.Events
+namespace iO.Sitecore.Publishing.Models
 {
     public class AssetUsageEvent
     {
