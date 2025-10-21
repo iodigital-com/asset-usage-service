@@ -1,45 +1,53 @@
-﻿using System;
+﻿using iO.Sitecore.Publishing.Models;
+using Sitecore.Configuration;
+using Sitecore.Diagnostics;
+using System;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Sitecore.Configuration;
-using Sitecore.Diagnostics;
 
-namespace iO.Sitecore.publishing.Events
+namespace iO.Sitecore.Publishing.Events
 {
     public class AssetUsageServiceClient
     {
-        private static readonly HttpClient HttpClient = new HttpClient();
-        private readonly string _endpoint;
+        private static readonly HttpClient SharedHttpClient = new HttpClient();
+        private readonly string endpointUrl;
 
         public AssetUsageServiceClient()
         {
-            _endpoint = Settings.GetSetting("AssetUsageService.Endpoint", "http://localhost:7183/api/SitecorePublishAPI");
+            endpointUrl = Settings.GetSetting("AssetUsageService.Endpoint", "http://localhost:7183/api/SitecorePublishAPI");
         }
 
         public async Task SendAsync(AssetUsageEvent payload)
         {
+            if (payload == null)
+            {
+                Log.Warn("[AssetUsageServiceClient] Payload is null; skipping send.", this);
+                return;
+            }
+
             try
             {
-                var json = JsonSerializer.Serialize(payload);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await HttpClient.PostAsync(_endpoint, content);
-
-                if (response.IsSuccessStatusCode)
+                string jsonPayload = JsonSerializer.Serialize(payload);
+                using (var httpContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json"))
                 {
-                    Log.Info($"[AssetUsageServiceClient] Successfully sent data for ItemId={payload.ItemId}", this);
-                }
-                else
-                {
-                    var body = await response.Content.ReadAsStringAsync();
-                    Log.Error($"[AssetUsageServiceClient] Failed. Status={response.StatusCode}, Body={body}", this);
+                    HttpResponseMessage httpResponse = await SharedHttpClient.PostAsync(endpointUrl, httpContent);
+
+                    if (httpResponse.IsSuccessStatusCode)
+                    {
+                        Log.Info($"[AssetUsageServiceClient] Successfully sent data for ItemId={payload.ItemId}", this);
+                    }
+                    else
+                    {
+                        string responseBody = await httpResponse.Content.ReadAsStringAsync();
+                        Log.Error($"[AssetUsageServiceClient] Failed. Status={httpResponse.StatusCode}, Body={responseBody}", this);
+                    }
                 }
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Log.Error("[AssetUsageServiceClient] Error sending to Azure Function", ex, this);
+                Log.Error("[AssetUsageServiceClient] Error sending to Azure Function", exception, this);
             }
         }
     }
