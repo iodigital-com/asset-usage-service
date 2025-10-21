@@ -17,16 +17,16 @@ namespace iO.Sitecore.Publishing.Services
 {
     public sealed class PublishTelemetryService
     {
-        private readonly AssetUsageServiceClient _client;
-        private readonly string _auditLogPath;
+        private readonly AssetUsageServiceClient assetUsageClient;
+        private readonly string auditLogPath;
 
         private static readonly object FileLock = new object();
         private static readonly Regex GatewayIdRegex = new Regex(@"/api/gateway/(\d+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public PublishTelemetryService(AssetUsageServiceClient client, string auditLogPath)
         {
-            _client = client ?? throw new ArgumentNullException(nameof(client));
-            _auditLogPath = string.IsNullOrWhiteSpace(auditLogPath) ? throw new ArgumentException(nameof(auditLogPath)) : auditLogPath;
+            assetUsageClient = client ?? throw new ArgumentNullException(nameof(client));
+            this.auditLogPath = string.IsNullOrWhiteSpace(auditLogPath) ? throw new ArgumentException(nameof(auditLogPath)) : auditLogPath;
         }
 
         public void RecordItemProcessed(Item item, PublishOptions options, string sourceDatabaseName)
@@ -34,7 +34,7 @@ namespace iO.Sitecore.Publishing.Services
             var assetIds = ExtractAssetIds(item);
             var publicLink = ExtractPublicLink(item);
             var payload = BuildAssetUsageEvent(item, options, assetIds, publicLink);
-            Task.Run(() => _client.SendAsync(payload));
+            Task.Run(() => assetUsageClient.SendAsync(payload));
             var record = BuildPublishRecord("ItemProcessed", item, options, assetIds, publicLink, sourceDatabaseName, options.TargetDatabase?.Name ?? string.Empty);
             WriteAudit(record);
         }
@@ -102,7 +102,7 @@ namespace iO.Sitecore.Publishing.Services
 
         private static List<string> ExtractAssetIds(Item item)
         {
-            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var assetIdsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
             {
                 item.Fields.ReadAll();
@@ -110,57 +110,57 @@ namespace iO.Sitecore.Publishing.Services
                 foreach (Field field in item.Fields)
                 {
                     if (string.IsNullOrEmpty(field?.Value)) continue;
-                    var typeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
+                    var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
 
-                    switch (typeKey)
+                    switch (fieldTypeKey)
                     {
                         case "image":
                             var imageField = (ImageField)field;
-                            AddIfNotEmpty(ids, imageField.GetAttribute("DamId"));
-                            AddIfNotEmpty(ids, imageField.GetAttribute("dam-id"));
-                            AddIfNotEmpty(ids, imageField.GetAttribute("stylelabs-content-id"));
-                            ExtractIdsFromUrl(ids, imageField.GetAttribute("Thumbnail"));
-                            ExtractIdsFromUrl(ids, imageField.GetAttribute("thumbnailsrc"));
-                            ExtractIdsFromUrl(ids, imageField.GetAttribute("Source"));
-                            ExtractIdsFromUrl(ids, imageField.GetAttribute("src"));
+                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("DamId"));
+                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("dam-id"));
+                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("stylelabs-content-id"));
+                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Thumbnail"));
+                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("thumbnailsrc"));
+                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Source"));
+                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("src"));
                             break;
 
                         case "general link":
                         case "link":
                             try
                             {
-                                var x = XElement.Parse(field.Value);
-                                AddIfNotEmpty(ids, (string)x.Attribute("DamId"));
-                                AddIfNotEmpty(ids, (string)x.Attribute("dam-id"));
-                                AddIfNotEmpty(ids, (string)x.Attribute("stylelabs-content-id"));
-                                ExtractIdsFromUrl(ids, (string)x.Attribute("url"));
-                                ExtractIdsFromUrl(ids, (string)x.Attribute("href"));
-                                ExtractIdsFromUrl(ids, (string)x.Attribute("Source"));
+                                var xmlElement = XElement.Parse(field.Value);
+                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("DamId"));
+                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("dam-id"));
+                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("stylelabs-content-id"));
+                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("url"));
+                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("href"));
+                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("Source"));
                             }
-                            catch (Exception ex)
+                            catch (Exception exception)
                             {
-                                Log.Warn($"[ExtractAssetIds] Malformed link XML in field '{field.Name}' on '{item.Paths.FullPath}'", ex, typeof(PublishTelemetryService));
+                                Log.Warn($"[ExtractAssetIds] Malformed link XML in field '{field.Name}' on '{item.Paths.FullPath}'", exception, typeof(PublishTelemetryService));
                             }
                             break;
 
                         default:
-                            foreach (Match m in GatewayIdRegex.Matches(field.Value))
+                            foreach (Match urlMatch in GatewayIdRegex.Matches(field.Value))
                             {
-                                if (m.Success && m.Groups.Count > 1)
+                                if (urlMatch.Success && urlMatch.Groups.Count > 1)
                                 {
-                                    AddIfNotEmpty(ids, m.Groups[1].Value);
+                                    AddIfNotEmpty(assetIdsSet, urlMatch.Groups[1].Value);
                                 }
                             }
                             break;
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Log.Warn($"[ExtractAssetIds] Error for item {item.Paths.FullPath}", ex, typeof(PublishTelemetryService));
+                Log.Warn($"[ExtractAssetIds] Error for item {item.Paths.FullPath}", exception, typeof(PublishTelemetryService));
             }
 
-            return ids.ToList();
+            return assetIdsSet.ToList();
         }
 
         private static string ExtractPublicLink(Item item)
@@ -172,20 +172,20 @@ namespace iO.Sitecore.Publishing.Services
                 foreach (Field field in item.Fields)
                 {
                     if (string.IsNullOrEmpty(field?.Value)) continue;
-                    var typeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
+                    var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
 
-                    switch (typeKey)
+                    switch (fieldTypeKey)
                     {
                         case "image":
                             var imageField = (ImageField)field;
-                            var chUrl = FirstNonEmpty(
+                            var contentHubUrl = FirstNonEmpty(
                                 imageField.GetAttribute("Source"),
                                 imageField.GetAttribute("source"),
                                 imageField.GetAttribute("src"),
                                 imageField.GetAttribute("url"),
                                 imageField.GetAttribute("public_link")
                             );
-                            if (!string.IsNullOrEmpty(chUrl)) return chUrl;
+                            if (!string.IsNullOrEmpty(contentHubUrl)) return contentHubUrl;
 
                             if (imageField.MediaItem != null)
                             {
@@ -197,51 +197,51 @@ namespace iO.Sitecore.Publishing.Services
                         case "general link":
                         case "link":
                             var linkField = new LinkField(field);
-                            var lfUrl = FirstNonEmpty(linkField.Url);
-                            if (!string.IsNullOrEmpty(lfUrl)) return lfUrl;
+                            var linkFieldUrl = FirstNonEmpty(linkField.Url);
+                            if (!string.IsNullOrEmpty(linkFieldUrl)) return linkFieldUrl;
 
                             try
                             {
-                                var x = XElement.Parse(field.Value);
+                                var xmlElement = XElement.Parse(field.Value);
                                 var mappedUrl = FirstNonEmpty(
-                                    (string)x.Attribute("url"),
-                                    (string)x.Attribute("href"),
-                                    (string)x.Attribute("Source"),
-                                    (string)x.Attribute("source"),
-                                    (string)x.Attribute("public_link")
+                                    (string)xmlElement.Attribute("url"),
+                                    (string)xmlElement.Attribute("href"),
+                                    (string)xmlElement.Attribute("Source"),
+                                    (string)xmlElement.Attribute("source"),
+                                    (string)xmlElement.Attribute("public_link")
                                 );
                                 if (!string.IsNullOrEmpty(mappedUrl)) return mappedUrl;
                             }
-                            catch (Exception ex)
+                            catch (Exception exception)
                             {
-                                Log.Warn($"[ExtractPublicLink] Malformed link XML in field '{field.Name}'", ex, typeof(PublishTelemetryService));
+                                Log.Warn($"[ExtractPublicLink] Malformed link XML in field '{field.Name}'", exception, typeof(PublishTelemetryService));
                             }
                             break;
 
                         case "file":
                             try
                             {
-                                var x = XElement.Parse(field.Value);
+                                var xmlElement = XElement.Parse(field.Value);
                                 var fileUrl = FirstNonEmpty(
-                                    (string)x.Attribute("url"),
-                                    (string)x.Attribute("href"),
-                                    (string)x.Attribute("Source"),
-                                    (string)x.Attribute("src"),
-                                    (string)x.Attribute("public_link")
+                                    (string)xmlElement.Attribute("url"),
+                                    (string)xmlElement.Attribute("href"),
+                                    (string)xmlElement.Attribute("Source"),
+                                    (string)xmlElement.Attribute("src"),
+                                    (string)xmlElement.Attribute("public_link")
                                 );
                                 if (!string.IsNullOrEmpty(fileUrl)) return fileUrl;
                             }
-                            catch (Exception ex)
+                            catch (Exception exception)
                             {
-                                Log.Warn($"[ExtractPublicLink] Malformed file XML in field '{field.Name}'", ex, typeof(PublishTelemetryService));
+                                Log.Warn($"[ExtractPublicLink] Malformed file XML in field '{field.Name}'", exception, typeof(PublishTelemetryService));
                             }
                             break;
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Log.Error($"[ExtractPublicLink] Error extracting public link from item {item.Paths.FullPath}", ex, typeof(PublishTelemetryService));
+                Log.Error($"[ExtractPublicLink] Error extracting public link from item {item.Paths.FullPath}", exception, typeof(PublishTelemetryService));
             }
 
             return string.Empty;
@@ -249,30 +249,31 @@ namespace iO.Sitecore.Publishing.Services
 
         private static void AddIfNotEmpty(HashSet<string> sink, string value)
         {
-            var trimmed = value?.Trim();
-            if (!string.IsNullOrWhiteSpace(trimmed))
+            var trimmedValue = value?.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmedValue))
             {
-                sink.Add(trimmed);
-                Log.Info($"[AddIfNotEmpty] Added id '{trimmed}'", typeof(PublishTelemetryService));
+                sink.Add(trimmedValue);
+                Log.Info($"[AddIfNotEmpty] Added id '{trimmedValue}'", typeof(PublishTelemetryService));
             }
         }
 
         private static void ExtractIdsFromUrl(HashSet<string> sink, string url)
         {
             if (string.IsNullOrWhiteSpace(url)) return;
-            var m = GatewayIdRegex.Match(url);
-            if (m.Success && m.Groups.Count > 1)
+            var urlMatch = GatewayIdRegex.Match(url);
+            if (urlMatch.Success && urlMatch.Groups.Count > 1)
             {
-                sink.Add(m.Groups[1].Value);
-                Log.Info($"[ExtractIdsFromUrl] Extracted id '{m.Groups[1].Value}' from URL '{url}'", typeof(PublishTelemetryService));
+                var gatewayIdValue = urlMatch.Groups[1].Value;
+                sink.Add(gatewayIdValue);
+                Log.Info($"[ExtractIdsFromUrl] Extracted id '{gatewayIdValue}' from URL '{url}'", typeof(PublishTelemetryService));
             }
         }
 
         private static string FirstNonEmpty(params string[] values)
         {
-            foreach (var v in values)
+            foreach (var valueCandidate in values)
             {
-                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+                if (!string.IsNullOrWhiteSpace(valueCandidate)) return valueCandidate.Trim();
             }
             return string.Empty;
         }
@@ -281,15 +282,15 @@ namespace iO.Sitecore.Publishing.Services
         {
             try
             {
-                var current = global::Sitecore.Security.Accounts.User.Current;
-                if (current != null && current.IsAuthenticated && !string.IsNullOrWhiteSpace(current.Name))
-                    return current.Name;
+                var currentUser = global::Sitecore.Security.Accounts.User.Current;
+                if (currentUser != null && currentUser.IsAuthenticated && !string.IsNullOrWhiteSpace(currentUser.Name))
+                    return currentUser.Name;
             }
             catch { }
 
-            var win = System.Security.Principal.WindowsIdentity.GetCurrent();
-            var name = win?.Name;
-            return string.IsNullOrWhiteSpace(name) ? "system" : name;
+            var windowsIdentity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var userName = windowsIdentity?.Name;
+            return string.IsNullOrWhiteSpace(userName) ? "system" : userName;
         }
 
         private static string NowString()
@@ -297,29 +298,29 @@ namespace iO.Sitecore.Publishing.Services
             return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         }
 
-        private void WriteAudit(object data)
+        private void WriteAudit(object record)
         {
             try
             {
                 var serializer = new JavaScriptSerializer();
-                var json = serializer.Serialize(data);
+                var json = serializer.Serialize(record);
 
-                var dir = Path.GetDirectoryName(_auditLogPath);
-                if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                var directory = Path.GetDirectoryName(auditLogPath);
+                if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
                 {
-                    Directory.CreateDirectory(dir);
+                    Directory.CreateDirectory(directory);
                 }
 
                 lock (FileLock)
                 {
-                    File.AppendAllText(_auditLogPath, json + Environment.NewLine);
+                    File.AppendAllText(auditLogPath, json + Environment.NewLine);
                 }
 
                 Log.Info("[WriteAudit] Append complete.", this);
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Log.Error("[WriteAudit] Error writing JSON", ex, this);
+                Log.Error("[WriteAudit] Error writing JSON", exception, this);
             }
         }
     }
