@@ -1,126 +1,83 @@
-﻿using iO.Sitecore.publishing.Events;
+﻿using iO.Sitecore.Publishing.Services;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
-using Sitecore.Data.Fields;
-using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
 using Sitecore.Events;
 using Sitecore.Globalization;
 using Sitecore.Publishing;
 using Sitecore.Publishing.Pipelines.PublishItem;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Web.Script.Serialization;
-using System.Xml.Linq;
 using Version = Sitecore.Data.Version;
 
 namespace iO.Sitecore.Publishing.Events
 {
-    public class PublishingEventHandler
+    public sealed class PublishingEventHandler
     {
-        public PublishingEventHandler() { }
+        private const string AuditLogPath = @"C:\inetpub\wwwroot\SitecoreXPLocalsc.dev.local\App_Data\logs\published-items.json";
+        private readonly PublishTelemetryService publishTelemetryService;
 
-        private static readonly string LogFilePath = @"C:\inetpub\wwwroot\Sitecore-xp-localsc.dev.local\App_Data\logs\published-items.json";
-        private static readonly object FileLock = new object();
-        private static readonly Regex GatewayIdRegex = new Regex(@"/api/gateway/(\d+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static readonly AssetUsageServiceClient _client = new AssetUsageServiceClient();
+        public PublishingEventHandler()
+        {
+            publishTelemetryService = new PublishTelemetryService(new AssetUsageServiceClient(), AuditLogPath);
+        }
 
-        public void OnItemProcessed(object sender, EventArgs args)
+        public void OnItemProcessed(object sender, EventArgs eventArguments)
         {
             try
             {
-                var itemProcessedArgs = args as ItemProcessedEventArgs;
-                if (itemProcessedArgs == null)
+                var itemProcessedArguments = eventArguments as ItemProcessedEventArgs;
+                if (itemProcessedArguments == null)
                 {
                     Log.Info("[OnItemProcessed] ItemProcessedEventArgs is null; returning.", this);
                     return;
                 }
 
-                var context = itemProcessedArgs.Context;
-                if (context == null)
+                var publishContext = itemProcessedArguments.Context;
+                if (publishContext == null)
                 {
                     Log.Info("[OnItemProcessed] Context is null; returning.", this);
                     return;
                 }
 
-                var itemId = context.ItemId;
+                var itemId = publishContext.ItemId;
                 if (ID.IsNullOrEmpty(itemId))
                 {
                     Log.Info("[OnItemProcessed] ItemId is null or empty; returning.", this);
                     return;
                 }
 
-                var options = context.PublishOptions;
-                if (options == null)
+                var publishOptions = publishContext.PublishOptions;
+                if (publishOptions == null)
                 {
                     Log.Info("[OnItemProcessed] PublishOptions is null; returning.", this);
                     return;
                 }
 
-                var sourceDb = options.SourceDatabase;
-                if (sourceDb == null)
+                var sourceDatabase = publishOptions.SourceDatabase;
+                if (sourceDatabase == null)
                 {
                     Log.Info("[OnItemProcessed] SourceDatabase is null; returning.", this);
                     return;
                 }
 
-                var versionToPublish = context.VersionToPublish;
-                var language = versionToPublish?.Language ?? Language.Current;
-                var version = versionToPublish?.Version ?? Version.Latest;
+                var versionToPublish = publishContext.VersionToPublish;
+                var itemLanguage = versionToPublish?.Language ?? Language.Current;
+                var itemVersion = versionToPublish?.Version ?? Version.Latest;
 
-                var item = sourceDb.GetItem(itemId, language, version);
-                if (item == null)
+                var sourceItem = sourceDatabase.GetItem(itemId, itemLanguage, itemVersion);
+                if (sourceItem == null)
                 {
-                    Log.Info($"[OnItemProcessed] Could not retrieve item {itemId} from {sourceDb.Name}; returning.", this);
+                    Log.Info($"[OnItemProcessed] Could not retrieve item {itemId} from {sourceDatabase.Name}; returning.", this);
                     return;
                 }
 
-                var ids = GetAssetIds(item);
-                var azurePayload = new AssetUsageEvent
-                {
-                    ItemId = item.ID.ToString(),
-                    ItemPath = item.Paths.FullPath,
-                    ItemName = item.Name,
-                    TemplateName = item.TemplateName,
-                    Language = item.Language.Name,
-                    Version = item.Version.Number,
-                    PublishedAtUtc = DateTime.UtcNow,
-                    PublishedBy = System.Security.Principal.WindowsIdentity.GetCurrent()?.Name ?? "system",
-                    AssetIds = ids,
-                    TargetDatabase = options.TargetDatabase?.Name ?? string.Empty
-                };
-
-                Task.Run(async () => await _client.SendAsync(azurePayload));
-
-                var publishItemData = new
-                {
-                    Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                    EventType = "ItemProcessed",
-                    ItemId = item.ID.ToString(),
-                    AssetId = ids.FirstOrDefault() ?? string.Empty,
-                    AssetIds = ids,
-                    ItemName = item.Name,
-                    ItemPath = item.Paths.FullPath,
-                    TemplateName = item.TemplateName,
-                    TemplateId = item.TemplateID.ToString(),
-                    Language = item.Language.Name,
-                    Version = item.Version.Number,
-                    SourceDatabase = sourceDb.Name,
-                    TargetDatabase = options.TargetDatabase?.Name ?? string.Empty,
-                    PublishMode = options.Mode.ToString(),
-                    DeepPublish = options.Deep
-                };
-
-                WriteToJsonFile(publishItemData);
+                publishTelemetryService.RecordItemProcessed(sourceItem, publishOptions, sourceDatabase.Name);
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Log.Error("[OnItemProcessed] Error", ex, this);
+                Log.Error("[OnItemProcessed] Error", exception, this);
             }
             finally
             {
@@ -128,69 +85,49 @@ namespace iO.Sitecore.Publishing.Events
             }
         }
 
-        public void OnPublishEnd(object sender, EventArgs args)
+        public void OnPublishEnd(object sender, EventArgs eventArguments)
         {
             try
             {
-                var publisher = Event.ExtractParameter<Publisher>(args, 0) as Publisher;
+                var publisher = Event.ExtractParameter<Publisher>(eventArguments, 0) as Publisher;
                 if (publisher == null)
                 {
                     Log.Info("[OnPublishEnd] Publisher is null; returning.", this);
                     return;
                 }
 
-                var options = publisher.Options;
-                if (options == null)
+                var publishOptions = publisher.Options;
+                if (publishOptions == null)
                 {
                     Log.Info("[OnPublishEnd] Publisher.Options is null; returning.", this);
                     return;
                 }
 
-                var rootItem = options.RootItem;
-                var targetDbName = options.TargetDatabase?.Name ?? string.Empty;
-
+                var rootItem = publishOptions.RootItem;
+                var targetDatabaseName = publishOptions.TargetDatabase?.Name ?? string.Empty;
                 if (rootItem == null)
                 {
                     Log.Info("[OnPublishEnd] RootItem is null; returning.", this);
                     return;
                 }
 
-                IEnumerable<Item> itemsToLog = options.Deep
+                var itemsToLog = publishOptions.Deep
                     ? rootItem.Axes.GetDescendants().Concat(new[] { rootItem })
                     : new[] { rootItem };
 
-                int total = 0;
-                foreach (var item in itemsToLog)
+                var totalItemsCount = 0;
+                foreach (var publishedItem in itemsToLog)
                 {
-                    total++;
-                    var ids = GetAssetIds(item);
-
-                    var publishItemData = new
-                    {
-                        Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                        EventType = "PublishEnd",
-                        ItemId = item.ID.ToString(),
-                        AssetId = ids.FirstOrDefault() ?? string.Empty,
-                        AssetIds = ids,
-                        ItemName = item.Name,
-                        ItemPath = item.Paths.FullPath,
-                        TemplateName = item.TemplateName,
-                        TemplateId = item.TemplateID.ToString(),
-                        Language = item.Language.Name,
-                        Version = item.Version.Number,
-                        SourceDatabase = item.Database?.Name ?? string.Empty,
-                        TargetDatabase = targetDbName,
-                        PublishMode = options.Mode.ToString(),
-                        DeepPublish = options.Deep
-                    };
-
-                    WriteToJsonFile(publishItemData);
+                    totalItemsCount++;
+                    var sourceDatabaseName = publishedItem.Database?.Name ?? string.Empty;
+                    publishTelemetryService.RecordPublishEndItem(publishedItem, publishOptions, sourceDatabaseName, targetDatabaseName);
                 }
 
+                Log.Info($"[OnPublishEnd] Logged {totalItemsCount} item(s).", this);
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Log.Error("[OnPublishEnd] Error", ex, this);
+                Log.Error("[OnPublishEnd] Error", exception, this);
             }
             finally
             {
@@ -198,166 +135,31 @@ namespace iO.Sitecore.Publishing.Events
             }
         }
 
-        public void OnPublishEndRemote(object sender, EventArgs args)
+        public void OnPublishEndRemote(object sender, EventArgs eventArguments)
         {
             try
             {
-                var remoteArgs = args as PublishEndRemoteEventArgs;
-                if (remoteArgs == null)
+                var publishEndRemoteArguments = eventArguments as PublishEndRemoteEventArgs;
+                if (publishEndRemoteArguments == null)
                 {
                     Log.Info("[OnPublishEndRemote] PublishEndRemoteEventArgs is null; returning.", this);
                     return;
                 }
-                var dbs = Factory.GetDatabases()
-                    .Where(db => db.RemoteEvents.EventQueue.Name == remoteArgs.EventQueueName)
+
+                var databases = Factory.GetDatabases()
+                    .Where(database => database.RemoteEvents.EventQueue.Name == publishEndRemoteArguments.EventQueueName)
                     .ToList();
 
-                if (dbs.Count == 0)
-                {
-                    Log.Info("[OnPublishEndRemote] No databases matched EventQueueName.", this);
-                }
-                else
-                {
-                    foreach (var db in dbs)
-                    {
-                        Log.Info($"[OnPublishEndRemote] Raised by database: {db.Name}", this);
-                    }
-                }
-
-                var summary = new
-                {
-                    Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                    EventType = "PublishEndRemote",
-                    EventQueueName = remoteArgs.EventQueueName,
-                    DatabasesRaised = dbs.Select(d => d.Name).ToList()
-                };
-
-                WriteToJsonFile(summary);
+                var databaseNames = databases.Select(database => database.Name).ToList();
+                publishTelemetryService.RecordPublishEndRemote(publishEndRemoteArguments.EventQueueName, databaseNames);
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Log.Error("[OnPublishEndRemote] Error", ex, this);
+                Log.Error("[OnPublishEndRemote] Error", exception, this);
             }
             finally
             {
                 Log.Info("[OnPublishEndRemote] Exit.", this);
-            }
-        }
-
-        private static List<string> GetAssetIds(Item item)
-        {
-            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (item == null)
-            {
-                Log.Info("[GetAssetIds] Item is null; returning empty list.", typeof(PublishingEventHandler));
-                return ids.ToList();
-            }
-
-            try
-            {
-                item.Fields.ReadAll();
-
-                foreach (Field field in item.Fields)
-                {
-                    if (string.IsNullOrEmpty(field?.Value)) continue;
-
-                    var typeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
-
-                    if (typeKey == "image" || typeKey == "general link" || typeKey == "link")
-                    {
-                        Log.Info($"[GetAssetIds] Inspecting field '{field.Name}' (type='{typeKey}')", typeof(PublishingEventHandler));
-                    }
-
-                    switch (typeKey)
-                    {
-                        case "image":
-                            var imageField = (ImageField)field;
-                            AddIfNotEmpty(ids, imageField.GetAttribute("DamId"));
-                            AddIfNotEmpty(ids, imageField.GetAttribute("dam-id"));
-                            AddIfNotEmpty(ids, imageField.GetAttribute("stylelabs-content-id"));
-                            ExtractIdsFromUrl(ids, imageField.GetAttribute("Thumbnail"));
-                            ExtractIdsFromUrl(ids, imageField.GetAttribute("thumbnailsrc"));
-                            ExtractIdsFromUrl(ids, imageField.GetAttribute("Source"));
-                            ExtractIdsFromUrl(ids, imageField.GetAttribute("src"));
-                            break;
-
-                        case "general link":
-                        case "link":
-                            try
-                            {
-                                var x = XElement.Parse(field.Value);
-                                AddIfNotEmpty(ids, (string)x.Attribute("DamId"));
-                                AddIfNotEmpty(ids, (string)x.Attribute("dam-id"));
-                                AddIfNotEmpty(ids, (string)x.Attribute("stylelabs-content-id"));
-                                ExtractIdsFromUrl(ids, (string)x.Attribute("href"));
-                                ExtractIdsFromUrl(ids, (string)x.Attribute("url"));
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Warn($"[GetAssetIds] Malformed link XML in field '{field.Name}' on '{item.Paths.FullPath}'", ex, typeof(PublishingEventHandler));
-                            }
-                            break;
-
-                        default:
-                            foreach (Match m in GatewayIdRegex.Matches(field.Value))
-                            {
-                                if (m.Success && m.Groups.Count > 1)
-                                {
-                                    var val = m.Groups[1].Value;
-                                    AddIfNotEmpty(ids, val);
-                                    Log.Info($"[GetAssetIds] Matched gateway id '{val}' in field '{field.Name}'", typeof(PublishingEventHandler));
-                                }
-                            }
-                            break;
-                    }
-                }
-
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"[GetAssetIds] Error for item {item.Paths.FullPath}", ex, typeof(PublishingEventHandler));
-            }
-
-            return ids.ToList();
-        }
-
-        private static void AddIfNotEmpty(HashSet<string> sink, string value)
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                sink.Add(value.Trim());
-                Log.Info($"[AddIfNotEmpty] Added id '{value.Trim()}'", typeof(PublishingEventHandler));
-            }
-        }
-
-        private static void ExtractIdsFromUrl(HashSet<string> sink, string url)
-        {
-            if (string.IsNullOrWhiteSpace(url)) return;
-            var m = GatewayIdRegex.Match(url);
-            if (m.Success && m.Groups.Count > 1)
-            {
-                var val = m.Groups[1].Value;
-                sink.Add(val);
-                Log.Info($"[ExtractIdsFromUrl] Extracted id '{val}' from URL '{url}'", typeof(PublishingEventHandler));
-            }
-        }
-
-        private void WriteToJsonFile(object data)
-        {
-            try
-            {
-                var serializer = new JavaScriptSerializer();
-                var json = serializer.Serialize(data);
-
-                lock (FileLock)
-                {
-                    File.AppendAllText(LogFilePath, json + Environment.NewLine);
-                }
-                Log.Info("[WriteToJsonFile] Append complete.", this);
-            }
-            catch (Exception ex)
-            {
-                Log.Error("[WriteToJsonFile] Error writing JSON", ex, this);
             }
         }
     }
