@@ -17,7 +17,7 @@ public class DeltaCalculationService
     public async Task<ItemAssetChanges> CalculateDeltaAsync(string itemIdString, List<string> assetIdStrings, CancellationToken cancellationToken = default)
     {
         var itemId = Guid.Parse(itemIdString);
-        var itemExists = await _assetItemLinkRepository.GetAssetItemLinkByItemIdAsync(itemId) != null ? true : false;
+        var itemExists = await _assetItemLinkRepository.GetAssetItemLinkByItemIdAsync(itemId) != null;
         var assetIds = assetIdStrings.Select(id => int.Parse(id)).ToList();
 
         List<int> toAddAssetIds = new List<int>();
