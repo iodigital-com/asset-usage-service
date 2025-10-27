@@ -40,7 +40,7 @@ public class DeltaCalculationService
 
         } else if (itemExists && assetIds.Count == 0)
         {
-            toRemoveAssetIds = assetIds;
+            toRemoveAssetIds = await _assetItemLinkRepository.GetAssetIdsFromItemIdAsync(itemId, cancellationToken);
             await _assetItemLinkRepository.RemoveItemAsync(itemId, cancellationToken);
         }
         return new ItemAssetChanges { ItemId = itemId, ToAddAssetIds = toAddAssetIds, ToRemoveAssetIds = toRemoveAssetIds};
