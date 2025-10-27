@@ -1,4 +1,4 @@
-﻿using AssetUsageService.Integration.ViewModel;
+﻿using AssetUsageService.Integration.Models;
 using DnsClient.Internal;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -17,7 +17,7 @@ public class MessageHandler
     }
     public async Task HandleMessageAsync(string message, CancellationToken cancellationToken = default)
     {
-        var publishedItem = JsonSerializer.Deserialize<PublishedItemViewModel>(message);
+        var publishedItem = JsonSerializer.Deserialize<PublishedItem>(message);
 
         if (publishedItem == null)
         {
