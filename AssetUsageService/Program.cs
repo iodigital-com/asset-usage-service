@@ -10,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
-using static System.Formats.Asn1.AsnWriter;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
