@@ -8,6 +8,7 @@ public class DeltaCalculationService
 {
     private readonly IAssetItemLinkRepository _assetItemLinkRepository;
     private readonly ILogger<DeltaCalculationService> _logger;
+
     public DeltaCalculationService(IAssetItemLinkRepository assetItemLinkRepository, ILogger<DeltaCalculationService> logger)
     {
         _assetItemLinkRepository = assetItemLinkRepository;
@@ -16,33 +17,74 @@ public class DeltaCalculationService
 
     public async Task<ItemAssetChanges> CalculateDeltaAsync(string itemIdString, List<string> assetIdStrings, CancellationToken cancellationToken = default)
     {
-        var itemId = Guid.Parse(itemIdString);
-        var itemExists = await _assetItemLinkRepository.GetAssetItemLinkByItemIdAsync(itemId) != null ? true : false;
-        var assetIds = assetIdStrings.Select(id => int.Parse(id)).ToList();
+        var itemId = ValidateAndParseItemId(itemIdString);
+        var newAssetIds = ParseAssetIds(assetIdStrings);
 
-        List<int> toAddAssetIds = new List<int>();
-        List<int> toRemoveAssetIds = new List<int>();
+        var currentAssetIds = await GetCurrentAssetIdsAsync(itemId, cancellationToken);
+        var itemExists = currentAssetIds.Count > 0;
 
-        if (!itemExists && assetIds.Count > 0)
+        var (assetIdsToAdd, assetIdsToRemove) = CalculateDelta(currentAssetIds, newAssetIds);
+
+        await ApplyChangesAsync(itemId, itemExists, newAssetIds, assetIdsToAdd, assetIdsToRemove, cancellationToken);
+
+        return new ItemAssetChanges
         {
-            toAddAssetIds = assetIds;
-            await _assetItemLinkRepository.InsertAssetItemLinkAsync(itemId, assetIds, cancellationToken);
-        } else if (itemExists && assetIds.Count > 0)
+            ItemId = itemId,
+            ToAddAssetIds = assetIdsToAdd,
+            ToRemoveAssetIds = assetIdsToRemove
+        };
+    }
+
+    private async Task<List<int>> GetCurrentAssetIdsAsync(Guid itemId, CancellationToken cancellationToken)
+    {
+        var existingAssetItemLink = await _assetItemLinkRepository.GetAssetItemLinkByItemIdAsync(itemId, cancellationToken);
+
+        if (existingAssetItemLink is null)
         {
-            var currentAssetIds = await _assetItemLinkRepository.GetAssetIdsFromItemIdAsync(itemId, cancellationToken);
-            var newAssetIds = assetIds;
+            return new List<int>();
+        }
 
-            toAddAssetIds = newAssetIds.Where(id => !currentAssetIds.Contains(id)).ToList();
-            await _assetItemLinkRepository.AddAssetIdsToItemAsync(itemId, toAddAssetIds, cancellationToken);
+        return await _assetItemLinkRepository.GetAssetIdsFromItemIdAsync(itemId, cancellationToken);
+    }
 
-            toRemoveAssetIds = currentAssetIds.Where(id => !newAssetIds.Contains(id)).ToList();
-            await _assetItemLinkRepository.RemoveAssetIdsFromItemAsync(itemId, toRemoveAssetIds, cancellationToken);
+    private static (List<int> ToAdd, List<int> ToRemove) CalculateDelta(List<int> currentAssetIds, List<int> newAssetIds)
+    {
+        var toAdd = newAssetIds.Where(id => !currentAssetIds.Contains(id)).ToList();
+        var toRemove = currentAssetIds.Where(id => !newAssetIds.Contains(id)).ToList();
+        return (toAdd, toRemove);
+    }
 
-        } else if (itemExists && assetIds.Count == 0)
+    private async Task ApplyChangesAsync(Guid itemId, bool itemExists, List<int> newAssetIds, List<int> assetIdsToAdd, List<int> assetIdsToRemove, CancellationToken cancellationToken)
+    {
+        if (!itemExists && newAssetIds.Count > 0)
         {
-            toRemoveAssetIds = assetIds;
+            await _assetItemLinkRepository.InsertAssetItemLinkAsync(itemId, newAssetIds, cancellationToken);
+        }
+        else if (itemExists && newAssetIds.Count > 0)
+        {
+            await _assetItemLinkRepository.AddAssetIdsToItemAsync(itemId, assetIdsToAdd, cancellationToken);
+            await _assetItemLinkRepository.RemoveAssetIdsFromItemAsync(itemId, assetIdsToRemove, cancellationToken);
+        }
+        else if (itemExists && newAssetIds.Count == 0)
+        {
             await _assetItemLinkRepository.RemoveItemAsync(itemId, cancellationToken);
         }
-        return new ItemAssetChanges { ItemId = itemId, ToAddAssetIds = toAddAssetIds, ToRemoveAssetIds = toRemoveAssetIds};
+    }
+
+    private static Guid ValidateAndParseItemId(string itemIdString)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(itemIdString);
+
+        if (!Guid.TryParse(itemIdString, out var itemId))
+        {
+            throw new ArgumentException($"Invalid GUID format: {itemIdString}", nameof(itemIdString));
+        }
+
+        return itemId;
+    }
+
+    private static List<int> ParseAssetIds(List<string> assetIdStrings)
+    {
+        return assetIdStrings.Select(int.Parse).ToList();
     }
 }

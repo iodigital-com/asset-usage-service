@@ -211,10 +211,15 @@ public class DeltaCalculationServiceTests
         var itemId = Guid.NewGuid();
         var itemIdString = itemId.ToString();
         var assetIdStrings = new List<string>();
+        var currentAssetIds = new List<int> { 1, 2, 3 };
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AssetItemLink { ItemId = itemId, AssetIds = new List<int> { 1, 2, 3 } });
+            .ReturnsAsync(new AssetItemLink { ItemId = itemId, AssetIds = currentAssetIds });
+
+        _mockRepository
+       .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, It.IsAny<CancellationToken>()))
+       .ReturnsAsync(currentAssetIds);
 
         // Act
         await _service.CalculateDeltaAsync(itemIdString, assetIdStrings);
@@ -281,7 +286,7 @@ public class DeltaCalculationServiceTests
         var assetIdStrings = new List<string> { "1", "2", "3" };
 
         // Act & Assert
-        await Assert.ThrowsAsync<FormatException>(() =>
+        await Assert.ThrowsAsync<ArgumentException>(() =>
             _service.CalculateDeltaAsync(invalidGuid, assetIdStrings));
     }
 
