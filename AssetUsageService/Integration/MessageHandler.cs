@@ -24,13 +24,13 @@ public class MessageHandler
             throw new InvalidOperationException("Failed to deserialize published items message");
         }
 
-        publishedItem.AssetIds = FilterAssets(publishedItem.AssetIds);
+        publishedItem.AssetIds = GetAssetIdsFromPairs(publishedItem.AssetIds);
 
         _logger.LogInformation("Processing ItemId: {ItemId}, AssetIds: {AssetCount}", publishedItem.ItemId, publishedItem.AssetIds);
 
         await _assetItemController.ProcessPublishedItemAsync(publishedItem, cancellationToken);
     }
-    private List<string> FilterAssets(List<string> assetIds)
+    private List<string> GetAssetIdsFromPairs(List<string> assetIds)
     {
         var filteredAssets = new List<string>();
 
