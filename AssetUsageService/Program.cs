@@ -1,4 +1,4 @@
-using AssetUsageService.Business.Services;
+using AssetUsageService.Business.Controllers;
 using AssetUsageService.Data;
 using AssetUsageService.Infrastructure;
 using AssetUsageService.Integration;
@@ -9,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
-using static System.Formats.Asn1.AsnWriter;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
@@ -32,6 +31,8 @@ builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
 builder.Services.AddSingleton<IAssetItemLinkRepository, AssetItemLinkRepository>();
 builder.Services.AddSingleton<DBContext>();
 builder.Services.AddSingleton<ContentHubConnectionService>();
+builder.Services.AddSingleton<AssetItemController>();
+builder.Services.AddSingleton<MessageHandler>();
 builder.Services.AddSingleton<APIGateway>();
 
 var app = builder.Build();
