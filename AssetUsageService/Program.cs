@@ -1,5 +1,7 @@
 using AssetUsageService.Business.Controllers;
+using AssetUsageService.Business.Services;
 using AssetUsageService.Data;
+using AssetUsageService.Infrastructure;
 using AssetUsageService.Integration;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
@@ -27,6 +29,8 @@ builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
     return new MongoClient(connectionString);
 });
 
+builder.Services.AddSingleton<IAssetItemLinkRepository, AssetItemLinkRepository>();
+builder.Services.AddSingleton<DeltaCalculationService>();
 builder.Services.AddSingleton<DBContext>();
 builder.Services.AddSingleton<ContentHubConnectionService>();
 builder.Services.AddSingleton<AssetItemController>();

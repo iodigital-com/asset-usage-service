@@ -1,13 +1,17 @@
-using AssetUsageService.Integration.ViewModel;
+using AssetUsageService.Business.Models;
+using AssetUsageService.Business.Services;
+using AssetUsageService.Integration.Models;
 namespace AssetUsageService.Business.Controllers;
 
 public class AssetItemController
 {
-    public AssetItemController()
+    private DeltaCalculationService deltaCalculationService;
+    public AssetItemController(DeltaCalculationService deltaCalculationService)
     {
+        this.deltaCalculationService = deltaCalculationService;
     }
-    public async Task ProcessPublishedItemAsync(PublishedItemViewModel publishedItemViewModel, CancellationToken cancellationToken)
+    public async Task ProcessPublishedItemAsync(PublishedItem publishedItemViewModel, CancellationToken cancellationToken)
     {
-        await Task.CompletedTask;
+       ItemAssetChanges itemAssetChanges = await deltaCalculationService.CalculateDeltaAsync(publishedItemViewModel.ItemId, publishedItemViewModel.AssetIds, cancellationToken);
     }
 }
