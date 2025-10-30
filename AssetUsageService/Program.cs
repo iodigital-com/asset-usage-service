@@ -1,4 +1,5 @@
 using AssetUsageService.Business.Controllers;
+using AssetUsageService.Business.Handlers;
 using AssetUsageService.Business.Services;
 using AssetUsageService.Data;
 using AssetUsageService.Infrastructure;
@@ -33,9 +34,9 @@ builder.Services.AddSingleton<IAssetItemLinkRepository, AssetItemLinkRepository>
 builder.Services.AddSingleton<DeltaCalculationService>();
 builder.Services.AddSingleton<DBContext>();
 builder.Services.AddSingleton<ContentHubConnectionService>();
-builder.Services.AddSingleton<AssetItemController>();
 builder.Services.AddSingleton<MessageHandler>();
 builder.Services.AddSingleton<APIGateway>();
+builder.Services.AddSingleton<AssetItemController>();
 
 var app = builder.Build();
 
