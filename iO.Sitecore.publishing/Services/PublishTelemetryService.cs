@@ -18,7 +18,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -31,6 +30,7 @@ namespace iO.Sitecore.Publishing.Services
     {
         private readonly AssetUsageServiceClient assetUsageClient;
         private readonly string auditLogPath;
+        private readonly PublishLoggingService loggingService;
 
         private static readonly ConcurrentDictionary<string, ItemProcessingInfo> _processingItems = new ConcurrentDictionary<string, ItemProcessingInfo>();
         private static readonly ConcurrentBag<ItemUpdateInfo> _updatedItems = new ConcurrentBag<ItemUpdateInfo>();
@@ -44,13 +44,14 @@ namespace iO.Sitecore.Publishing.Services
         {
             assetUsageClient = client ?? throw new ArgumentNullException(nameof(client));
             this.auditLogPath = string.IsNullOrWhiteSpace(auditLogPath) ? throw new ArgumentException(nameof(auditLogPath)) : auditLogPath;
+            loggingService = new PublishLoggingService(this);
         }
 
         public void ProcessItemProcessing(ItemProcessingEventArgs eventArgs)
         {
             if (eventArgs?.Context?.PublishOptions == null)
             {
-                Log.Debug("PublishTelemetryService.ProcessItemProcessing: Invalid event arguments or context.", this);
+                loggingService.LogInvalidEventArguments("ProcessItemProcessing");
                 return;
             }
 
@@ -64,7 +65,7 @@ namespace iO.Sitecore.Publishing.Services
 
             if (sourceItem == null)
             {
-                Log.Debug($"PublishTelemetryService.ProcessItemProcessing: Source item not found. ItemID: {context.ItemId}", this);
+                loggingService.LogSourceItemNotFound(context.ItemId);
                 return;
             }
 
@@ -90,30 +91,29 @@ namespace iO.Sitecore.Publishing.Services
 
             _processingItems.AddOrUpdate(itemKey, processingInfo, (key, existing) => processingInfo);
 
-            Log.Info($"PublishTelemetryService.ProcessItemProcessing: " +
-                $"ItemID: {context.ItemId}, " +
-                $"Path: '{sourceItem.Paths.FullPath}', " +
-                $"Language: {language.Name}, " +
-                $"Version: {version.Number}, " +
-                $"HasVersionInfo: {hasVersionInfo}, " +
-                $"ItemKey: '{itemKey}', " +
-                $"Action: {context.Action}, " +
-                $"SourceRevision: {sourceRevisionId}, " +
-                $"SourceUpdated: {sourceUpdated:yyyy-MM-dd HH:mm:ss.fff}, " +
-                $"TargetRevision: {targetRevisionId}, " +
-                $"TargetUpdated: {targetUpdated:yyyy-MM-dd HH:mm:ss.fff}, " +
-                $"TargetExists: {targetItem != null}, " +
-                $"PublishMode: {publishContext.PublishOptions.Mode}, " +
-                $"Deep: {publishContext.PublishOptions.Deep}, " +
-                $"CompareRevisions: {publishContext.PublishOptions.CompareRevisions}",
-                this);
+            loggingService.LogItemProcessing(
+                context.ItemId,
+                sourceItem.Paths.FullPath,
+                language.Name,
+                version.Number,
+                hasVersionInfo,
+                itemKey,
+                context.Action.ToString(),
+                sourceRevisionId,
+                sourceUpdated,
+                targetRevisionId,
+                targetUpdated,
+                targetItem != null,
+                publishContext.PublishOptions.Mode,
+                publishContext.PublishOptions.Deep,
+                publishContext.PublishOptions.CompareRevisions);
         }
 
         public void ProcessItemProcessed(ItemProcessedEventArgs eventArgs)
         {
             if (eventArgs?.Context?.PublishOptions == null)
             {
-                Log.Debug("PublishTelemetryService.ProcessItemProcessed: Invalid event arguments or context.", this);
+                loggingService.LogInvalidEventArguments("ProcessItemProcessed");
                 return;
             }
 
@@ -125,38 +125,35 @@ namespace iO.Sitecore.Publishing.Services
 
             if (processingInfo == null)
             {
-                Log.Warn($"PublishTelemetryService.ProcessItemProcessed: No processing info found for item {context.ItemId}, " +
-                    $"Language: {language.Name}, Version: {version.Number}, " +
-                    $"HasVersionInfo: {hasVersionInfo}", this);
+                loggingService.LogNoProcessingInfoFound(context.ItemId, language.Name, version.Number, hasVersionInfo);
                 return;
             }
 
             var publishedItem = GetTargetItem(context, publishContext, language, version);
             if (publishedItem == null)
             {
-                Log.Debug($"PublishTelemetryService.ProcessItemProcessed: Published item not found in target. ItemID: {context.ItemId}", this);
+                loggingService.LogPublishedItemNotFound(context.ItemId);
                 return;
             }
 
             var (newRevisionId, newUpdated) = GetItemRevisionInfo(publishedItem);
             var result = DeterminePublishResult(processingInfo, newRevisionId, newUpdated, context.Action);
 
-            Log.Info($"PublishTelemetryService.ProcessItemProcessed: " +
-                $"ItemID: {context.ItemId}, " +
-                $"Path: '{processingInfo.ItemPath}', " +
-                $"Language: {processingInfo.Language}, " +
-                $"Version: {processingInfo.Version}, " +
-                $"HasVersionInfo: {processingInfo.HasVersionInfo}, " +
-                $"Action: {processingInfo.Action}, " +
-                $"Result: {result}, " +
-                $"OldRevision: {processingInfo.TargetRevisionId}, " +
-                $"NewRevision: {newRevisionId}, " +
-                $"RevisionChanged: {processingInfo.TargetRevisionId != newRevisionId}, " +
-                $"OldUpdated: {processingInfo.TargetUpdated:yyyy-MM-dd HH:mm:ss.fff}, " +
-                $"NewUpdated: {newUpdated:yyyy-MM-dd HH:mm:ss.fff}, " +
-                $"TimestampChanged: {processingInfo.TargetUpdated != newUpdated}, " +
-                $"ProcessingDuration: {(DateTime.UtcNow - processingInfo.ProcessingTime).TotalMilliseconds}ms",
-                this);
+            loggingService.LogItemProcessed(
+                context.ItemId,
+                processingInfo.ItemPath,
+                processingInfo.Language,
+                processingInfo.Version,
+                processingInfo.HasVersionInfo,
+                processingInfo.Action,
+                result,
+                processingInfo.TargetRevisionId,
+                newRevisionId,
+                processingInfo.TargetRevisionId != newRevisionId,
+                processingInfo.TargetUpdated,
+                newUpdated,
+                processingInfo.TargetUpdated != newUpdated,
+                (DateTime.UtcNow - processingInfo.ProcessingTime).TotalMilliseconds);
 
             if (IsItemUpdated(processingInfo, newRevisionId, newUpdated))
             {
@@ -179,11 +176,11 @@ namespace iO.Sitecore.Publishing.Services
 
                 _updatedItems.Add(updateInfo);
 
-                Log.Info($"PublishTelemetryService.ProcessItemProcessed: Item marked as UPDATED. " +
-                    $"ItemID: {context.ItemId}, " +
-                    $"Path: '{processingInfo.ItemPath}', " +
-                    $"RevisionChange: {processingInfo.TargetRevisionId} -> {newRevisionId}",
-                    this);
+                loggingService.LogItemMarkedAsUpdated(
+                    context.ItemId,
+                    processingInfo.ItemPath,
+                    processingInfo.TargetRevisionId,
+                    newRevisionId);
             }
         }
 
@@ -192,16 +189,16 @@ namespace iO.Sitecore.Publishing.Services
             var publishOptions = ExtractPublishOptions(args);
             if (publishOptions == null)
             {
-                Log.Warn("PublishTelemetryService.ProcessPublishEnd: Could not retrieve publish options.", this);
+                loggingService.LogCouldNotRetrievePublishOptions();
                 return;
             }
 
-            LogPublishCompletion();
-            LogPublishOptions(publishOptions);
+            loggingService.LogPublishCompletion();
+            loggingService.LogPublishOptions(publishOptions);
             LogPublishStatistics();
 
             var updatedItemsList = _updatedItems.ToList();
-            LogUpdatedItems(updatedItemsList);
+            loggingService.LogUpdatedItems(updatedItemsList);
 
             if (updatedItemsList.Any())
             {
@@ -216,7 +213,7 @@ namespace iO.Sitecore.Publishing.Services
         {
             if (eventArgs == null)
             {
-                Log.Debug("PublishTelemetryService.ProcessPublishEndRemote: Invalid event arguments.", this);
+                loggingService.LogInvalidEventArguments("ProcessPublishEndRemote");
                 return;
             }
 
@@ -224,14 +221,13 @@ namespace iO.Sitecore.Publishing.Services
             var sourceDb = string.IsNullOrEmpty(eventArgs.SourceDatabaseName) ? "N/A" : eventArgs.SourceDatabaseName;
             var targetDb = string.IsNullOrEmpty(eventArgs.TargetDatabaseName) ? "N/A" : eventArgs.TargetDatabaseName;
 
-            Log.Info($"PublishTelemetryService.ProcessPublishEndRemote: Remote publish end notification received. " +
-                $"RootItemID: {eventArgs.RootItemId}, " +
-                $"Mode: {eventArgs.Mode}, " +
-                $"Deep: {eventArgs.Deep}, " +
-                $"Language: {languageInfo}, " +
-                $"SourceDB: {sourceDb}, " +
-                $"TargetDB: {targetDb}",
-                this);
+            loggingService.LogPublishEndRemote(
+                eventArgs.RootItemId,
+                eventArgs.Mode.ToString(),
+                eventArgs.Deep,
+                languageInfo,
+                sourceDb,
+                targetDb);
 
             var databases = Factory.GetDatabases()
                 .Where(database => database.RemoteEvents.EventQueue.Name == eventArgs.EventQueueName)
@@ -239,10 +235,10 @@ namespace iO.Sitecore.Publishing.Services
                 .ToList();
 
             RecordPublishEndRemote(eventArgs.EventQueueName, databases);
-            Log.Info("PublishTelemetryService.ProcessPublishEndRemote: Sent remote publish event to telemetry service.", this);
+            loggingService.LogPublishEndRemoteSent();
         }
 
-        private static List<string> ExtractAssetIds(Item item)
+        private static List<string> ExtractAssetIds(Item item, PublishLoggingService logger)
         {
             var assetIdsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
@@ -258,13 +254,13 @@ namespace iO.Sitecore.Publishing.Services
                     {
                         case "image":
                             var imageField = (ImageField)field;
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("DamId"));
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("dam-id"));
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("stylelabs-content-id"));
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Thumbnail"));
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("thumbnailsrc"));
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Source"));
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("src"));
+                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("DamId"), logger);
+                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("dam-id"), logger);
+                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("stylelabs-content-id"), logger);
+                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Thumbnail"), logger);
+                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("thumbnailsrc"), logger);
+                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Source"), logger);
+                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("src"), logger);
                             break;
 
                         case "general link":
@@ -272,16 +268,16 @@ namespace iO.Sitecore.Publishing.Services
                             try
                             {
                                 var xmlElement = XElement.Parse(field.Value);
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("DamId"));
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("dam-id"));
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("stylelabs-content-id"));
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("url"));
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("href"));
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("Source"));
+                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("DamId"), logger);
+                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("dam-id"), logger);
+                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("stylelabs-content-id"), logger);
+                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("url"), logger);
+                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("href"), logger);
+                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("Source"), logger);
                             }
                             catch (Exception exception)
                             {
-                                Log.Warn($"[ExtractAssetIds] Malformed link XML in field '{field.Name}' on '{item.Paths.FullPath}'", exception, typeof(PublishTelemetryService));
+                                logger.LogMalformedLinkXml(field.Name, item.Paths.FullPath, exception);
                             }
                             break;
 
@@ -290,7 +286,7 @@ namespace iO.Sitecore.Publishing.Services
                             {
                                 if (urlMatch.Success && urlMatch.Groups.Count > 1)
                                 {
-                                    AddIfNotEmpty(assetIdsSet, urlMatch.Groups[1].Value);
+                                    AddIfNotEmpty(assetIdsSet, urlMatch.Groups[1].Value, logger);
                                 }
                             }
                             break;
@@ -299,13 +295,13 @@ namespace iO.Sitecore.Publishing.Services
             }
             catch (Exception exception)
             {
-                Log.Warn($"[ExtractAssetIds] Error for item {item.Paths.FullPath}", exception, typeof(PublishTelemetryService));
+                logger.LogExtractAssetIdsError(item.Paths.FullPath, exception);
             }
 
             return assetIdsSet.ToList();
         }
 
-        private static string ExtractPublicLink(Item item)
+        private static string ExtractPublicLink(Item item, PublishLoggingService logger)
         {
             try
             {
@@ -356,7 +352,7 @@ namespace iO.Sitecore.Publishing.Services
                             }
                             catch (Exception exception)
                             {
-                                Log.Warn($"[ExtractPublicLink] Malformed link XML in field '{field.Name}'", exception, typeof(PublishTelemetryService));
+                                logger.LogMalformedPublicLinkXml(field.Name, exception);
                             }
                             break;
 
@@ -375,7 +371,7 @@ namespace iO.Sitecore.Publishing.Services
                             }
                             catch (Exception exception)
                             {
-                                Log.Warn($"[ExtractPublicLink] Malformed file XML in field '{field.Name}'", exception, typeof(PublishTelemetryService));
+                                logger.LogMalformedFileXml(field.Name, exception);
                             }
                             break;
                     }
@@ -383,23 +379,23 @@ namespace iO.Sitecore.Publishing.Services
             }
             catch (Exception exception)
             {
-                Log.Error($"[ExtractPublicLink] Error extracting public link from item {item.Paths.FullPath}", exception, typeof(PublishTelemetryService));
+                logger.LogExtractPublicLinkError(item.Paths.FullPath, exception);
             }
 
             return string.Empty;
         }
 
-        private static void AddIfNotEmpty(HashSet<string> sink, string value)
+        private static void AddIfNotEmpty(HashSet<string> sink, string value, PublishLoggingService logger)
         {
             var trimmedValue = value?.Trim();
             if (!string.IsNullOrWhiteSpace(trimmedValue))
             {
                 sink.Add(trimmedValue);
-                Log.Info($"[AddIfNotEmpty] Added id '{trimmedValue}'", typeof(PublishTelemetryService));
+                logger.LogAssetIdAdded(trimmedValue);
             }
         }
 
-        private static void ExtractIdsFromUrl(HashSet<string> sink, string url)
+        private static void ExtractIdsFromUrl(HashSet<string> sink, string url, PublishLoggingService logger)
         {
             if (string.IsNullOrWhiteSpace(url)) return;
             var urlMatch = GatewayIdRegex.Match(url);
@@ -407,7 +403,7 @@ namespace iO.Sitecore.Publishing.Services
             {
                 var gatewayIdValue = urlMatch.Groups[1].Value;
                 sink.Add(gatewayIdValue);
-                Log.Info($"[ExtractIdsFromUrl] Extracted id '{gatewayIdValue}' from URL '{url}'", typeof(PublishTelemetryService));
+                logger.LogAssetIdExtractedFromUrl(gatewayIdValue, url);
             }
         }
 
@@ -505,38 +501,6 @@ namespace iO.Sitecore.Publishing.Services
             _publishContexts.AddOrUpdate(contextKey, contextInfo, (key, existing) => contextInfo);
         }
 
-        private void LogPublishCompletion()
-        {
-            Log.Info("═══════════════════════════════════════════════════════════════", this);
-            Log.Info("PublishTelemetryService.ProcessPublishEnd: Publishing completed.", this);
-            Log.Info("───────────────────────────────────────────────────────────────", this);
-        }
-
-        private void LogPublishOptions(PublishOptions publishOptions)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("Publish Options:");
-            sb.AppendLine($"  Mode: {publishOptions.Mode}");
-            sb.AppendLine($"  Source Database: {publishOptions.SourceDatabase?.Name ?? "N/A"}");
-            sb.AppendLine($"  Target Database: {publishOptions.TargetDatabase?.Name ?? "N/A"}");
-            sb.AppendLine($"  Root Item: {publishOptions.RootItem?.Paths.FullPath ?? "N/A"} ({publishOptions.RootItem?.ID})");
-            sb.AppendLine($"  Deep: {publishOptions.Deep}");
-            sb.AppendLine($"  Compare Revisions: {publishOptions.CompareRevisions}");
-            sb.AppendLine($"  Republish All: {publishOptions.RepublishAll}");
-            sb.AppendLine($"  From Date: {publishOptions.FromDate:yyyy-MM-dd HH:mm:ss}");
-
-            if (publishOptions.Language != null)
-            {
-                sb.AppendLine($"  Language: {publishOptions.Language.Name}");
-            }
-            else
-            {
-                sb.AppendLine($"  Languages: {string.Join(", ", publishOptions.TargetDatabase.Languages.Select(l => l.Name))}");
-            }
-
-            Log.Info(sb.ToString(), this);
-        }
-
         private void LogPublishStatistics()
         {
             var processingList = _processingItems.Values.ToList();
@@ -546,44 +510,7 @@ namespace iO.Sitecore.Publishing.Services
             var updatedExisting = updatedList.Count(u => u.OldRevisionId != ID.Null);
             var skipped = processingList.Count - updatedList.Count;
 
-            var sb = new StringBuilder();
-            sb.AppendLine("Publish Statistics (Tracked):");
-            sb.AppendLine($"  Created: {newItems}");
-            sb.AppendLine($"  Updated: {updatedExisting}");
-            sb.AppendLine($"  Skipped: {skipped}");
-            sb.AppendLine($"  Total Processed: {processingList.Count}");
-            Log.Info(sb.ToString(), this);
-        }
-
-        private void LogUpdatedItems(List<ItemUpdateInfo> updatedItemsList)
-        {
-            if (!updatedItemsList.Any())
-            {
-                Log.Info("Updated Items: None (no items were updated during this publish)", this);
-                return;
-            }
-
-            Log.Info($"Updated Items: {updatedItemsList.Count} item(s) were updated", this);
-            Log.Info("───────────────────────────────────────────────────────────────", this);
-
-            foreach (var item in updatedItemsList.OrderBy(i => i.ItemPath))
-            {
-                var sb = new StringBuilder();
-                sb.AppendLine($"  Item: {item.ItemPath}");
-                sb.AppendLine($"    ID: {item.ItemId}");
-                sb.AppendLine($"    Language: {item.Language}");
-                sb.AppendLine($"    Version: {item.Version}");
-                sb.AppendLine($"    Action: {item.Action}");
-                sb.AppendLine($"    Result: {item.Result}");
-                sb.AppendLine($"    Publish Mode: {item.PublishMode}");
-                sb.AppendLine($"    Revision: {item.OldRevisionId} -> {item.NewRevisionId}");
-                sb.AppendLine($"    Updated: {item.OldUpdated:yyyy-MM-dd HH:mm:ss.fff} -> {item.NewUpdated:yyyy-MM-dd HH:mm:ss.fff}");
-                sb.AppendLine($"    Time Difference: {(item.NewUpdated - item.OldUpdated).TotalSeconds:F3} seconds");
-
-                Log.Info(sb.ToString(), this);
-            }
-
-            Log.Info("───────────────────────────────────────────────────────────────", this);
+            loggingService.LogPublishStatistics(newItems, updatedExisting, skipped, processingList.Count);
         }
 
         private void LogRevisionSummary()
@@ -591,28 +518,18 @@ namespace iO.Sitecore.Publishing.Services
             var processingList = _processingItems.Values.ToList();
             var updatedList = _updatedItems.ToList();
 
-            Log.Info("Revision Comparison Summary:", this);
-            Log.Info($"  Total Items Processed: {processingList.Count}", this);
-            Log.Info($"  Items with Revision Changes: {updatedList.Count}", this);
-            Log.Info($"  Items Skipped (No Changes): {processingList.Count - updatedList.Count}", this);
+            var newItemsList = processingList.Where(p => p.TargetRevisionId == ID.Null).ToList();
+            var existingItems = processingList.Where(p => p.TargetRevisionId != ID.Null).ToList();
+            var updatedExistingList = updatedList.Where(u => u.OldRevisionId != ID.Null).ToList();
 
-            if (processingList.Any())
-            {
-                var newItemsList = processingList.Where(p => p.TargetRevisionId == ID.Null).ToList();
-                var existingItems = processingList.Where(p => p.TargetRevisionId != ID.Null).ToList();
-
-                Log.Info($"  New Items (Created): {newItemsList.Count}", this);
-                Log.Info($"  Existing Items: {existingItems.Count}", this);
-
-                if (existingItems.Any())
-                {
-                    var updatedExistingList = updatedList.Where(u => u.OldRevisionId != ID.Null).ToList();
-                    Log.Info($"    Updated: {updatedExistingList.Count}", this);
-                    Log.Info($"    Unchanged: {existingItems.Count - updatedExistingList.Count}", this);
-                }
-            }
-
-            Log.Info("═══════════════════════════════════════════════════════════════", this);
+            loggingService.LogRevisionSummary(
+                processingList.Count,
+                updatedList.Count,
+                processingList.Count - updatedList.Count,
+                newItemsList.Count,
+                existingItems.Count,
+                updatedExistingList.Count,
+                existingItems.Count - updatedExistingList.Count);
         }
 
         private void ClearBuffers()
@@ -627,7 +544,7 @@ namespace iO.Sitecore.Publishing.Services
                 _publishContexts.Clear();
                 while (_updatedItems.TryTake(out _)) { }
 
-                Log.Info($"PublishTelemetryService.ClearBuffers: Cleared {processingCount} processing items, {updatedCount} updated items, and {contextCount} publish contexts.", this);
+                loggingService.LogClearBuffers(processingCount, updatedCount, contextCount);
             }
         }
 
@@ -635,20 +552,20 @@ namespace iO.Sitecore.Publishing.Services
         {
             if (!updatedItems.Any())
             {
-                Log.Info("PublishTelemetryService.SendUpdatedItemsToTelemetry: No items to send.", this);
+                loggingService.LogNoItemsToSend();
                 return;
             }
 
             var targetDatabase = publishOptions.TargetDatabase;
             if (targetDatabase == null)
             {
-                Log.Warn("PublishTelemetryService.SendUpdatedItemsToTelemetry: Target database is null.", this);
+                loggingService.LogTargetDatabaseIsNull();
                 return;
             }
 
             var sourceDatabaseName = publishOptions.SourceDatabase?.Name ?? "master";
 
-            Log.Info($"PublishTelemetryService.SendUpdatedItemsToTelemetry: Sending {updatedItems.Count} updated items to telemetry service...", this);
+            loggingService.LogSendingUpdatedItems(updatedItems.Count);
 
             Task.Run(() =>
             {
@@ -670,29 +587,29 @@ namespace iO.Sitecore.Publishing.Services
                             RecordItemProcessed(publishedItem, publishOptions, sourceDatabaseName);
                             successCount++;
 
-                            Log.Info($"PublishTelemetryService.SendUpdatedItemsToTelemetry: Sent item {publishedItem.Paths.FullPath} to telemetry.", this);
+                            loggingService.LogItemSentToTelemetry(publishedItem.Paths.FullPath);
                         }
                         else
                         {
-                            Log.Warn($"PublishTelemetryService.SendUpdatedItemsToTelemetry: Could not retrieve item {updateInfo.ItemId} from target database.", this);
+                            loggingService.LogCouldNotRetrieveItemFromTarget(updateInfo.ItemId);
                             failureCount++;
                         }
                     }
                     catch (Exception ex)
                     {
-                        Log.Error($"PublishTelemetryService.SendUpdatedItemsToTelemetry: Error sending item {updateInfo.ItemId} to telemetry.", ex, this);
+                        loggingService.LogErrorSendingItemToTelemetry(updateInfo.ItemId, ex);
                         failureCount++;
                     }
                 }
 
-                Log.Info($"PublishTelemetryService.SendUpdatedItemsToTelemetry: Completed. Success: {successCount}, Failures: {failureCount}", this);
+                loggingService.LogSendingCompleted(successCount, failureCount);
             });
         }
 
         private void RecordItemProcessed(Item item, PublishOptions options, string sourceDatabaseName)
         {
-            var assetIds = ExtractAssetIds(item);
-            var publicLink = ExtractPublicLink(item);
+            var assetIds = ExtractAssetIds(item, loggingService);
+            var publicLink = ExtractPublicLink(item, loggingService);
 
             var payload = new AssetUsageEvent
             {
@@ -784,11 +701,11 @@ namespace iO.Sitecore.Publishing.Services
                     File.AppendAllText(auditLogPath, json + Environment.NewLine);
                 }
 
-                Log.Info("[WriteAudit] Append complete.", this);
+                loggingService.LogAuditWriteComplete();
             }
             catch (Exception exception)
             {
-                Log.Error("[WriteAudit] Error writing JSON", exception, this);
+                loggingService.LogWriteAuditError(exception);
             }
         }
     }
