@@ -1,6 +1,4 @@
-﻿using iO.Sitecore.Publishing.Services;
-using Sitecore.Collections;
-using Sitecore.Configuration;
+﻿using Sitecore;
 using Sitecore.Data;
 using Sitecore.Data.Events;
 using Sitecore.Data.Items;
@@ -11,329 +9,520 @@ using Sitecore.Publishing;
 using Sitecore.Publishing.Pipelines.Publish;
 using Sitecore.Publishing.Pipelines.PublishItem;
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Version = Sitecore.Data.Version;
-using ID = Sitecore.Data.ID;
 
-namespace iO.Sitecore.Publishing.Events
+namespace iO.Sitecore.publishing.Events
 {
-    public sealed class PublishingEventHandler
+    public class PublishEventHandler
     {
-        private const string AuditLogPath = @"C:\inetpub\wwwroot\SitecoreXPLocalsc.dev.local\App_Data\logs\published-items.json";
-        private readonly PublishTelemetryService publishTelemetryService;
+        private static readonly ConcurrentDictionary<string, ItemProcessingInfo> _processingItems =
+            new ConcurrentDictionary<string, ItemProcessingInfo>();
 
-        public PublishingEventHandler()
-        {
-            publishTelemetryService = new PublishTelemetryService(new AssetUsageServiceClient(), AuditLogPath);
-        }
+        private static readonly ConcurrentBag<ItemUpdateInfo> _updatedItems =
+            new ConcurrentBag<ItemUpdateInfo>();
 
-        public void OnPublishComplete(object sender, EventArgs eventArgs)
+        private static readonly ConcurrentDictionary<string, PublishContextInfo> _publishContexts =
+            new ConcurrentDictionary<string, PublishContextInfo>();
+
+        private static readonly object _statsLock = new object();
+
+        protected void OnItemProcessing(object sender, EventArgs args)
         {
             try
             {
-                Log.Info("============ [OnPublishComplete] START ============", this);
-
-                var sitecoreEventArgs = eventArgs as SitecoreEventArgs;
-                if (sitecoreEventArgs == null)
+                var eventArgs = args as ItemProcessingEventArgs;
+                if (eventArgs?.Context?.PublishOptions == null)
                 {
-                    Log.Warn("[OnPublishComplete] EventArgs is not SitecoreEventArgs", this);
+                    Log.Debug("PublishEventHandler.OnItemProcessing: Invalid event arguments or context.", this);
                     return;
                 }
 
-                Log.Info($"[OnPublishComplete] Event Name: {sitecoreEventArgs.EventName}", this);
+                var context = eventArgs.Context;
+                var publishContext = context.PublishContext;
 
-                // Parameter[1]: Number of items processed
-                var itemsProcessedCount = sitecoreEventArgs.Parameters[1];
-                Log.Info($"[OnPublishComplete] *** ITEMS PROCESSED: {itemsProcessedCount} ***", this);
+                StorePublishContext(publishContext);
 
-                // Parameter[0]: DistributedPublishOptions
-                var param0 = sitecoreEventArgs.Parameters[0];
-                if (param0 is System.Collections.IEnumerable enumerable)
+                bool hasVersionInfo = context.VersionToPublish != null;
+                Language language = hasVersionInfo ? context.VersionToPublish.Language : (publishContext.PublishOptions.Language ?? Language.Parse("en"));
+                Version version = hasVersionInfo ? context.VersionToPublish.Version : Version.Latest;
+
+                Item sourceItem = context.ItemId != ID.Null
+                    ? publishContext.PublishOptions.SourceDatabase.GetItem(context.ItemId, language, version)
+                    : null;
+
+                if (sourceItem == null)
                 {
-                    foreach (var item in enumerable)
+                    sourceItem = publishContext.PublishOptions.SourceDatabase.GetItem(context.ItemId);
+
+                    if (sourceItem == null)
                     {
-                        if (item == null) continue;
-
-                        var itemType = item.GetType();
-
-                        // Extract properties
-                        var targetDbNameProp = itemType.GetProperty("TargetDatabaseName");
-                        var sourceDbNameProp = itemType.GetProperty("SourceDatabaseName");
-                        var rootItemIdProp = itemType.GetProperty("RootItemId");
-                        var itemIdsToPublishProp = itemType.GetProperty("ItemIdsToPublish");
-                        var languageNameProp = itemType.GetProperty("LanguageName");
-                        var modeProp = itemType.GetProperty("Mode");
-                        var publishDateProp = itemType.GetProperty("PublishDate");
-
-                        var targetDbName = targetDbNameProp?.GetValue(item, null) as string;
-                        var sourceDbName = sourceDbNameProp?.GetValue(item, null) as string;
-                        var rootItemId = rootItemIdProp?.GetValue(item, null);
-                        var itemIdsToPublish = itemIdsToPublishProp?.GetValue(item, null);
-                        var languageName = languageNameProp?.GetValue(item, null) as string;
-                        var mode = modeProp?.GetValue(item, null);
-                        var publishDate = publishDateProp?.GetValue(item, null);
-
-                        Log.Info("========== PUBLISH DETAILS ==========", this);
-                        Log.Info($"[OnPublishComplete] Source Database: {sourceDbName}", this);
-                        Log.Info($"[OnPublishComplete] Target Database: {targetDbName}", this);
-                        Log.Info($"[OnPublishComplete] Mode: {mode}", this);
-                        Log.Info($"[OnPublishComplete] Language: {languageName}", this);
-                        Log.Info($"[OnPublishComplete] Publish Date: {publishDate}", this);
-                        Log.Info($"[OnPublishComplete] Root Item ID: {rootItemId}", this);
-
-                        // Get target database
-                        if (!string.IsNullOrEmpty(targetDbName))
-                        {
-                            var targetDb = Factory.GetDatabase(targetDbName);
-                            var sourceDb = Factory.GetDatabase(sourceDbName);
-
-                            if (targetDb != null && sourceDb != null)
-                            {
-                                Log.Info("========== UPDATED ITEMS FROM TARGET DATABASE ==========", this);
-
-                                // Get language
-                                var language = string.IsNullOrEmpty(languageName)
-                                    ? Language.Parse("en")
-                                    : Language.Parse(languageName);
-
-                                // Process ItemIdsToPublish collection
-                                if (itemIdsToPublish != null && itemIdsToPublish is System.Collections.IEnumerable itemIds)
-                                {
-                                    var processedCount = 0;
-                                    foreach (var itemIdObj in itemIds)
-                                    {
-                                        processedCount++;
-
-                                        if (itemIdObj is Guid guid)
-                                        {
-                                            var itemId = new ID(guid);
-
-                                            // Get item from TARGET database (published version)
-                                            var targetItem = targetDb.GetItem(itemId, language);
-
-                                            // Get item from SOURCE database (original version)
-                                            var sourceItem = sourceDb.GetItem(itemId, language);
-
-                                            if (targetItem != null)
-                                            {
-                                                Log.Info($"---------- UPDATED ITEM #{processedCount} ----------", this);
-                                                Log.Info($"[OnPublishComplete] *** ITEM UPDATED IN TARGET ***", this);
-                                                Log.Info($"  Path: {targetItem.Paths.FullPath}", this);
-                                                Log.Info($"  ID: {targetItem.ID}", this);
-                                                Log.Info($"  Name: {targetItem.Name}", this);
-                                                Log.Info($"  Template: {targetItem.TemplateName} ({targetItem.TemplateID})", this);
-                                                Log.Info($"  Language: {targetItem.Language.Name}", this);
-                                                Log.Info($"  Version: {targetItem.Version.Number}", this);
-                                                Log.Info($"  Updated: {targetItem.Statistics.Updated}", this);
-                                                Log.Info($"  Updated By: {targetItem.Statistics.UpdatedBy}", this);
-                                                Log.Info($"  Revision: {targetItem.Statistics.Revision}", this);
-
-                                                // Log non-empty fields
-                                                Log.Info($"  --- Non-Empty Fields ---", this);
-                                                var nonEmptyFields = targetItem.Fields
-                                                    .Where(f => !string.IsNullOrEmpty(f.Value) && !f.Name.StartsWith("__"))
-                                                    .Take(10);
-
-                                                foreach (var field in nonEmptyFields)
-                                                {
-                                                    var fieldValue = field.Value.Length > 100
-                                                        ? field.Value.Substring(0, 100) + "..."
-                                                        : field.Value;
-                                                    Log.Info($"    {field.Name}: {fieldValue}", this);
-                                                }
-
-                                                // Compare with source to see if it was actually updated
-                                                if (sourceItem != null)
-                                                {
-                                                    var sourceRevision = sourceItem.Statistics.Revision;
-                                                    var targetRevision = targetItem.Statistics.Revision;
-
-                                                    if (sourceRevision == targetRevision)
-                                                    {
-                                                        Log.Info($"  Status: ✓ UPDATED (Revisions match: {sourceRevision})", this);
-                                                    }
-                                                    else
-                                                    {
-                                                        Log.Info($"  Status: ⚠ SKIPPED (Source: {sourceRevision}, Target: {targetRevision})", this);
-                                                    }
-                                                }
-                                            }
-                                            else
-                                            {
-                                                Log.Warn($"[OnPublishComplete] Item {itemId} not found in target database", this);
-
-                                                if (sourceItem != null)
-                                                {
-                                                    Log.Info($"  Item exists in source: {sourceItem.Paths.FullPath}", this);
-                                                    Log.Info($"  Status: ⚠ SKIPPED or FAILED", this);
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Log.Info($"[OnPublishComplete] Total Items in Collection: {processedCount}", this);
-                                }
-                                else
-                                {
-                                    Log.Warn("[OnPublishComplete] ItemIdsToPublish is null or not enumerable", this);
-                                }
-                            }
-                            else
-                            {
-                                Log.Warn($"[OnPublishComplete] Could not get databases. Target: {targetDb?.Name}, Source: {sourceDb?.Name}", this);
-                            }
-                        }
-
-                        break; // Only process first DistributedPublishOptions
+                        Log.Debug($"PublishEventHandler.OnItemProcessing: Source item not found. ItemID: {context.ItemId}", this);
+                        return;
                     }
                 }
 
-                Log.Info("============ [OnPublishComplete] END ============", this);
+                string itemKey = hasVersionInfo
+                    ? $"{context.ItemId}_{language.Name}_{version.Number}"
+                    : context.ItemId.ToString();
+
+                string sourceRevisionStr = sourceItem.Statistics.Revision;
+                ID sourceRevisionId = ID.Null;
+                if (!string.IsNullOrEmpty(sourceRevisionStr))
+                {
+                    sourceRevisionId = ID.Parse(sourceRevisionStr);
+                }
+                DateTime sourceUpdated = sourceItem.Statistics.Updated;
+
+                Item targetItem = publishContext.PublishOptions.TargetDatabase.GetItem(context.ItemId, language, version);
+
+                if (targetItem == null)
+                {
+                    targetItem = publishContext.PublishOptions.TargetDatabase.GetItem(context.ItemId);
+                }
+
+                ID targetRevisionId = ID.Null;
+                DateTime targetUpdated = DateTime.MinValue;
+
+                if (targetItem != null)
+                {
+                    string targetRevisionStr = targetItem.Statistics.Revision;
+                    if (!string.IsNullOrEmpty(targetRevisionStr))
+                    {
+                        targetRevisionId = ID.Parse(targetRevisionStr);
+                    }
+                    targetUpdated = targetItem.Statistics.Updated;
+                }
+
+                var processingInfo = new ItemProcessingInfo
+                {
+                    ItemId = context.ItemId,
+                    ItemPath = sourceItem.Paths.FullPath,
+                    Language = language.Name,
+                    Version = version.Number,
+                    SourceRevisionId = sourceRevisionId,
+                    SourceUpdated = sourceUpdated,
+                    TargetRevisionId = targetRevisionId,
+                    TargetUpdated = targetUpdated,
+                    Action = context.Action.ToString(),
+                    ProcessingTime = DateTime.UtcNow,
+                    HasVersionInfo = hasVersionInfo
+                };
+
+                _processingItems.AddOrUpdate(itemKey, processingInfo, (key, existing) => processingInfo);
+
+                Log.Info($"PublishEventHandler.OnItemProcessing: " +
+                    $"ItemID: {context.ItemId}, " +
+                    $"Path: '{sourceItem.Paths.FullPath}', " +
+                    $"Language: {language.Name}, " +
+                    $"Version: {version.Number}, " +
+                    $"HasVersionInfo: {hasVersionInfo}, " +
+                    $"ItemKey: '{itemKey}', " +
+                    $"Action: {context.Action}, " +
+                    $"SourceRevision: {sourceRevisionId}, " +
+                    $"SourceUpdated: {sourceUpdated:yyyy-MM-dd HH:mm:ss.fff}, " +
+                    $"TargetRevision: {targetRevisionId}, " +
+                    $"TargetUpdated: {targetUpdated:yyyy-MM-dd HH:mm:ss.fff}, " +
+                    $"TargetExists: {targetItem != null}, " +
+                    $"PublishMode: {publishContext.PublishOptions.Mode}, " +
+                    $"Deep: {publishContext.PublishOptions.Deep}, " +
+                    $"CompareRevisions: {publishContext.PublishOptions.CompareRevisions}",
+                    this);
             }
             catch (Exception ex)
             {
-                Log.Error($"[OnPublishComplete] Error: {ex.Message}", ex, this);
+                Log.Error($"PublishEventHandler.OnItemProcessing: Error processing item. Exception: {ex.Message}, StackTrace: {ex.StackTrace}", ex, this);
             }
         }
 
-        public void OnItemProcessed(object sender, EventArgs eventArguments)
+        protected void OnItemProcessed(object sender, EventArgs args)
         {
             try
             {
-                var itemProcessedArguments = eventArguments as ItemProcessedEventArgs;
-                if (itemProcessedArguments == null)
+                var eventArgs = args as ItemProcessedEventArgs;
+                if (eventArgs?.Context?.PublishOptions == null)
                 {
-                    Log.Info("[OnItemProcessed] ItemProcessedEventArgs is null; returning.", this);
+                    Log.Debug("PublishEventHandler.OnItemProcessed: Invalid event arguments or context.", this);
                     return;
                 }
 
-                var publishContext = itemProcessedArguments.Context;
-                if (publishContext == null)
+                var context = eventArgs.Context;
+                var publishContext = context.PublishContext;
+
+                bool hasVersionInfo = context.VersionToPublish != null;
+                Language language = hasVersionInfo ? context.VersionToPublish.Language : (publishContext.PublishOptions.Language ?? Language.Parse("en"));
+                Version version = hasVersionInfo ? context.VersionToPublish.Version : Version.Latest;
+
+                string itemKeyWithVersion = $"{context.ItemId}_{language.Name}_{version.Number}";
+                string itemKeyWithoutVersion = context.ItemId.ToString();
+
+                ItemProcessingInfo processingInfo;
+                bool found = _processingItems.TryGetValue(itemKeyWithVersion, out processingInfo);
+                string usedKey = itemKeyWithVersion;
+
+                if (!found)
                 {
-                    Log.Info("[OnItemProcessed] Context is null; returning.", this);
+                    found = _processingItems.TryGetValue(itemKeyWithoutVersion, out processingInfo);
+                    usedKey = itemKeyWithoutVersion;
+                }
+
+                if (!found)
+                {
+                    Log.Warn($"PublishEventHandler.OnItemProcessed: No processing info found for item {context.ItemId}, " +
+                        $"Language: {language.Name}, Version: {version.Number}, " +
+                        $"HasVersionInfo: {hasVersionInfo}, " +
+                        $"Tried keys: '{itemKeyWithVersion}' and '{itemKeyWithoutVersion}'", this);
                     return;
                 }
 
-                var itemId = publishContext.ItemId;
-                if (ID.IsNullOrEmpty(itemId))
+                Item publishedItem = publishContext.PublishOptions.TargetDatabase.GetItem(context.ItemId, language, version);
+
+                if (publishedItem == null)
                 {
-                    Log.Info("[OnItemProcessed] ItemId is null or empty; returning.", this);
-                    return;
+                    publishedItem = publishContext.PublishOptions.TargetDatabase.GetItem(context.ItemId);
+
+                    if (publishedItem == null)
+                    {
+                        Log.Debug($"PublishEventHandler.OnItemProcessed: Published item not found in target. ItemID: {context.ItemId}", this);
+                        return;
+                    }
                 }
 
-                var publishOptions = publishContext.PublishOptions;
+                string newRevisionStr = publishedItem.Statistics.Revision;
+                ID newRevisionId = ID.Null;
+                if (!string.IsNullOrEmpty(newRevisionStr))
+                {
+                    newRevisionId = ID.Parse(newRevisionStr);
+                }
+                DateTime newUpdated = publishedItem.Statistics.Updated;
+
+                string result = "Processed";
+                if (processingInfo.TargetRevisionId == ID.Null)
+                {
+                    result = "Created";
+                }
+                else if (processingInfo.TargetRevisionId != newRevisionId)
+                {
+                    result = "Updated";
+                }
+                else if (processingInfo.TargetUpdated != newUpdated)
+                {
+                    result = "Modified";
+                }
+                else if (context.Action == PublishAction.None)
+                {
+                    result = "Skipped";
+                }
+
+                Log.Info($"PublishEventHandler.OnItemProcessed: " +
+                    $"ItemID: {context.ItemId}, " +
+                    $"Path: '{processingInfo.ItemPath}', " +
+                    $"Language: {processingInfo.Language}, " +
+                    $"Version: {processingInfo.Version}, " +
+                    $"HasVersionInfo: {processingInfo.HasVersionInfo}, " +
+                    $"UsedKey: '{usedKey}', " +
+                    $"Action: {processingInfo.Action}, " +
+                    $"Result: {result}, " +
+                    $"OldRevision: {processingInfo.TargetRevisionId}, " +
+                    $"NewRevision: {newRevisionId}, " +
+                    $"RevisionChanged: {processingInfo.TargetRevisionId != newRevisionId}, " +
+                    $"OldUpdated: {processingInfo.TargetUpdated:yyyy-MM-dd HH:mm:ss.fff}, " +
+                    $"NewUpdated: {newUpdated:yyyy-MM-dd HH:mm:ss.fff}, " +
+                    $"TimestampChanged: {processingInfo.TargetUpdated != newUpdated}, " +
+                    $"ProcessingDuration: {(DateTime.UtcNow - processingInfo.ProcessingTime).TotalMilliseconds}ms",
+                    this);
+
+                bool isUpdated = false;
+                if (publishContext.PublishOptions.Mode == PublishMode.Smart || publishContext.PublishOptions.Mode == PublishMode.Incremental)
+                {
+                    if (processingInfo.TargetRevisionId != newRevisionId && newRevisionId != ID.Null)
+                    {
+                        isUpdated = true;
+                    }
+                    else if (Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > 1)
+                    {
+                        isUpdated = true;
+                    }
+                }
+                else
+                {
+                    isUpdated = newRevisionId != ID.Null;
+                }
+
+                if (isUpdated)
+                {
+                    var updateInfo = new ItemUpdateInfo
+                    {
+                        ItemId = context.ItemId,
+                        ItemPath = processingInfo.ItemPath,
+                        Language = processingInfo.Language,
+                        Version = processingInfo.Version,
+                        OldRevisionId = processingInfo.TargetRevisionId,
+                        NewRevisionId = newRevisionId,
+                        OldUpdated = processingInfo.TargetUpdated,
+                        NewUpdated = newUpdated,
+                        Action = processingInfo.Action,
+                        Result = result,
+                        PublishMode = publishContext.PublishOptions.Mode.ToString()
+                    };
+
+                    _updatedItems.Add(updateInfo);
+
+                    Log.Info($"PublishEventHandler.OnItemProcessed: Item marked as UPDATED. " +
+                        $"ItemID: {context.ItemId}, " +
+                        $"Path: '{processingInfo.ItemPath}', " +
+                        $"RevisionChange: {processingInfo.TargetRevisionId} -> {newRevisionId}",
+                        this);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"PublishEventHandler.OnItemProcessed: Error processing item. Exception: {ex.Message}, StackTrace: {ex.StackTrace}", ex, this);
+            }
+        }
+
+        protected void OnPublishEnd(object sender, EventArgs args)
+        {
+            try
+            {
+                var publisher = Event.ExtractParameter(args, 0) as Publisher;
+
+                PublishOptions publishOptions = null;
+
+                if (publisher != null)
+                {
+                    publishOptions = publisher.Options;
+                }
+                else
+                {
+                    var contextInfo = _publishContexts.Values.FirstOrDefault();
+                    if (contextInfo != null)
+                    {
+                        publishOptions = contextInfo.PublishOptions;
+                    }
+                }
+
                 if (publishOptions == null)
                 {
-                    Log.Info("[OnItemProcessed] PublishOptions is null; returning.", this);
+                    Log.Warn("PublishEventHandler.OnPublishEnd: Could not retrieve publish options.", this);
                     return;
                 }
 
-                var sourceDatabase = publishOptions.SourceDatabase;
-                if (sourceDatabase == null)
+                Log.Info("═══════════════════════════════════════════════════════════════", this);
+                Log.Info("PublishEventHandler.OnPublishEnd: Publishing completed.", this);
+                Log.Info("───────────────────────────────────────────────────────────────", this);
+
+                if (publishOptions != null)
                 {
-                    Log.Info("[OnItemProcessed] SourceDatabase is null; returning.", this);
-                    return;
+                    var sb = new StringBuilder();
+                    sb.AppendLine("Publish Options:");
+                    sb.AppendLine($"  Mode: {publishOptions.Mode}");
+
+                    string sourceDbName = (publishOptions.SourceDatabase != null) ? publishOptions.SourceDatabase.Name : "N/A";
+                    string targetDbName = (publishOptions.TargetDatabase != null) ? publishOptions.TargetDatabase.Name : "N/A";
+
+                    sb.AppendLine($"  Source Database: {sourceDbName}");
+                    sb.AppendLine($"  Target Database: {targetDbName}");
+
+                    if (publishOptions.RootItem != null)
+                    {
+                        sb.AppendLine($"  Root Item: {publishOptions.RootItem.Paths.FullPath} ({publishOptions.RootItem.ID})");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"  Root Item: N/A");
+                    }
+
+                    sb.AppendLine($"  Deep: {publishOptions.Deep}");
+                    sb.AppendLine($"  Compare Revisions: {publishOptions.CompareRevisions}");
+                    sb.AppendLine($"  Republish All: {publishOptions.RepublishAll}");
+                    sb.AppendLine($"  From Date: {publishOptions.FromDate:yyyy-MM-dd HH:mm:ss}");
+
+                    if (publishOptions.Language != null)
+                    {
+                        sb.AppendLine($"  Language: {publishOptions.Language.Name}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"  Languages: {string.Join(", ", publishOptions.TargetDatabase.Languages.Select(l => l.Name))}");
+                    }
+
+                    Log.Info(sb.ToString(), this);
                 }
 
-                var versionToPublish = publishContext.VersionToPublish;
-                var itemLanguage = versionToPublish?.Language ?? Language.Current;
-                var itemVersion = versionToPublish?.Version ?? Version.Latest;
+                var processingList = _processingItems.Values.ToList();
+                var updatedList = _updatedItems.ToList();
 
-                var sourceItem = sourceDatabase.GetItem(itemId, itemLanguage, itemVersion);
-                if (sourceItem == null)
+                var newItems = processingList.Where(p => p.TargetRevisionId == ID.Null).Count();
+                var updatedExisting = updatedList.Where(u => u.OldRevisionId != ID.Null).Count();
+                var skipped = processingList.Count - updatedList.Count;
+
+                var sbStats = new StringBuilder();
+                sbStats.AppendLine("Publish Statistics (Tracked):");
+                sbStats.AppendLine($"  Created: {newItems}");
+                sbStats.AppendLine($"  Updated: {updatedExisting}");
+                sbStats.AppendLine($"  Skipped: {skipped}");
+                sbStats.AppendLine($"  Total Processed: {processingList.Count}");
+                Log.Info(sbStats.ToString(), this);
+
+                if (_updatedItems.IsEmpty)
                 {
-                    Log.Info($"[OnItemProcessed] Could not retrieve item {itemId} from {sourceDatabase.Name}; returning.", this);
-                    return;
+                    Log.Info("Updated Items: None (no items were updated during this publish)", this);
+                }
+                else
+                {
+                    var updatedItemsList = _updatedItems.ToList();
+
+                    Log.Info($"Updated Items: {updatedItemsList.Count} item(s) were updated", this);
+                    Log.Info("───────────────────────────────────────────────────────────────", this);
+
+                    foreach (var item in updatedItemsList.OrderBy(i => i.ItemPath))
+                    {
+                        var sbItem = new StringBuilder();
+                        sbItem.AppendLine($"  Item: {item.ItemPath}");
+                        sbItem.AppendLine($"    ID: {item.ItemId}");
+                        sbItem.AppendLine($"    Language: {item.Language}");
+                        sbItem.AppendLine($"    Version: {item.Version}");
+                        sbItem.AppendLine($"    Action: {item.Action}");
+                        sbItem.AppendLine($"    Result: {item.Result}");
+                        sbItem.AppendLine($"    Publish Mode: {item.PublishMode}");
+                        sbItem.AppendLine($"    Revision: {item.OldRevisionId} -> {item.NewRevisionId}");
+                        sbItem.AppendLine($"    Updated: {item.OldUpdated:yyyy-MM-dd HH:mm:ss.fff} -> {item.NewUpdated:yyyy-MM-dd HH:mm:ss.fff}");
+                        sbItem.AppendLine($"    Time Difference: {(item.NewUpdated - item.OldUpdated).TotalSeconds:F3} seconds");
+
+                        Log.Info(sbItem.ToString(), this);
+                    }
+
+                    Log.Info("───────────────────────────────────────────────────────────────", this);
                 }
 
-                publishTelemetryService.RecordItemProcessed(sourceItem, publishOptions, sourceDatabase.Name);
+                Log.Info("Revision Comparison Summary:", this);
+                Log.Info($"  Total Items Processed: {processingList.Count}", this);
+                Log.Info($"  Items with Revision Changes: {updatedList.Count}", this);
+                Log.Info($"  Items Skipped (No Changes): {processingList.Count - updatedList.Count}", this);
+
+                if (processingList.Any())
+                {
+                    var newItemsList = processingList.Where(p => p.TargetRevisionId == ID.Null).ToList();
+                    var existingItems = processingList.Where(p => p.TargetRevisionId != ID.Null).ToList();
+
+                    Log.Info($"  New Items (Created): {newItemsList.Count}", this);
+                    Log.Info($"  Existing Items: {existingItems.Count}", this);
+
+                    if (existingItems.Any())
+                    {
+                        var updatedExistingList = updatedList.Where(u => u.OldRevisionId != ID.Null).ToList();
+                        Log.Info($"    Updated: {updatedExistingList.Count}", this);
+                        Log.Info($"    Unchanged: {existingItems.Count - updatedExistingList.Count}", this);
+                    }
+                }
+
+                Log.Info("═══════════════════════════════════════════════════════════════", this);
+
+                lock (_statsLock)
+                {
+                    int processingCount = _processingItems.Count;
+                    int updatedCount = _updatedItems.Count;
+                    int contextCount = _publishContexts.Count;
+
+                    _processingItems.Clear();
+                    _publishContexts.Clear();
+
+                    while (_updatedItems.TryTake(out _)) { }
+
+                    Log.Info($"PublishEventHandler.ClearPublishBuffers: Cleared {processingCount} processing items, {updatedCount} updated items, and {contextCount} publish contexts.", this);
+                }
             }
-            catch (Exception exception)
+            catch (Exception ex)
             {
-                Log.Error("[OnItemProcessed] Error", exception, this);
-            }
-            finally
-            {
-                Log.Info("[OnItemProcessed] Exit.", this);
+                Log.Error("PublishEventHandler.OnPublishEnd: Error in publish end handler.", ex, this);
             }
         }
 
-        public void OnPublishEnd(object sender, EventArgs eventArguments)
+        protected void OnPublishEndRemote(object sender, EventArgs args)
         {
             try
             {
-                var publisher = Event.ExtractParameter<Publisher>(eventArguments, 0) as Publisher;
-                if (publisher == null)
+                var eventArgs = Event.ExtractParameter<PublishEndRemoteEventArgs>(args, 0);
+                if (eventArgs == null)
                 {
-                    Log.Info("[OnPublishEnd] Publisher is null; returning.", this);
+                    Log.Debug("PublishEventHandler.OnPublishEndRemote: Invalid event arguments.", this);
                     return;
                 }
 
-                var publishOptions = publisher.Options;
-                if (publishOptions == null)
-                {
-                    Log.Info("[OnPublishEnd] Publisher.Options is null; returning.", this);
-                    return;
-                }
+                string languageInfo = string.IsNullOrEmpty(eventArgs.LanguageName) ? "All" : eventArgs.LanguageName;
+                string sourceDb = string.IsNullOrEmpty(eventArgs.SourceDatabaseName) ? "N/A" : eventArgs.SourceDatabaseName;
+                string targetDb = string.IsNullOrEmpty(eventArgs.TargetDatabaseName) ? "N/A" : eventArgs.TargetDatabaseName;
 
-                var rootItem = publishOptions.RootItem;
-                var targetDatabaseName = publishOptions.TargetDatabase?.Name ?? string.Empty;
-                if (rootItem == null)
-                {
-                    Log.Info("[OnPublishEnd] RootItem is null; returning.", this);
-                    return;
-                }
-
-                var itemsToLog = publishOptions.Deep
-                    ? rootItem.Axes.GetDescendants().Concat(new[] { rootItem })
-                    : new[] { rootItem };
-
-                var totalItemsCount = 0;
-                foreach (var publishedItem in itemsToLog)
-                {
-                    totalItemsCount++;
-                    var sourceDatabaseName = publishedItem.Database?.Name ?? string.Empty;
-                    publishTelemetryService.RecordPublishEndItem(publishedItem, publishOptions, sourceDatabaseName, targetDatabaseName);
-                }
-
-                Log.Info($"[OnPublishEnd] Logged {totalItemsCount} item(s).", this);
+                Log.Info($"PublishEventHandler.OnPublishEndRemote: Remote publish end notification received. " +
+                    $"RootItemID: {eventArgs.RootItemId}, " +
+                    $"Mode: {eventArgs.Mode}, " +
+                    $"Deep: {eventArgs.Deep}, " +
+                    $"Language: {languageInfo}, " +
+                    $"SourceDB: {sourceDb}, " +
+                    $"TargetDB: {targetDb}",
+                    this);
             }
-            catch (Exception exception)
+            catch (Exception ex)
             {
-                Log.Error("[OnPublishEnd] Error", exception, this);
-            }
-            finally
-            {
-                Log.Info("[OnPublishEnd] Exit.", this);
+                Log.Error("PublishEventHandler.OnPublishEndRemote: Error in publish end remote handler.", ex, this);
             }
         }
 
-        public void OnPublishEndRemote(object sender, EventArgs eventArguments)
+        private void StorePublishContext(PublishContext publishContext)
         {
-            try
-            {
-                var publishEndRemoteArguments = eventArguments as PublishEndRemoteEventArgs;
-                if (publishEndRemoteArguments == null)
-                {
-                    Log.Info("[OnPublishEndRemote] PublishEndRemoteEventArgs is null; returning.", this);
-                    return;
-                }
+            if (publishContext?.PublishOptions == null) return;
 
-                var databases = Factory.GetDatabases()
-                    .Where(database => database.RemoteEvents.EventQueue.Name == publishEndRemoteArguments.EventQueueName)
-                    .ToList();
+            string sourceDbName = publishContext.PublishOptions.SourceDatabase != null ? publishContext.PublishOptions.SourceDatabase.Name : "Unknown";
+            string targetDbName = publishContext.PublishOptions.TargetDatabase != null ? publishContext.PublishOptions.TargetDatabase.Name : "Unknown";
+            string contextKey = $"{sourceDbName}_{targetDbName}_{DateTime.UtcNow.Ticks}";
 
-                var databaseNames = databases.Select(database => database.Name).ToList();
-                publishTelemetryService.RecordPublishEndRemote(publishEndRemoteArguments.EventQueueName, databaseNames);
-            }
-            catch (Exception exception)
+            var contextInfo = new PublishContextInfo
             {
-                Log.Error("[OnPublishEndRemote] Error", exception, this);
-            }
-            finally
-            {
-                Log.Info("[OnPublishEndRemote] Exit.", this);
-            }
+                PublishOptions = publishContext.PublishOptions,
+                StartTime = DateTime.UtcNow
+            };
+
+            _publishContexts.AddOrUpdate(contextKey, contextInfo, (key, existing) => contextInfo);
+        }
+
+        private class ItemProcessingInfo
+        {
+            public ID ItemId { get; set; }
+            public string ItemPath { get; set; }
+            public string Language { get; set; }
+            public int Version { get; set; }
+            public ID SourceRevisionId { get; set; }
+            public DateTime SourceUpdated { get; set; }
+            public ID TargetRevisionId { get; set; }
+            public DateTime TargetUpdated { get; set; }
+            public string Action { get; set; }
+            public DateTime ProcessingTime { get; set; }
+            public bool HasVersionInfo { get; set; }
+        }
+
+        private class ItemUpdateInfo
+        {
+            public ID ItemId { get; set; }
+            public string ItemPath { get; set; }
+            public string Language { get; set; }
+            public int Version { get; set; }
+            public ID OldRevisionId { get; set; }
+            public ID NewRevisionId { get; set; }
+            public DateTime OldUpdated { get; set; }
+            public DateTime NewUpdated { get; set; }
+            public string Action { get; set; }
+            public string Result { get; set; }
+            public string PublishMode { get; set; }
+        }
+
+        private class PublishContextInfo
+        {
+            public PublishOptions PublishOptions { get; set; }
+            public DateTime StartTime { get; set; }
         }
     }
 }
