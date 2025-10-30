@@ -1,5 +1,4 @@
 ﻿using iO.Sitecore.publishing.Models;
-using iO.Sitecore.Publishing.Models;
 using Sitecore.Data;
 using Sitecore.Diagnostics;
 using Sitecore.Publishing;

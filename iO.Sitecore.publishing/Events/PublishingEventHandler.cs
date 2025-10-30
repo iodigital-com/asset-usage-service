@@ -4,7 +4,6 @@ using Sitecore.Configuration;
 using Sitecore.Data.Events;
 using Sitecore.Diagnostics;
 using Sitecore.Events;
-using Sitecore.Publishing.Pipelines.Publish;
 using Sitecore.Publishing.Pipelines.PublishItem;
 using System;
 
