@@ -1,4 +1,9 @@
-﻿using Sitecore;
+﻿using iO.Sitecore.publishing.Models;
+using iO.Sitecore.Publishing.Events;
+using iO.Sitecore.Publishing.Models;
+using iO.Sitecore.Publishing.Services;
+using Sitecore;
+using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
 using Sitecore.Data.Items;
@@ -13,6 +18,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Version = Sitecore.Data.Version;
 
 namespace iO.Sitecore.publishing.Events
@@ -29,6 +35,9 @@ namespace iO.Sitecore.publishing.Events
             new ConcurrentDictionary<string, PublishContextInfo>();
 
         private static readonly object _statsLock = new object();
+
+        private static PublishTelemetryService _telemetryService;
+        private static readonly object _telemetryLock = new object();
 
         protected void OnItemProcessing(object sender, EventArgs args)
         {
@@ -236,20 +245,18 @@ namespace iO.Sitecore.publishing.Events
                     this);
 
                 bool isUpdated = false;
-                if (publishContext.PublishOptions.Mode == PublishMode.Smart || publishContext.PublishOptions.Mode == PublishMode.Incremental)
+
+                if (processingInfo.TargetRevisionId == ID.Null && newRevisionId != ID.Null)
                 {
-                    if (processingInfo.TargetRevisionId != newRevisionId && newRevisionId != ID.Null)
-                    {
-                        isUpdated = true;
-                    }
-                    else if (Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > 1)
-                    {
-                        isUpdated = true;
-                    }
+                    isUpdated = true;
                 }
-                else
+                else if (processingInfo.TargetRevisionId != newRevisionId && newRevisionId != ID.Null)
                 {
-                    isUpdated = newRevisionId != ID.Null;
+                    isUpdated = true;
+                }
+                else if (Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > 1)
+                {
+                    isUpdated = true;
                 }
 
                 if (isUpdated)
@@ -266,7 +273,9 @@ namespace iO.Sitecore.publishing.Events
                         NewUpdated = newUpdated,
                         Action = processingInfo.Action,
                         Result = result,
-                        PublishMode = publishContext.PublishOptions.Mode.ToString()
+                        PublishMode = publishContext.PublishOptions.Mode.ToString(),
+                        TargetDatabaseName = publishContext.PublishOptions.TargetDatabase?.Name ?? "unknown",
+                        SourceDatabaseName = publishContext.PublishOptions.SourceDatabase?.Name ?? "unknown"
                     };
 
                     _updatedItems.Add(updateInfo);
@@ -276,6 +285,12 @@ namespace iO.Sitecore.publishing.Events
                         $"Path: '{processingInfo.ItemPath}', " +
                         $"RevisionChange: {processingInfo.TargetRevisionId} -> {newRevisionId}",
                         this);
+                }
+                else
+                {
+                    Log.Info($"PublishEventHandler.OnItemProcessed: Item NOT marked as updated (no actual changes detected). " +
+                        $"ItemID: {context.ItemId}, " +
+                        $"Path: '{processingInfo.ItemPath}'", this);
                 }
             }
             catch (Exception ex)
@@ -397,6 +412,8 @@ namespace iO.Sitecore.publishing.Events
                     }
 
                     Log.Info("───────────────────────────────────────────────────────────────", this);
+
+                    SendUpdatedItemsToTelemetry(updatedItemsList, publishOptions);
                 }
 
                 Log.Info("Revision Comparison Summary:", this);
@@ -465,6 +482,18 @@ namespace iO.Sitecore.publishing.Events
                     $"SourceDB: {sourceDb}, " +
                     $"TargetDB: {targetDb}",
                     this);
+
+                var telemetryService = GetTelemetryService();
+                if (telemetryService != null)
+                {
+                    var databases = Factory.GetDatabases()
+                        .Where(database => database.RemoteEvents.EventQueue.Name == eventArgs.EventQueueName)
+                        .Select(database => database.Name)
+                        .ToList();
+
+                    telemetryService.RecordPublishEndRemote(eventArgs.EventQueueName, databases);
+                    Log.Info($"PublishEventHandler.OnPublishEndRemote: Sent remote publish event to telemetry service.", this);
+                }
             }
             catch (Exception ex)
             {
@@ -489,40 +518,115 @@ namespace iO.Sitecore.publishing.Events
             _publishContexts.AddOrUpdate(contextKey, contextInfo, (key, existing) => contextInfo);
         }
 
-        private class ItemProcessingInfo
+        private void SendUpdatedItemsToTelemetry(List<ItemUpdateInfo> updatedItems, PublishOptions publishOptions)
         {
-            public ID ItemId { get; set; }
-            public string ItemPath { get; set; }
-            public string Language { get; set; }
-            public int Version { get; set; }
-            public ID SourceRevisionId { get; set; }
-            public DateTime SourceUpdated { get; set; }
-            public ID TargetRevisionId { get; set; }
-            public DateTime TargetUpdated { get; set; }
-            public string Action { get; set; }
-            public DateTime ProcessingTime { get; set; }
-            public bool HasVersionInfo { get; set; }
+            if (updatedItems == null || !updatedItems.Any())
+            {
+                Log.Info("PublishEventHandler.SendUpdatedItemsToTelemetry: No items to send.", this);
+                return;
+            }
+
+            try
+            {
+                var telemetryService = GetTelemetryService();
+                if (telemetryService == null)
+                {
+                    Log.Warn("PublishEventHandler.SendUpdatedItemsToTelemetry: Telemetry service not available.", this);
+                    return;
+                }
+
+                var targetDatabase = publishOptions.TargetDatabase;
+                var sourceDatabase = publishOptions.SourceDatabase;
+
+                if (targetDatabase == null)
+                {
+                    Log.Warn("PublishEventHandler.SendUpdatedItemsToTelemetry: Target database is null.", this);
+                    return;
+                }
+
+                string sourceDatabaseName = sourceDatabase?.Name ?? "master";
+
+                Log.Info($"PublishEventHandler.SendUpdatedItemsToTelemetry: Sending {updatedItems.Count} updated items to telemetry service...", this);
+
+                Task.Run(() =>
+                {
+                    int successCount = 0;
+                    int failureCount = 0;
+
+                    foreach (var updateInfo in updatedItems)
+                    {
+                        try
+                        {
+                            var language = Language.Parse(updateInfo.Language);
+                            var version = Version.Parse(updateInfo.Version);
+
+                            Item publishedItem = targetDatabase.GetItem(updateInfo.ItemId, language, version);
+
+                            if (publishedItem == null)
+                            {
+                                publishedItem = targetDatabase.GetItem(updateInfo.ItemId);
+                            }
+
+                            if (publishedItem != null)
+                            {
+                                telemetryService.RecordItemProcessed(publishedItem, publishOptions, sourceDatabaseName);
+                                successCount++;
+
+                                Log.Info($"PublishEventHandler.SendUpdatedItemsToTelemetry: Sent item {publishedItem.Paths.FullPath} to telemetry.", typeof(PublishEventHandler));
+                            }
+                            else
+                            {
+                                Log.Warn($"PublishEventHandler.SendUpdatedItemsToTelemetry: Could not retrieve item {updateInfo.ItemId} from target database.", typeof(PublishEventHandler));
+                                failureCount++;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"PublishEventHandler.SendUpdatedItemsToTelemetry: Error sending item {updateInfo.ItemId} to telemetry.", ex, typeof(PublishEventHandler));
+                            failureCount++;
+                        }
+                    }
+
+                    Log.Info($"PublishEventHandler.SendUpdatedItemsToTelemetry: Completed. Success: {successCount}, Failures: {failureCount}", typeof(PublishEventHandler));
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error("PublishEventHandler.SendUpdatedItemsToTelemetry: Error sending items to telemetry.", ex, this);
+            }
         }
 
-        private class ItemUpdateInfo
+        private PublishTelemetryService GetTelemetryService()
         {
-            public ID ItemId { get; set; }
-            public string ItemPath { get; set; }
-            public string Language { get; set; }
-            public int Version { get; set; }
-            public ID OldRevisionId { get; set; }
-            public ID NewRevisionId { get; set; }
-            public DateTime OldUpdated { get; set; }
-            public DateTime NewUpdated { get; set; }
-            public string Action { get; set; }
-            public string Result { get; set; }
-            public string PublishMode { get; set; }
-        }
+            if (_telemetryService != null)
+            {
+                return _telemetryService;
+            }
 
-        private class PublishContextInfo
-        {
-            public PublishOptions PublishOptions { get; set; }
-            public DateTime StartTime { get; set; }
+            lock (_telemetryLock)
+            {
+                if (_telemetryService != null)
+                {
+                    return _telemetryService;
+                }
+
+                try
+                {
+                    var auditLogPath = Settings.GetSetting("AssetUsage.AuditLogPath",
+                        System.IO.Path.Combine(Settings.DataFolder, "logs", "published-items.json"));
+
+                    var client = new AssetUsageServiceClient();
+                    _telemetryService = new PublishTelemetryService(client, auditLogPath);
+
+                    Log.Info("PublishEventHandler.GetTelemetryService: Telemetry service initialized successfully.", this);
+                    return _telemetryService;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("PublishEventHandler.GetTelemetryService: Failed to initialize telemetry service.", ex, this);
+                    return null;
+                }
+            }
         }
     }
 }
