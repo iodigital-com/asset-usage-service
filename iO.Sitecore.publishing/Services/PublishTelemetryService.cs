@@ -6,7 +6,6 @@ using Sitecore.Data;
 using Sitecore.Data.Events;
 using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
-using Sitecore.Diagnostics;
 using Sitecore.Events;
 using Sitecore.Globalization;
 using Sitecore.Publishing;
