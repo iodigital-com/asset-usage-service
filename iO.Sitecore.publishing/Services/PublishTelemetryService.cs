@@ -1,7 +1,6 @@
 ﻿using iO.Sitecore.publishing.Models;
 using iO.Sitecore.Publishing.Events;
 using iO.Sitecore.Publishing.Models;
-using Sitecore;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
@@ -39,6 +38,7 @@ namespace iO.Sitecore.Publishing.Services
         private static readonly object _statsLock = new object();
         private static readonly object FileLock = new object();
         private static readonly Regex GatewayIdRegex = new Regex(@"/api/gateway/(\d+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private readonly int UpdatedTimestampThresholdSeconds = 1;
 
         public PublishTelemetryService(AssetUsageServiceClient client, string auditLogPath)
         {
@@ -476,7 +476,7 @@ namespace iO.Sitecore.Publishing.Services
         {
             if (processingInfo.TargetRevisionId == ID.Null && newRevisionId != ID.Null) return true;
             if (processingInfo.TargetRevisionId != newRevisionId && newRevisionId != ID.Null) return true;
-            return Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > 1;
+            return Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > UpdatedTimestampThresholdSeconds;
         }
 
         private PublishOptions ExtractPublishOptions(EventArgs args)
