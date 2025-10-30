@@ -25,47 +25,44 @@ public class AssetItemController
        ItemAssetChanges itemAssetChanges = await _deltaCalculationService.CalculateDeltaAsync(publishedItemViewModel.ItemId, publishedItemViewModel.AssetIds, cancellationToken);
         //await pushToDamHandler.PushToDamAsync(35442, _APIGateway, cancellationToken);
         var client = _contentHubConnection.CreateClient();
-
-        // Implement the logic to push data to DAM using the client and payload
-        // This is a placeholder for the actual implementation
         foreach(var assetId in itemAssetChanges.ToAddAssetIds)
         {
             try
             {
-                _logger.LogInformation("Processing asset {AssetId} for addition to item {ItemId}", assetId, itemAssetChanges.ItemId);
+                _logger.LogInformation("Processing asset {AssetId} for addition to item {ItemId}", 
+                    assetId, itemAssetChanges.ItemId);
                 
-                string e = @"{
-                    'name': 'John',
-                    'age': 30,
-                    'hobbies': ['reading', 'gaming']
-                }";
-                JToken ww = JToken.Parse(e);
-
                 var asset = await client.Entities.GetAsync(assetId);
                 _logger.LogDebug("Retrieved asset {AssetId} from Content Hub", assetId);
                 
-                var itemsJson = asset.GetPropertyValue<JObject>("UsageTracking");
-                if (itemsJson == null)
+                var itemsJson = asset.GetPropertyValue<JToken>("UsageTracking");
+                JObject usageTracking;
+                
+                if (itemsJson == null || itemsJson.Type != JTokenType.Object)
                 {
-                    _logger.LogInformation("UsageTracking property is null for asset {AssetId}, creating new JObject", assetId);
-                    itemsJson = new JObject();
+                    _logger.LogInformation("UsageTracking property is null or invalid type for asset {AssetId}, creating new JObject", assetId);
+                    usageTracking = new JObject();
                 }
                 else
                 {
-                    _logger.LogDebug("Existing UsageTracking found for asset {AssetId}: {UsageTracking}", assetId, itemsJson.ToString());
+                    usageTracking = (JObject)itemsJson;
+                    _logger.LogDebug("Existing UsageTracking found for asset {AssetId}: {UsageTracking}", 
+                        assetId, usageTracking.ToString());
                 }
                 
-                itemsJson["test"] = "test";
-                itemsJson.Add(itemAssetChanges.ItemId.ToString());
+                usageTracking[itemAssetChanges.ItemId.ToString()] = "test";
                 
-                _logger.LogInformation("Adding item {ItemId} to UsageTracking for asset {AssetId}", itemAssetChanges.ItemId, assetId);
+                _logger.LogInformation("Adding item {ItemId} to UsageTracking for asset {AssetId}", 
+                    itemAssetChanges.ItemId, assetId);
+                asset.SetPropertyValue("UsageTracking", usageTracking);
                 
                 await client.Entities.SaveAsync(asset);
                 _logger.LogInformation("Successfully saved asset {AssetId} with updated UsageTracking", assetId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to add item {ItemId} to asset {AssetId} UsageTracking", itemAssetChanges.ItemId, assetId);
+                _logger.LogError(ex, "Failed to add item {ItemId} to asset {AssetId} UsageTracking", 
+                    itemAssetChanges.ItemId, assetId);
                 throw;
             }
         }
