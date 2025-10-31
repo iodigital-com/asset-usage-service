@@ -1,13 +1,13 @@
-﻿using iO.Sitecore.Publishing.Events;
-using iO.Sitecore.Publishing.Services;
+﻿using iO.Sitecore.Publishing.Services;
 using Sitecore.Configuration;
 using Sitecore.Data.Events;
 using Sitecore.Diagnostics;
 using Sitecore.Events;
 using Sitecore.Publishing.Pipelines.PublishItem;
 using System;
+using System.Threading.Tasks;
 
-namespace iO.Sitecore.publishing.Events
+namespace iO.Sitecore.Publishing.Events
 {
     public class PublishEventHandler
     {
@@ -42,14 +42,14 @@ namespace iO.Sitecore.publishing.Events
             }
         }
 
-        protected async void OnPublishEnd(object sender, EventArgs args)
+        protected void OnPublishEnd(object sender, EventArgs args)
         {
             try
             {
                 var telemetryService = GetTelemetryService();
                 if (telemetryService != null)
                 {
-                    await telemetryService.ProcessPublishEndAsync(args);
+                    Task.Run(async () => await telemetryService.ProcessPublishEndAsync(args));
                 }
             }
             catch (Exception ex)
