@@ -103,47 +103,5 @@ public class AssetItemController
                 throw;
             }
         }
-        //var asset = await client.Entities.GetAsync(34013);
-
-
-
-
-
-
-
-        //var test = json["3287483470238y4h"];
-        //string e = @"{
-        //    'name': 'John',
-        //    'age': 30,
-        //    'hobbies': ['reading', 'gaming']
-        //}";
-        //JToken ww = JToken.Parse(e);
-
-        ////var jsonObj = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
-        ////_logger.LogInformation("asset type: {asset}", jsonObj["3287483470238y4h"]);
-        ////jsonObj["3287483470238y4h"] = "123231";
-        //json["rre"] = ww;
-        ////json.RemoveAnnotations("rre");
-        //if (json.SelectToken("rre") != null)
-        //    json.SelectToken("rre").Parent.Remove();
-        ////json.Append(ww);
-        ////json["rre"].Remove();
-        ////json.AddAfterSelf(ww);
-        ////json.AddAnnotation(ww);
-        ////asset.SetPropertyValue("UsageTracking", JsonConvert.SerializeObject(jsonObj));
-        //await client.Entities.SaveAsync(asset);
-        //_logger.LogInformation("asset type: {asset}", test);
-
-        //var json = asset.GetProperty("UsageTracking");
-        //var m = asset.LoadMembersAsync;
-        //var p = asset.LoadPropertiesAsync;
-        //_logger.LogInformation("asset prop: {p}, en asset mem: {m}", p,m);
-        //var test = m.GetInvocationList;
-        ////var jToken = json["query"];
-        //_logger.LogInformation("asset type: {asset}, en asset string: {string} en name {name}", json.DataType, json.ToString(), json.Name);
-        //var test = json.ToString();
-        //var usageTracking = System.Text.Json.JsonSerializer.Deserialize<UsageTracking>(test);
-
-
     }
 }

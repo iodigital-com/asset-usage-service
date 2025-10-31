@@ -1,8 +1,14 @@
 namespace AssetUsageService.Business.Events;
 
-public class PushToDamEvent
+public sealed class PushToDamEvent
 {
-    public PushToDamEvent()
-    {
-    }
+    public required Guid ItemId { get; init; }
+    public required List<int> AssetIds { get; init; }
+    public required DamUpdateOperation Operation { get; init; }
+}
+
+public enum DamUpdateOperation
+{
+    Add,
+    Remove
 }
