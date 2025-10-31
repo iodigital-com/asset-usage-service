@@ -3,10 +3,13 @@ using Sitecore.Publishing.Pipelines.PublishItem;
 using System;
 using System.Threading.Tasks;
 
-public interface IPublishTelemetryService
+namespace iO.Sitecore.Publishing.Services
 {
-    void ProcessItemProcessing(ItemProcessingEventArgs eventArgs);
-    void ProcessItemProcessed(ItemProcessedEventArgs eventArgs);
-    Task ProcessPublishEndAsync(EventArgs args);
-    void ProcessPublishEndRemote(PublishEndRemoteEventArgs eventArgs);
+    public interface IPublishTelemetryService
+    {
+        void ProcessItemProcessing(ItemProcessingEventArgs eventArgs);
+        void ProcessItemProcessed(ItemProcessedEventArgs eventArgs);
+        Task ProcessPublishEndAsync(EventArgs args);
+        void ProcessPublishEndRemote(PublishEndRemoteEventArgs eventArgs);
+    }
 }
