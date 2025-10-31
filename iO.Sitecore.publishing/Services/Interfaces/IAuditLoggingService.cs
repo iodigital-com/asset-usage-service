@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace iO.Sitecore.Publishing.Services
+﻿namespace iO.Sitecore.Publishing.Services
 {
     public interface IAuditLoggingService
     {

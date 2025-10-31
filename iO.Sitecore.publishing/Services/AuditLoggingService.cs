@@ -1,5 +1,4 @@
-﻿using iO.Sitecore.Publishing.Services;
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
 
@@ -24,7 +23,6 @@ namespace iO.Sitecore.Publishing.Services
                 var options = new JsonSerializerOptions
                 {
                     WriteIndented = false,
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 };
 
                 var json = JsonSerializer.Serialize(record, options);
