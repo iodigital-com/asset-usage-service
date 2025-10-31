@@ -51,28 +51,4 @@ public class AssetItemLinkRepository : IAssetItemLinkRepository
         var filter = Builders<AssetItemLink>.Filter.AnyEq(link => link.AssetIds, assetId);
         return _dbContext.AssetItemLinks.Find(filter).ToListAsync(cancellationToken);
     }
-
-    public Task RemoveAssetIdsFromItemAsync(Guid itemId, List<int> assetIds, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(itemId);
-        var filter = Builders<AssetItemLink>.Filter.Eq(link => link.ItemId, itemId);
-        var update = Builders<AssetItemLink>.Update.PullAll(link => link.AssetIds, assetIds)
-                                                    .Set(link => link.UpdatedAt, DateTime.UtcNow);
-        return _dbContext.AssetItemLinks.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
-    }
-    public Task AddAssetIdsToItemAsync(Guid itemId, List<int> assetIds, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(itemId);
-        var filter = Builders<AssetItemLink>.Filter.Eq(link => link.ItemId, itemId);
-        var update = Builders<AssetItemLink>.Update.AddToSetEach(link => link.AssetIds, assetIds)
-                                                    .Set(link => link.UpdatedAt, DateTime.UtcNow);
-        return _dbContext.AssetItemLinks.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
-    }
-    public Task RemoveItemAsync(Guid itemId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(itemId);
-        var filter = Builders<AssetItemLink>.Filter.Eq(link => link.ItemId, itemId);
-        return _dbContext.AssetItemLinks.DeleteOneAsync(filter, cancellationToken);
-    }
-
 }
