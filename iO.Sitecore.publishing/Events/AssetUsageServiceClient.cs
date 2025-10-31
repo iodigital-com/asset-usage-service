@@ -90,15 +90,12 @@ namespace iO.Sitecore.Publishing.Events
             var client = new HttpClient();
             client.Timeout = TimeSpan.FromSeconds(30);
 
-            var userAgent = Settings.GetSetting("AssetUsageService.UserAgent", "Sitecore-AssetUsage/1.0");
-            client.DefaultRequestHeaders.Add("User-Agent", userAgent);
-
             return client;
         }
 
         private string GetAndValidateEndpointUrl()
         {
-            var url = Settings.GetSetting("AssetUsageService.Endpoint", "http://localhost:7183/api/SitecorePublishAPI");
+            var url = "http://localhost:7183/api/SitecorePublishAPI";
 
             if (string.IsNullOrWhiteSpace(url))
             {
