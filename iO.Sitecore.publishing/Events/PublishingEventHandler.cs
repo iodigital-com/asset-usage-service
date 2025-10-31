@@ -58,20 +58,6 @@ namespace iO.Sitecore.publishing.Events
             }
         }
 
-        protected void OnPublishEndRemote(object sender, EventArgs args)
-        {
-            try
-            {
-                var eventArgs = Event.ExtractParameter<PublishEndRemoteEventArgs>(args, 0);
-                var telemetryService = GetTelemetryService();
-                telemetryService?.ProcessPublishEndRemote(eventArgs);
-            }
-            catch (Exception ex)
-            {
-                Log.Error("PublishEventHandler.OnPublishEndRemote: Error in publish end remote handler.", ex, this);
-            }
-        }
-
         private IPublishTelemetryService GetTelemetryService()
         {
             if (_telemetryService != null)
