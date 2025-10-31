@@ -11,7 +11,7 @@ namespace iO.Sitecore.publishing.Events
 {
     public class PublishEventHandler
     {
-        private static PublishTelemetryService _telemetryService;
+        private static IPublishTelemetryService _telemetryService;
         private static readonly object _telemetryLock = new object();
 
         protected void OnItemProcessing(object sender, EventArgs args)
@@ -47,7 +47,7 @@ namespace iO.Sitecore.publishing.Events
             try
             {
                 var telemetryService = GetTelemetryService();
-                telemetryService?.ProcessPublishEnd(args);
+                telemetryService?.ProcessPublishEndAsync(args);
             }
             catch (Exception ex)
             {
@@ -69,7 +69,7 @@ namespace iO.Sitecore.publishing.Events
             }
         }
 
-        private PublishTelemetryService GetTelemetryService()
+        private IPublishTelemetryService GetTelemetryService()
         {
             if (_telemetryService != null)
                 return _telemetryService;

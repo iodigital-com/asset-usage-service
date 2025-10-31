@@ -33,7 +33,6 @@ namespace iO.Sitecore.Publishing.Services
             Log.Debug($"PublishTelemetryService.ProcessItemProcessed: Published item not found in target. ItemID: {itemId}", owner);
         }
 
-        // Warn logs
         public void LogNoProcessingInfoFound(ID itemId, string languageName, int versionNumber, bool hasVersionInfo)
         {
             Log.Warn($"PublishTelemetryService.ProcessItemProcessed: No processing info found for item {itemId}, " +
