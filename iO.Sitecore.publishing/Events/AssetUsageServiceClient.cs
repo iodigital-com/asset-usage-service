@@ -5,50 +5,158 @@ using System;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace iO.Sitecore.Publishing.Events
 {
-    public class AssetUsageServiceClient
+    public class AssetUsageServiceClient : IDisposable
     {
-        private static readonly HttpClient SharedHttpClient = new HttpClient();
+        private static readonly Lazy<HttpClient> LazyHttpClient = new Lazy<HttpClient>(CreateHttpClient, LazyThreadSafetyMode.ExecutionAndPublication);
+        private static HttpClient SharedHttpClient => LazyHttpClient.Value;
+
         private readonly string endpointUrl;
+        private readonly JsonSerializerOptions jsonOptions;
+        private bool disposed = false;
 
         public AssetUsageServiceClient()
         {
-            endpointUrl = Settings.GetSetting("AssetUsageService.Endpoint", "http://localhost:7183/api/SitecorePublishAPI");
+            endpointUrl = GetAndValidateEndpointUrl();
+            jsonOptions = new JsonSerializerOptions
+            {
+                WriteIndented = false
+            };
         }
 
-        public async Task SendAsync(AssetUsageEvent payload)
+        public async Task SendAsync(AssetUsageEvent payload, CancellationToken cancellationToken = default)
         {
+            ThrowIfDisposed();
+
             if (payload == null)
             {
-                Log.Warn("[AssetUsageServiceClient] Payload is null; skipping send.", this);
+                Log.Warn("[AssetUsageServiceClient] Payload is null; skipping send.", typeof(AssetUsageServiceClient));
                 return;
             }
 
+            if (string.IsNullOrWhiteSpace(payload.ItemId))
+            {
+                Log.Warn("[AssetUsageServiceClient] Payload ItemId is null or empty; skipping send.", typeof(AssetUsageServiceClient));
+                return;
+            }
+
+            HttpResponseMessage httpResponse = null;
             try
             {
-                string jsonPayload = JsonSerializer.Serialize(payload);
+                string jsonPayload = JsonSerializer.Serialize(payload, jsonOptions);
+
                 using (var httpContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json"))
                 {
-                    HttpResponseMessage httpResponse = await SharedHttpClient.PostAsync(endpointUrl, httpContent);
+                    httpResponse = await SharedHttpClient.PostAsync(endpointUrl, httpContent, cancellationToken).ConfigureAwait(false);
 
                     if (httpResponse.IsSuccessStatusCode)
                     {
-                        Log.Info($"[AssetUsageServiceClient] Successfully sent data for ItemId={payload.ItemId}", this);
+                        Log.Info($"[AssetUsageServiceClient] Successfully sent data for ItemId={payload.ItemId}", typeof(AssetUsageServiceClient));
                     }
                     else
                     {
-                        string responseBody = await httpResponse.Content.ReadAsStringAsync();
-                        Log.Error($"[AssetUsageServiceClient] Failed. Status={httpResponse.StatusCode}, Body={responseBody}", this);
+                        await HandleHttpError(httpResponse, payload.ItemId).ConfigureAwait(false);
                     }
                 }
             }
-            catch (Exception exception)
+            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || cancellationToken.IsCancellationRequested)
             {
-                Log.Error("[AssetUsageServiceClient] Error sending to Azure Function", exception, this);
+                Log.Warn($"[AssetUsageServiceClient] Request timeout or cancelled for ItemId={payload.ItemId}", typeof(AssetUsageServiceClient));
             }
+            catch (HttpRequestException ex)
+            {
+                Log.Error($"[AssetUsageServiceClient] HTTP request failed for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
+            }
+            catch (JsonException ex)
+            {
+                Log.Error($"[AssetUsageServiceClient] JSON serialization failed for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[AssetUsageServiceClient] Unexpected error sending data for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
+            }
+            finally
+            {
+                httpResponse?.Dispose();
+            }
+        }
+
+        private static HttpClient CreateHttpClient()
+        {
+            var client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+
+            var userAgent = Settings.GetSetting("AssetUsageService.UserAgent", "Sitecore-AssetUsage/1.0");
+            client.DefaultRequestHeaders.Add("User-Agent", userAgent);
+
+            return client;
+        }
+
+        private string GetAndValidateEndpointUrl()
+        {
+            var url = Settings.GetSetting("AssetUsageService.Endpoint", "http://localhost:7183/api/SitecorePublishAPI");
+
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                throw new InvalidOperationException("AssetUsageService.Endpoint setting is required but not configured.");
+            }
+
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+            {
+                throw new InvalidOperationException($"AssetUsageService.Endpoint setting '{url}' is not a valid HTTP/HTTPS URL.");
+            }
+
+            return url;
+        }
+
+        private async Task HandleHttpError(HttpResponseMessage response, string itemId)
+        {
+            string responseBody = string.Empty;
+            try
+            {
+                responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[AssetUsageServiceClient] Could not read error response body: {ex.Message}", typeof(AssetUsageServiceClient));
+                responseBody = "[Could not read response]";
+            }
+
+            Log.Error($"[AssetUsageServiceClient] HTTP request failed for ItemId={itemId}. " +
+                     $"Status: {response.StatusCode} ({(int)response.StatusCode}), " +
+                     $"Body: {responseBody?.Substring(0, Math.Min(responseBody.Length, 500))}",
+                     typeof(AssetUsageServiceClient));
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (disposed)
+            {
+                throw new ObjectDisposedException(nameof(AssetUsageServiceClient));
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposed && disposing)
+            {
+                disposed = true;
+            }
+        }
+
+        ~AssetUsageServiceClient()
+        {
+            Dispose(false);
         }
     }
 }

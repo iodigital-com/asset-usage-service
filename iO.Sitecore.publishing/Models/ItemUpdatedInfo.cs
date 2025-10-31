@@ -1,7 +1,7 @@
 ﻿using Sitecore.Data;
 using System;
 
-namespace iO.Sitecore.publishing.Models
+namespace iO.Sitecore.Publishing.Models
 {
     public class ItemUpdateInfo
     {

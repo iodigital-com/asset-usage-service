@@ -1,5 +1,4 @@
-﻿using iO.Sitecore.Publishing.Models;
-using Sitecore.Data.Events;
+﻿using Sitecore.Data.Events;
 using Sitecore.Publishing.Pipelines.PublishItem;
 using System;
 using System.Threading.Tasks;

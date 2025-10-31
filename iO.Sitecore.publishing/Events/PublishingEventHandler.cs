@@ -42,12 +42,15 @@ namespace iO.Sitecore.publishing.Events
             }
         }
 
-        protected void OnPublishEnd(object sender, EventArgs args)
+        protected async void OnPublishEnd(object sender, EventArgs args)
         {
             try
             {
                 var telemetryService = GetTelemetryService();
-                telemetryService?.ProcessPublishEndAsync(args);
+                if (telemetryService != null)
+                {
+                    await telemetryService.ProcessPublishEndAsync(args);
+                }
             }
             catch (Exception ex)
             {
