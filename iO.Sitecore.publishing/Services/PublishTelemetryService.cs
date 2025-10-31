@@ -190,6 +190,7 @@ namespace iO.Sitecore.Publishing.Services
             LogPublishStatistics();
 
             var updatedItemsList = _updatedItems.ToList();
+
             loggingService.LogUpdatedItems(updatedItemsList);
 
             if (updatedItemsList.Any())
