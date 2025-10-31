@@ -1,4 +1,4 @@
-﻿using AssetUsageService.Integration.ViewModel;
+﻿using AssetUsageService.Integration.Models;
 using DnsClient.Internal;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -17,20 +17,20 @@ public class MessageHandler
     }
     public async Task HandleMessageAsync(string message, CancellationToken cancellationToken = default)
     {
-        var publishedItem = JsonSerializer.Deserialize<PublishedItemViewModel>(message);
+        var publishedItem = JsonSerializer.Deserialize<PublishedItem>(message);
 
         if (publishedItem == null)
         {
             throw new InvalidOperationException("Failed to deserialize published items message");
         }
 
-        publishedItem.AssetIds = FilterAssets(publishedItem.AssetIds);
+        publishedItem.AssetIds = GetAssetIdsFromPairs(publishedItem.AssetIds);
 
         _logger.LogInformation("Processing ItemId: {ItemId}, AssetIds: {AssetCount}", publishedItem.ItemId, publishedItem.AssetIds);
 
         await _assetItemController.ProcessPublishedItemAsync(publishedItem, cancellationToken);
     }
-    private List<string> FilterAssets(List<string> assetIds)
+    private List<string> GetAssetIdsFromPairs(List<string> assetIds)
     {
         var filteredAssets = new List<string>();
 
