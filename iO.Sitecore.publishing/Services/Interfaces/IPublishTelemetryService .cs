@@ -10,6 +10,5 @@ namespace iO.Sitecore.Publishing.Services
         void ProcessItemProcessing(ItemProcessingEventArgs eventArgs);
         void ProcessItemProcessed(ItemProcessedEventArgs eventArgs);
         Task ProcessPublishEndAsync(EventArgs args);
-        void ProcessPublishEndRemote(PublishEndRemoteEventArgs eventArgs);
     }
 }

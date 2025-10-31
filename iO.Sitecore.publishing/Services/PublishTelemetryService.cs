@@ -201,35 +201,6 @@ namespace iO.Sitecore.Publishing.Services
             ClearBuffers();
         }
 
-        public void ProcessPublishEndRemote(PublishEndRemoteEventArgs eventArgs)
-        {
-            if (eventArgs == null)
-            {
-                loggingService.LogInvalidEventArguments("ProcessPublishEndRemote");
-                return;
-            }
-
-            var languageInfo = string.IsNullOrEmpty(eventArgs.LanguageName) ? "All" : eventArgs.LanguageName;
-            var sourceDb = string.IsNullOrEmpty(eventArgs.SourceDatabaseName) ? "N/A" : eventArgs.SourceDatabaseName;
-            var targetDb = string.IsNullOrEmpty(eventArgs.TargetDatabaseName) ? "N/A" : eventArgs.TargetDatabaseName;
-
-            loggingService.LogPublishEndRemote(
-                eventArgs.RootItemId,
-                eventArgs.Mode.ToString(),
-                eventArgs.Deep,
-                languageInfo,
-                sourceDb,
-                targetDb);
-
-            var databases = Factory.GetDatabases()
-                .Where(database => database.RemoteEvents.EventQueue.Name == eventArgs.EventQueueName)
-                .Select(database => database.Name)
-                .ToList();
-
-            RecordPublishEndRemote(eventArgs.EventQueueName, databases);
-            loggingService.LogPublishEndRemoteSent();
-        }
-
         private (Language language, Version version, bool hasVersionInfo) GetLanguageAndVersion(PublishItemContext context, PublishContext publishContext)
         {
             bool hasVersionInfo = context.VersionToPublish != null;
