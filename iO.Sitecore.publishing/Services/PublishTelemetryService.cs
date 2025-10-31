@@ -4,46 +4,40 @@ using iO.Sitecore.Publishing.Models;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
-using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
 using Sitecore.Events;
 using Sitecore.Globalization;
 using Sitecore.Publishing;
 using Sitecore.Publishing.Pipelines.Publish;
 using Sitecore.Publishing.Pipelines.PublishItem;
-using Sitecore.Resources.Media;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
-using System.Xml.Linq;
 using Version = Sitecore.Data.Version;
 
 namespace iO.Sitecore.Publishing.Services
 {
-    public sealed class PublishTelemetryService
+    public sealed class PublishTelemetryService : IPublishTelemetryService
     {
         private readonly AssetUsageServiceClient assetUsageClient;
-        private readonly string auditLogPath;
         private readonly PublishLoggingService loggingService;
+        private readonly IAssetExtractionService assetExtractionService;
+        private readonly IAuditLoggingService auditLoggingService;
 
         private static readonly ConcurrentDictionary<string, ItemProcessingInfo> _processingItems = new ConcurrentDictionary<string, ItemProcessingInfo>();
         private static readonly ConcurrentBag<ItemUpdateInfo> _updatedItems = new ConcurrentBag<ItemUpdateInfo>();
         private static readonly ConcurrentDictionary<string, PublishContextInfo> _publishContexts = new ConcurrentDictionary<string, PublishContextInfo>();
         private static readonly object _statsLock = new object();
-        private static readonly object FileLock = new object();
-        private static readonly Regex GatewayIdRegex = new Regex(@"/api/gateway/(\d+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private readonly int UpdatedTimestampThresholdSeconds = 1;
+        private const int UPDATEDTIMESTAMPTHRESHOLDSECONDS = 1;
 
         public PublishTelemetryService(AssetUsageServiceClient client, string auditLogPath)
         {
             assetUsageClient = client ?? throw new ArgumentNullException(nameof(client));
-            this.auditLogPath = string.IsNullOrWhiteSpace(auditLogPath) ? throw new ArgumentException(nameof(auditLogPath)) : auditLogPath;
             loggingService = new PublishLoggingService(this);
+            assetExtractionService = new AssetExtractionService(loggingService);
+            auditLoggingService = new AuditLoggingService(auditLogPath, loggingService);
         }
 
         public void ProcessItemProcessing(ItemProcessingEventArgs eventArgs)
@@ -183,7 +177,7 @@ namespace iO.Sitecore.Publishing.Services
             }
         }
 
-        public void ProcessPublishEnd(EventArgs args)
+        public async Task ProcessPublishEndAsync(EventArgs args)
         {
             var publishOptions = ExtractPublishOptions(args);
             if (publishOptions == null)
@@ -201,7 +195,7 @@ namespace iO.Sitecore.Publishing.Services
 
             if (updatedItemsList.Any())
             {
-                SendUpdatedItemsToTelemetry(updatedItemsList, publishOptions);
+                await SendUpdatedItemsToTelemetryAsync(updatedItemsList, publishOptions);
             }
 
             LogRevisionSummary();
@@ -235,184 +229,6 @@ namespace iO.Sitecore.Publishing.Services
 
             RecordPublishEndRemote(eventArgs.EventQueueName, databases);
             loggingService.LogPublishEndRemoteSent();
-        }
-
-        private static List<string> ExtractAssetIds(Item item, PublishLoggingService logger)
-        {
-            var assetIdsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            try
-            {
-                item.Fields.ReadAll();
-
-                foreach (Field field in item.Fields)
-                {
-                    if (string.IsNullOrEmpty(field?.Value)) continue;
-                    var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
-
-                    switch (fieldTypeKey)
-                    {
-                        case "image":
-                            var imageField = (ImageField)field;
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("DamId"), logger);
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("dam-id"), logger);
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("stylelabs-content-id"), logger);
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Thumbnail"), logger);
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("thumbnailsrc"), logger);
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Source"), logger);
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("src"), logger);
-                            break;
-
-                        case "general link":
-                        case "link":
-                            try
-                            {
-                                var xmlElement = XElement.Parse(field.Value);
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("DamId"), logger);
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("dam-id"), logger);
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("stylelabs-content-id"), logger);
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("url"), logger);
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("href"), logger);
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("Source"), logger);
-                            }
-                            catch (Exception exception)
-                            {
-                                logger.LogMalformedLinkXml(field.Name, item.Paths.FullPath, exception);
-                            }
-                            break;
-
-                        default:
-                            foreach (Match urlMatch in GatewayIdRegex.Matches(field.Value))
-                            {
-                                if (urlMatch.Success && urlMatch.Groups.Count > 1)
-                                {
-                                    AddIfNotEmpty(assetIdsSet, urlMatch.Groups[1].Value, logger);
-                                }
-                            }
-                            break;
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                logger.LogExtractAssetIdsError(item.Paths.FullPath, exception);
-            }
-
-            return assetIdsSet.ToList();
-        }
-
-        private static string ExtractPublicLink(Item item, PublishLoggingService logger)
-        {
-            try
-            {
-                item.Fields.ReadAll();
-
-                foreach (Field field in item.Fields)
-                {
-                    if (string.IsNullOrEmpty(field?.Value)) continue;
-                    var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
-
-                    switch (fieldTypeKey)
-                    {
-                        case "image":
-                            var imageField = (ImageField)field;
-                            var contentHubUrl = FirstNonEmpty(
-                                imageField.GetAttribute("Source"),
-                                imageField.GetAttribute("source"),
-                                imageField.GetAttribute("src"),
-                                imageField.GetAttribute("url"),
-                                imageField.GetAttribute("public_link")
-                            );
-                            if (!string.IsNullOrEmpty(contentHubUrl)) return contentHubUrl;
-
-                            if (imageField.MediaItem != null)
-                            {
-                                var mediaUrl = MediaManager.GetMediaUrl(imageField.MediaItem);
-                                if (!string.IsNullOrWhiteSpace(mediaUrl)) return mediaUrl;
-                            }
-                            break;
-
-                        case "general link":
-                        case "link":
-                            var linkField = new LinkField(field);
-                            var linkFieldUrl = FirstNonEmpty(linkField.Url);
-                            if (!string.IsNullOrEmpty(linkFieldUrl)) return linkFieldUrl;
-
-                            try
-                            {
-                                var xmlElement = XElement.Parse(field.Value);
-                                var mappedUrl = FirstNonEmpty(
-                                    (string)xmlElement.Attribute("url"),
-                                    (string)xmlElement.Attribute("href"),
-                                    (string)xmlElement.Attribute("Source"),
-                                    (string)xmlElement.Attribute("source"),
-                                    (string)xmlElement.Attribute("public_link")
-                                );
-                                if (!string.IsNullOrEmpty(mappedUrl)) return mappedUrl;
-                            }
-                            catch (Exception exception)
-                            {
-                                logger.LogMalformedPublicLinkXml(field.Name, exception);
-                            }
-                            break;
-
-                        case "file":
-                            try
-                            {
-                                var xmlElement = XElement.Parse(field.Value);
-                                var fileUrl = FirstNonEmpty(
-                                    (string)xmlElement.Attribute("url"),
-                                    (string)xmlElement.Attribute("href"),
-                                    (string)xmlElement.Attribute("Source"),
-                                    (string)xmlElement.Attribute("src"),
-                                    (string)xmlElement.Attribute("public_link")
-                                );
-                                if (!string.IsNullOrEmpty(fileUrl)) return fileUrl;
-                            }
-                            catch (Exception exception)
-                            {
-                                logger.LogMalformedFileXml(field.Name, exception);
-                            }
-                            break;
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                logger.LogExtractPublicLinkError(item.Paths.FullPath, exception);
-            }
-
-            return string.Empty;
-        }
-
-        private static void AddIfNotEmpty(HashSet<string> sink, string value, PublishLoggingService logger)
-        {
-            var trimmedValue = value?.Trim();
-            if (!string.IsNullOrWhiteSpace(trimmedValue))
-            {
-                sink.Add(trimmedValue);
-                logger.LogAssetIdAdded(trimmedValue);
-            }
-        }
-
-        private static void ExtractIdsFromUrl(HashSet<string> sink, string url, PublishLoggingService logger)
-        {
-            if (string.IsNullOrWhiteSpace(url)) return;
-            var urlMatch = GatewayIdRegex.Match(url);
-            if (urlMatch.Success && urlMatch.Groups.Count > 1)
-            {
-                var gatewayIdValue = urlMatch.Groups[1].Value;
-                sink.Add(gatewayIdValue);
-                logger.LogAssetIdExtractedFromUrl(gatewayIdValue, url);
-            }
-        }
-
-        private static string FirstNonEmpty(params string[] values)
-        {
-            foreach (var valueCandidate in values)
-            {
-                if (!string.IsNullOrWhiteSpace(valueCandidate)) return valueCandidate.Trim();
-            }
-            return string.Empty;
         }
 
         private (Language language, Version version, bool hasVersionInfo) GetLanguageAndVersion(PublishItemContext context, PublishContext publishContext)
@@ -471,7 +287,7 @@ namespace iO.Sitecore.Publishing.Services
         {
             if (processingInfo.TargetRevisionId == ID.Null && newRevisionId != ID.Null) return true;
             if (processingInfo.TargetRevisionId != newRevisionId && newRevisionId != ID.Null) return true;
-            return Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > UpdatedTimestampThresholdSeconds;
+            return Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > UPDATEDTIMESTAMPTHRESHOLDSECONDS;
         }
 
         private PublishOptions ExtractPublishOptions(EventArgs args)
@@ -547,7 +363,7 @@ namespace iO.Sitecore.Publishing.Services
             }
         }
 
-        private void SendUpdatedItemsToTelemetry(List<ItemUpdateInfo> updatedItems, PublishOptions publishOptions)
+        private async Task SendUpdatedItemsToTelemetryAsync(List<ItemUpdateInfo> updatedItems, PublishOptions publishOptions)
         {
             if (!updatedItems.Any())
             {
@@ -563,52 +379,47 @@ namespace iO.Sitecore.Publishing.Services
             }
 
             var sourceDatabaseName = publishOptions.SourceDatabase?.Name ?? "master";
-
             loggingService.LogSendingUpdatedItems(updatedItems.Count);
 
-            Task.Run(() =>
+            int successCount = 0;
+            int failureCount = 0;
+
+            foreach (var updateInfo in updatedItems)
             {
-                int successCount = 0;
-                int failureCount = 0;
-
-                foreach (var updateInfo in updatedItems)
+                try
                 {
-                    try
+                    var language = Language.Parse(updateInfo.Language);
+                    var version = Version.Parse(updateInfo.Version);
+
+                    Item publishedItem = targetDatabase.GetItem(updateInfo.ItemId, language, version) ??
+                                       targetDatabase.GetItem(updateInfo.ItemId);
+
+                    if (publishedItem != null)
                     {
-                        var language = Language.Parse(updateInfo.Language);
-                        var version = Version.Parse(updateInfo.Version);
-
-                        Item publishedItem = targetDatabase.GetItem(updateInfo.ItemId, language, version) ??
-                                           targetDatabase.GetItem(updateInfo.ItemId);
-
-                        if (publishedItem != null)
-                        {
-                            RecordItemProcessed(publishedItem, publishOptions, sourceDatabaseName);
-                            successCount++;
-
-                            loggingService.LogItemSentToTelemetry(publishedItem.Paths.FullPath);
-                        }
-                        else
-                        {
-                            loggingService.LogCouldNotRetrieveItemFromTarget(updateInfo.ItemId);
-                            failureCount++;
-                        }
+                        await RecordItemProcessedAsync(publishedItem, publishOptions, sourceDatabaseName);
+                        successCount++;
+                        loggingService.LogItemSentToTelemetry(publishedItem.Paths.FullPath);
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        loggingService.LogErrorSendingItemToTelemetry(updateInfo.ItemId, ex);
+                        loggingService.LogCouldNotRetrieveItemFromTarget(updateInfo.ItemId);
                         failureCount++;
                     }
                 }
+                catch (Exception ex)
+                {
+                    loggingService.LogErrorSendingItemToTelemetry(updateInfo.ItemId, ex);
+                    failureCount++;
+                }
+            }
 
-                loggingService.LogSendingCompleted(successCount, failureCount);
-            });
+            loggingService.LogSendingCompleted(successCount, failureCount);
         }
 
-        private void RecordItemProcessed(Item item, PublishOptions options, string sourceDatabaseName)
+        private async Task RecordItemProcessedAsync(Item item, PublishOptions options, string sourceDatabaseName)
         {
-            var assetIds = ExtractAssetIds(item, loggingService);
-            var publicLink = ExtractPublicLink(item, loggingService);
+            var assetIds = assetExtractionService.ExtractAssetIds(item);
+            var publicLink = assetExtractionService.ExtractPublicLink(item);
 
             var payload = new AssetUsageEvent
             {
@@ -625,7 +436,7 @@ namespace iO.Sitecore.Publishing.Services
                 TargetDatabase = options.TargetDatabase?.Name ?? string.Empty
             };
 
-            Task.Run(() => assetUsageClient.SendAsync(payload));
+            await assetUsageClient.SendAsync(payload);
 
             var record = new
             {
@@ -647,7 +458,7 @@ namespace iO.Sitecore.Publishing.Services
                 DeepPublish = options.Deep
             };
 
-            WriteAudit(record);
+            auditLoggingService.WriteAudit(record);
         }
 
         private void RecordPublishEndRemote(string eventQueueName, IEnumerable<string> databasesRaised)
@@ -659,7 +470,7 @@ namespace iO.Sitecore.Publishing.Services
                 EventQueueName = eventQueueName,
                 DatabasesRaised = databasesRaised?.ToList() ?? new List<string>()
             };
-            WriteAudit(summary);
+            auditLoggingService.WriteAudit(summary);
         }
 
         private static string GetPublishedBy()
@@ -680,32 +491,6 @@ namespace iO.Sitecore.Publishing.Services
         private static string NowString()
         {
             return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        }
-
-        private void WriteAudit(object record)
-        {
-            try
-            {
-                var serializer = new JavaScriptSerializer();
-                var json = serializer.Serialize(record);
-
-                var directory = Path.GetDirectoryName(auditLogPath);
-                if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                lock (FileLock)
-                {
-                    File.AppendAllText(auditLogPath, json + Environment.NewLine);
-                }
-
-                loggingService.LogAuditWriteComplete();
-            }
-            catch (Exception exception)
-            {
-                loggingService.LogWriteAuditError(exception);
-            }
         }
     }
 }
