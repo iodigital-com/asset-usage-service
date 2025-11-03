@@ -1,4 +1,4 @@
-using AssetUsageService.Data;
+using AssetUsageService.Domain.Data;
 using AssetUsageService.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;

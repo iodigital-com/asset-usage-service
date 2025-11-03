@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;
 
-namespace AssetUsageService.Data;
+namespace AssetUsageService.Domain.Data;
 
 public class DBContext
 {
