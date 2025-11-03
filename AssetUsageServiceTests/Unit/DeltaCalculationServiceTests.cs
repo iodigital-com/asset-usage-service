@@ -1,5 +1,5 @@
 using AssetUsageService.Business.Services;
-using AssetUsageService.Data;
+using AssetUsageService.Domain.Data;
 using AssetUsageService.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Moq;

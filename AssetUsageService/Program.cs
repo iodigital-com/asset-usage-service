@@ -1,9 +1,13 @@
 using AssetUsageService.Business.Controllers;
+using AssetUsageService.Business.Events;
+using AssetUsageService.Business.Events.interfaces;
 using AssetUsageService.Business.Handlers;
+using AssetUsageService.Business.Handlers.interfaces;
 using AssetUsageService.Business.Services;
-using AssetUsageService.Data;
+using AssetUsageService.Domain.Data;
 using AssetUsageService.Infrastructure;
 using AssetUsageService.Integration;
+using AssetUsageService.Integration.Mappers;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.Configuration;
@@ -33,6 +37,10 @@ builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
 builder.Services.AddSingleton<IAssetItemLinkRepository, AssetItemLinkRepository>();
 builder.Services.AddSingleton<DeltaCalculationService>();
 builder.Services.AddSingleton<DBContext>();
+builder.Services.AddSingleton<IMediater, InMemoryMediater>();
+builder.Services.AddSingleton<IEventHandler<PushToDamEvent>, PushToDamHandler>();
+builder.Services.AddSingleton<PublishPushToDamEventsService>();
+builder.Services.AddSingleton<PublishedItemMapper>();
 builder.Services.AddSingleton<ContentHubConnectionService>();
 builder.Services.AddSingleton<MessageHandler>();
 builder.Services.AddSingleton<APIGateway>();
