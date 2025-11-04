@@ -66,11 +66,17 @@ namespace iO.Sitecore.Publishing.Events
 
         private IPublishTelemetryService GetTelemetryService()
         {
-            if (_telemetryService != null) return _telemetryService;
+            if (_telemetryService != null)
+            {
+                return _telemetryService;
+            }
 
             lock (_telemetryLock)
             {
-                if (_telemetryService != null) return _telemetryService;
+                if (_telemetryService != null)
+                {
+                    return _telemetryService;
+                }
 
                 try
                 {
