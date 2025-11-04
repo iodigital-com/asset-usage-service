@@ -6,7 +6,7 @@ using Stylelabs.M.Sdk.WebClient.Authentication;
 
 namespace AssetUsageService.Integration;
 
-public class ContentHubConnectionService
+public class ContentHubConnectionService : IContentHubConnectionService
 {
     private readonly ILogger<ContentHubConnectionService> _logger;
     private readonly HttpClient _httpClient;

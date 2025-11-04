@@ -1,8 +1,9 @@
-﻿using AssetUsageService.Integration.Models;
-using DnsClient.Internal;
+﻿using DnsClient.Internal;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using AssetUsageService.Business.Controllers;
+using AssetUsageService.Domain.Models;
+using AssetUsageService.Integration.Mappers;
 
 namespace AssetUsageService.Integration;
 
@@ -10,25 +11,27 @@ public class MessageHandler
 {
     public ILogger<MessageHandler> _logger;
     private readonly AssetItemController _assetItemController;
-    public MessageHandler(ILogger<MessageHandler> logger, AssetItemController assetItemController)
+    private readonly PublishedItemMapper _publishedItemMapper;
+    public MessageHandler(ILogger<MessageHandler> logger, AssetItemController assetItemController, PublishedItemMapper publishedItemMapper)
 	{
         _logger = logger;
         _assetItemController = assetItemController;
+        _publishedItemMapper = publishedItemMapper;
     }
     public async Task HandleMessageAsync(string message, CancellationToken cancellationToken = default)
     {
-        var publishedItem = JsonSerializer.Deserialize<PublishedItem>(message);
+        var publishedItemDto = JsonSerializer.Deserialize<PublishedItemDto>(message);
 
-        if (publishedItem == null)
+        if (publishedItemDto == null)
         {
             throw new InvalidOperationException("Failed to deserialize published items message");
         }
 
-        publishedItem.AssetIds = GetAssetIdsFromPairs(publishedItem.AssetIds);
+        publishedItemDto.AssetIds = GetAssetIdsFromPairs(publishedItemDto.AssetIds);
 
-        _logger.LogInformation("Processing ItemId: {ItemId}, AssetIds: {AssetCount}", publishedItem.ItemId, publishedItem.AssetIds);
-
-        await _assetItemController.ProcessPublishedItemAsync(publishedItem, cancellationToken);
+        _logger.LogInformation("Processing ItemId: {ItemId}, AssetIds: {AssetCount}", publishedItemDto.ItemId, publishedItemDto.AssetIds);
+        var domainPublishedItem = _publishedItemMapper.MapToDomain(publishedItemDto);
+        await _assetItemController.ProcessPublishedItemAsync(domainPublishedItem, cancellationToken);
     }
     private List<string> GetAssetIdsFromPairs(List<string> assetIds)
     {
