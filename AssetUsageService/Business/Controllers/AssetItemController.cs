@@ -1,12 +1,6 @@
-using AssetUsageService.Business.Events;
-using AssetUsageService.Business.Events.interfaces;
-using AssetUsageService.Business.Handlers;
 using AssetUsageService.Business.Services;
 using AssetUsageService.Domain.Models;
-using AssetUsageService.Integration;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+
 namespace AssetUsageService.Business.Controllers;
 
 public class AssetItemController

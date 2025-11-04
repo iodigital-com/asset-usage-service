@@ -10,10 +10,10 @@ public class PublishPushToDamEventsService
     private readonly ILogger<PublishPushToDamEventsService> _logger;
     private readonly IMediator _mediator;
 
-    public PublishPushToDamEventsService(ILogger<PublishPushToDamEventsService> logger, IMediator mediater)
+    public PublishPushToDamEventsService(ILogger<PublishPushToDamEventsService> logger, IMediator mediator)
     {
         _logger = logger;
-        _mediator = mediater;
+        _mediator = mediator;
     }
     public async Task PublishPushToDamEventsAsync(ItemAssetChanges itemAssetChanges, CancellationToken cancellationToken)
     {
