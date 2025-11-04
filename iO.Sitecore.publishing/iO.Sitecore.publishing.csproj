@@ -639,7 +639,16 @@
     <Compile Include="Models\AssetUsageEvent.cs" />
     <Compile Include="Events\AssetUsageServiceClient.cs" />
     <Compile Include="Events\PublishingEventHandler.cs" />
+    <Compile Include="Models\ItemProcessingInfo.cs" />
+    <Compile Include="Models\ItemUpdatedInfo.cs" />
+    <Compile Include="Models\PublishContextInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Services\AssetExtractionService.cs" />
+    <Compile Include="Services\AuditLoggingService.cs" />
+    <Compile Include="Services\Interfaces\IAssetExtractionService.cs" />
+    <Compile Include="Services\Interfaces\IAuditLoggingService.cs" />
+    <Compile Include="Services\Interfaces\IPublishTelemetryService .cs" />
+    <Compile Include="Services\PublishLoggingService.cs" />
     <Compile Include="Services\PublishTelemetryService.cs" />
   </ItemGroup>
   <ItemGroup>
