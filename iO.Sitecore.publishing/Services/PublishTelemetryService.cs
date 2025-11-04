@@ -53,8 +53,7 @@ namespace iO.Sitecore.Publishing.Services
 
             var context = eventArgs.Context;
             var publishContext = context.PublishContext;
-
-            var itemsToPublish = publishContext.PublishOptions.ItemsToPublish.ToList();
+            var itemToPublish = publishContext.PublishOptions.ItemsToPublish.FirstOrDefault();
 
             if (itemsToPublish != null)
             {
