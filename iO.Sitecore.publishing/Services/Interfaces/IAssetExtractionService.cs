@@ -6,6 +6,7 @@ namespace iO.Sitecore.Publishing.Services
     public interface IAssetExtractionService
     {
         List<string> ExtractAssetIds(Item item);
-        string ExtractPublicLink(Item item);
+        List<string> ExtractPublicLinks(Item item);
+
     }
 }
