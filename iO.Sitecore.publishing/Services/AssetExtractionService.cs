@@ -83,7 +83,9 @@ namespace iO.Sitecore.Publishing.Services
         private void ExtractIdsFromUrl(HashSet<string> sink, string url)
         {
             if (string.IsNullOrWhiteSpace(url))
+            {
                 return;
+            }
 
             var urlMatch = GatewayIdRegex.Match(url);
 
