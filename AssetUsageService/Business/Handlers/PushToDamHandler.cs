@@ -4,6 +4,7 @@ using AssetUsageService.Domain.Models;
 using AssetUsageService.Integration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
+using Stylelabs.M.Sdk.Contracts.Base;
 
 namespace AssetUsageService.Business.Handlers;
 
@@ -104,7 +105,7 @@ public sealed class PushToDamHandler : IEventHandler<PushToDamEvent>
         }
     }
 
-    private JObject GetOrCreateUsageTrackingProperty(dynamic asset, int assetId)
+    private JObject GetOrCreateUsageTrackingProperty(IEntity asset, int assetId)
     {
         var existingUsageTracking = asset.GetPropertyValue<JToken>("UsageTracking");
 

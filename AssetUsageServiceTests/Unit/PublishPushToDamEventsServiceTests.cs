@@ -10,14 +10,14 @@ namespace AssetUsageServiceTests.Unit;
 public class PublishPushToDamEventsServiceTests
 {
     private readonly Mock<ILogger<PublishPushToDamEventsService>> _mockLogger;
-    private readonly Mock<IMediater> _mockMediater;
+    private readonly Mock<IMediator> _mockMediator;
     private readonly PublishPushToDamEventsService _service;
 
     public PublishPushToDamEventsServiceTests()
     {
         _mockLogger = new Mock<ILogger<PublishPushToDamEventsService>>();
-        _mockMediater = new Mock<IMediater>();
-        _service = new PublishPushToDamEventsService(_mockLogger.Object, _mockMediater.Object);
+        _mockMediator = new Mock<IMediator>();
+        _service = new PublishPushToDamEventsService(_mockLogger.Object, _mockMediator.Object);
     }
 
     [Theory]
@@ -47,11 +47,11 @@ public class PublishPushToDamEventsServiceTests
         await _service.PublishPushToDamEventsAsync(itemAssetChanges, CancellationToken.None);
 
         // Assert
-        _mockMediater.Verify(m => m.PublishAsync(
+        _mockMediator.Verify(m => m.PublishAsync(
             It.Is<PushToDamEvent>(e => e.Operation == DamOperation.Add),
             It.IsAny<CancellationToken>()), Times.Exactly(expectedAddCalls));
 
-        _mockMediater.Verify(m => m.PublishAsync(
+        _mockMediator.Verify(m => m.PublishAsync(
             It.Is<PushToDamEvent>(e => e.Operation == DamOperation.Remove),
             It.IsAny<CancellationToken>()), Times.Exactly(expectedRemoveCalls));
     }
@@ -80,7 +80,7 @@ public class PublishPushToDamEventsServiceTests
         await _service.PublishPushToDamEventsAsync(itemAssetChanges, CancellationToken.None);
 
         // Assert
-        _mockMediater.Verify(m => m.PublishAsync(
+        _mockMediator.Verify(m => m.PublishAsync(
             It.IsAny<PushToDamEvent>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -118,7 +118,7 @@ public class PublishPushToDamEventsServiceTests
         await _service.PublishPushToDamEventsAsync(itemAssetChanges, CancellationToken.None);
 
         // Assert
-        _mockMediater.Verify(m => m.PublishAsync(
+        _mockMediator.Verify(m => m.PublishAsync(
             It.Is<PushToDamEvent>(e =>
                 e.AssetIds.Count == 1000 &&
                 e.Operation == DamOperation.Add),
@@ -151,7 +151,7 @@ public class PublishPushToDamEventsServiceTests
         await _service.PublishPushToDamEventsAsync(itemAssetChanges, cts.Token);
 
         // Assert
-        _mockMediater.Verify(m => m.PublishAsync(
+        _mockMediator.Verify(m => m.PublishAsync(
             It.IsAny<PushToDamEvent>(),
             cts.Token), Times.Once);
     }
