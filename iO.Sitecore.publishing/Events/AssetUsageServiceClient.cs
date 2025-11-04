@@ -1,5 +1,4 @@
 ﻿using iO.Sitecore.Publishing.Models;
-using Sitecore.Configuration;
 using Sitecore.Diagnostics;
 using System;
 using System.Net.Http;

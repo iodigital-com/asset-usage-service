@@ -44,9 +44,7 @@ namespace iO.Sitecore.Publishing.Services
 
                     fieldProcessor(field, resultSet);
                 }
-            }
-            catch (Exception exception)
-            {
+            } catch (Exception exception) {
                 errorLogger(exception);
             }
 

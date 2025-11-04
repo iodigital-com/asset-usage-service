@@ -1,5 +1,6 @@
 ﻿using iO.Sitecore.Publishing.Models;
 using Sitecore.Data;
+using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
 using Sitecore.Publishing;
 using System;
@@ -293,6 +294,170 @@ namespace iO.Sitecore.Publishing.Services
         public void LogAuditWriteComplete()
         {
             Log.Info("[WriteAudit] Append complete.", owner);
+        }
+
+        public void LogRecordItemStart()
+        {
+            Log.Info("═══════════════════════════════════════════════════════════════", owner);
+            Log.Info("RecordItemProcessedAsync: Starting to process item for telemetry", owner);
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+        }
+
+        public void LogItemDetails(Item item, string sourceDatabaseName, string targetDatabaseName)
+        {
+            Log.Info("Item Details:", owner);
+            Log.Info($"  ID: {item.ID}", owner);
+            Log.Info($"  Name: {item.Name}", owner);
+            Log.Info($"  Path: {item.Paths.FullPath}", owner);
+            Log.Info($"  Template: {item.TemplateName} ({item.TemplateID})", owner);
+            Log.Info($"  Language: {item.Language.Name}", owner);
+            Log.Info($"  Version: {item.Version.Number}", owner);
+            Log.Info($"  Database: {item.Database.Name}", owner);
+            Log.Info($"  Source Database: {sourceDatabaseName}", owner);
+            Log.Info($"  Target Database: {targetDatabaseName}", owner);
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+        }
+
+        public void LogAssetIdsExtracted(List<string> assetIds)
+        {
+            Log.Info("Extracting Asset IDs...", owner);
+
+            if (assetIds != null && assetIds.Any())
+            {
+                Log.Info($"  Found {assetIds.Count} Asset ID(s):", owner);
+                foreach (var assetId in assetIds)
+                {
+                    Log.Info($"    - {assetId}", owner);
+                }
+            }
+            else
+            {
+                Log.Info("  No Asset IDs found", owner);
+            }
+
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+        }
+
+        public void LogPublicLinksExtracted(List<string> publicLinks)
+        {
+            Log.Info("Extracting Public Links...", owner);
+
+            if (publicLinks != null && publicLinks.Any())
+            {
+                Log.Info($"  Found {publicLinks.Count} Public Link(s):", owner);
+                foreach (var link in publicLinks)
+                {
+                    Log.Info($"    - {link}", owner);
+                }
+            }
+            else
+            {
+                Log.Info("  No Public Links found", owner);
+            }
+
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+        }
+
+        public void LogPublishedBy(string publishedBy)
+        {
+            Log.Info($"Published By: {publishedBy}", owner);
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+        }
+
+        public void LogPayloadCreated(AssetUsageEvent payload)
+        {
+            Log.Info("Creating AssetUsageEvent payload...", owner);
+            Log.Info("Payload created successfully:", owner);
+            Log.Info($"  ItemId: {payload.ItemId}", owner);
+            Log.Info($"  ItemName: {payload.ItemName}", owner);
+            Log.Info($"  ItemPath: {payload.ItemPath}", owner);
+            Log.Info($"  Template: {payload.TemplateName}", owner);
+            Log.Info($"  Language: {payload.Language}", owner);
+            Log.Info($"  Version: {payload.Version}", owner);
+            Log.Info($"  PublishedAtUtc: {payload.PublishedAtUtc:yyyy-MM-dd HH:mm:ss.fff}", owner);
+            Log.Info($"  PublishedBy: {payload.PublishedBy}", owner);
+            Log.Info($"  TargetDatabase: {payload.TargetDatabase}", owner);
+            Log.Info($"  AssetIds Count: {payload.AssetIds?.Count ?? 0}", owner);
+            Log.Info($"  PublicLinks Count: {payload.PublicLink?.Count ?? 0}", owner);
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+        }
+
+        public void LogSendingPayload()
+        {
+            Log.Info("Sending payload to AssetUsageService...", owner);
+        }
+
+        public void LogPayloadSentSuccess()
+        {
+            Log.Info("✓ Payload sent successfully to AssetUsageService", owner);
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+        }
+
+        public void LogPayloadSendFailure(ID itemId, Exception ex)
+        {
+            Log.Error($"✗ Failed to send payload to AssetUsageService for item {itemId}", ex, owner);
+        }
+
+        public void LogAuditRecordCreated(dynamic record)
+        {
+            Log.Info("Creating audit record...", owner);
+            Log.Info("Audit record created:", owner);
+            Log.Info($"  EventType: {record.EventType}", owner);
+            Log.Info($"  Timestamp: {record.Timestamp}", owner);
+            Log.Info($"  ItemId: {record.ItemId}", owner);
+            Log.Info($"  ItemName: {record.ItemName}", owner);
+            Log.Info($"  ItemPath: {record.ItemPath}", owner);
+            Log.Info($"  TemplateId: {record.TemplateId}", owner);
+            Log.Info($"  TemplateName: {record.TemplateName}", owner);
+            Log.Info($"  Language: {record.Language}", owner);
+            Log.Info($"  Version: {record.Version}", owner);
+            Log.Info($"  SourceDatabase: {record.SourceDatabase}", owner);
+            Log.Info($"  TargetDatabase: {record.TargetDatabase}", owner);
+            Log.Info($"  PublishMode: {record.PublishMode}", owner);
+            Log.Info($"  DeepPublish: {record.DeepPublish}", owner);
+            Log.Info($"  Primary AssetId: {record.AssetId}", owner);
+
+            if (record.AssetIds != null && record.AssetIds.Count > 0)
+            {
+                Log.Info($"  All AssetIds ({record.AssetIds.Count}):", owner);
+                foreach (var assetId in record.AssetIds)
+                {
+                    Log.Info($"    - {assetId}", owner);
+                }
+            }
+
+            if (record.PublicLink != null && record.PublicLink.Count > 0)
+            {
+                Log.Info($"  PublicLinks ({record.PublicLink.Count}):", owner);
+                foreach (var link in record.PublicLink)
+                {
+                    Log.Info($"    - {link}", owner);
+                }
+            }
+
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+        }
+
+        public void LogWritingAuditRecord()
+        {
+            Log.Info("Writing audit record to file...", owner);
+        }
+
+        public void LogAuditRecordWriteSuccess()
+        {
+            Log.Info("✓ Audit record written successfully", owner);
+        }
+
+        public void LogAuditRecordWriteFailure(ID itemId, Exception ex)
+        {
+            Log.Error($"✗ Failed to write audit record for item {itemId}", ex, owner);
+        }
+
+        public void LogRecordItemComplete(string itemName, ID itemId)
+        {
+            Log.Info("───────────────────────────────────────────────────────────────", owner);
+            Log.Info($"RecordItemProcessedAsync: Completed successfully for item {itemName} ({itemId})", owner);
+            Log.Info("═══════════════════════════════════════════════════════════════", owner);
         }
     }
 }
