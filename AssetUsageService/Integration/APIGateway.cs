@@ -8,10 +8,11 @@ namespace AssetUsageService.Integration;
 
 public class APIGateway
 {
-    private readonly ContentHubConnectionService _contentHubConnection;
+    private readonly IContentHubConnectionService _contentHubConnection;
     private readonly MessageHandler _messageHandler;
     private readonly ILogger<APIGateway> _logger;
-    public APIGateway(ContentHubConnectionService contentHubConnection, MessageHandler messageHandler, ILogger<APIGateway> logger)
+    
+    public APIGateway(IContentHubConnectionService contentHubConnection, MessageHandler messageHandler, ILogger<APIGateway> logger)
     {
         _contentHubConnection = contentHubConnection;
         _messageHandler = messageHandler;

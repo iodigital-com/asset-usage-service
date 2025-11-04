@@ -1,4 +1,4 @@
-using AssetUsageService.Business.Models;
+using AssetUsageService.Domain.Models;
 using AssetUsageService.Infrastructure;
 using Microsoft.Extensions.Logging;
 
@@ -15,11 +15,9 @@ public class DeltaCalculationService
         _logger = logger;
     }
 
-    public async Task<ItemAssetChanges> CalculateDeltaAsync(string itemIdString, List<string> assetIdStrings, CancellationToken cancellationToken = default)
+    public async Task<ItemAssetChanges> CalculateDeltaAsync(PublishedItem item, List<int> newAssetIds, CancellationToken cancellationToken = default)
     {
-        var itemId = ValidateAndParseItemId(itemIdString);
-        var newAssetIds = ParseAssetIds(assetIdStrings);
-
+        var itemId = item.ItemId;
         var currentAssetIds = await GetCurrentAssetIdsAsync(itemId, cancellationToken);
         var itemExists = currentAssetIds.Count > 0;
 
@@ -29,7 +27,7 @@ public class DeltaCalculationService
 
         return new ItemAssetChanges
         {
-            ItemId = itemId,
+            Item = item,
             ToAddAssetIds = assetIdsToAdd,
             ToRemoveAssetIds = assetIdsToRemove
         };
@@ -69,22 +67,5 @@ public class DeltaCalculationService
         {
             await _assetItemLinkRepository.RemoveItemAsync(itemId, cancellationToken);
         }
-    }
-
-    private static Guid ValidateAndParseItemId(string itemIdString)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(itemIdString);
-
-        if (!Guid.TryParse(itemIdString, out var itemId))
-        {
-            throw new ArgumentException($"Invalid GUID format: {itemIdString}", nameof(itemIdString));
-        }
-
-        return itemId;
-    }
-
-    private static List<int> ParseAssetIds(List<string> assetIdStrings)
-    {
-        return assetIdStrings.Select(int.Parse).ToList();
     }
 }
