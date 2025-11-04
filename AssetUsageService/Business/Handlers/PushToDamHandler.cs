@@ -9,10 +9,10 @@ namespace AssetUsageService.Business.Handlers;
 
 public sealed class PushToDamHandler : IEventHandler<PushToDamEvent>
 {
-    private readonly ContentHubConnectionService _contentHubConnection;
+    private readonly IContentHubConnectionService _contentHubConnection;
     private readonly ILogger<PushToDamHandler> _logger;
 
-    public PushToDamHandler(ContentHubConnectionService contentHubConnection, ILogger<PushToDamHandler> logger)
+    public PushToDamHandler(IContentHubConnectionService contentHubConnection, ILogger<PushToDamHandler> logger)
     {
         _contentHubConnection = contentHubConnection;
         _logger = logger;

@@ -41,7 +41,7 @@ builder.Services.AddSingleton<IMediater, InMemoryMediater>();
 builder.Services.AddSingleton<IEventHandler<PushToDamEvent>, PushToDamHandler>();
 builder.Services.AddSingleton<PublishPushToDamEventsService>();
 builder.Services.AddSingleton<PublishedItemMapper>();
-builder.Services.AddSingleton<ContentHubConnectionService>();
+builder.Services.AddSingleton<IContentHubConnectionService, ContentHubConnectionService>();
 builder.Services.AddSingleton<MessageHandler>();
 builder.Services.AddSingleton<APIGateway>();
 builder.Services.AddSingleton<AssetItemController>();
