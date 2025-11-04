@@ -2,8 +2,11 @@
 using iO.Sitecore.Publishing.Models;
 using Sitecore.Configuration;
 using Sitecore.Data;
+using Sitecore.Data.DataProviders.Sql.FastQuery;
+using Sitecore.Diagnostics;
 using Sitecore.Data.Events;
 using Sitecore.Data.Items;
+using Sitecore.Data.Query;
 using Sitecore.Events;
 using Sitecore.Globalization;
 using Sitecore.Publishing;
@@ -15,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Version = Sitecore.Data.Version;
+using Sitecore.Data.Fields;
 
 namespace iO.Sitecore.Publishing.Services
 {
@@ -49,6 +53,43 @@ namespace iO.Sitecore.Publishing.Services
 
             var context = eventArgs.Context;
             var publishContext = context.PublishContext;
+
+            var itemsToPublish = publishContext.PublishOptions.ItemsToPublish.ToList();
+
+            if (itemsToPublish != null)
+            {
+                foreach (Item item in itemsToPublish)
+                {
+                    Log.Info($"=============================================================ITEMSPROCESSING===========================================================================", this);
+                    Log.Info($"Item Name: {item.Name}", this);
+                    Log.Info($"Item ParentID: {item.ParentID}", this);
+                    Log.Info($"Item OriginatorId: {item.OriginatorId}", this);
+                    Log.Info($"Item Paths: {item.Paths}", this);
+                    Log.Info($"Item SourceUri: {item.SourceUri}", this);
+                    Log.Info($"Item Uri: {item.Uri}", this);
+                    Log.Info($"Item SharedFieldsSource: {item.SharedFieldsSource}", this);
+
+                    Log.Info($"=============================================================ITEMS INNERFIELD DATA===========================================================================", this);
+                    item.Fields.ReadAll();
+
+                    foreach (Field field in item.Fields)
+                    {
+                        if (field == null || string.IsNullOrEmpty(field.Name))
+                            continue;
+
+                        Log.Info($"Field Name: {field.Name}", this);
+                        Log.Info($"Field Value: {field.Value}", this);
+                        Log.Info($"Field Type: {field.TypeKey}", this);
+                        Log.Info($"Field Key: {field.Key}", this);
+                        Log.Info($"Field Source: {field.Source}", this);
+                        Log.Info($"Field Title: {field.Title}", this);
+                        Log.Info($"Field Description: {field.Description}", this);
+                        Log.Info($"---", this);
+                    }
+                }
+            } else {
+                Log.Info("ItemsToPublish is Null", this);
+            }
 
             StorePublishContext(publishContext);
 
