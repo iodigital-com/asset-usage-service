@@ -37,7 +37,7 @@ builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
 builder.Services.AddSingleton<IAssetItemLinkRepository, AssetItemLinkRepository>();
 builder.Services.AddSingleton<DeltaCalculationService>();
 builder.Services.AddSingleton<DBContext>();
-builder.Services.AddSingleton<IMediater, InMemoryMediater>();
+builder.Services.AddSingleton<IMediator, InMemoryMediator>();
 builder.Services.AddSingleton<IEventHandler<PushToDamEvent>, PushToDamHandler>();
 builder.Services.AddSingleton<PublishPushToDamEventsService>();
 builder.Services.AddSingleton<PublishedItemMapper>();

@@ -54,6 +54,7 @@ public class PublishedItemMapper
         }
 
         var parsedAssetIds = new List<int>();
+        var invalidAssetIds = new List<string>();
 
         foreach (var assetIdString in assetIdStrings)
         {
@@ -64,7 +65,13 @@ public class PublishedItemMapper
             else
             {
                 _logger.LogWarning("Failed to parse AssetId: {AssetId}", assetIdString);
+                invalidAssetIds.Add(assetIdString);
             }
+        }
+
+        if (invalidAssetIds.Count > 0)
+        {
+            throw new FormatException($"Failed to parse {invalidAssetIds.Count} AssetId(s): {string.Join(", ", invalidAssetIds)}");
         }
 
         return parsedAssetIds;

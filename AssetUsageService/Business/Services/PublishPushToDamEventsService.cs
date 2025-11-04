@@ -3,18 +3,17 @@ using Microsoft.Extensions.Logging;
 using AssetUsageService.Business.Events.interfaces;
 using AssetUsageService.Domain.Models;
 
-
 namespace AssetUsageService.Business.Services;
 
 public class PublishPushToDamEventsService
 {
     private readonly ILogger<PublishPushToDamEventsService> _logger;
-    private readonly IMediater _mediater;
+    private readonly IMediator _mediator;
 
-    public PublishPushToDamEventsService(ILogger<PublishPushToDamEventsService> logger, IMediater mediater)
+    public PublishPushToDamEventsService(ILogger<PublishPushToDamEventsService> logger, IMediator mediater)
     {
         _logger = logger;
-        _mediater = mediater;
+        _mediator = mediater;
     }
     public async Task PublishPushToDamEventsAsync(ItemAssetChanges itemAssetChanges, CancellationToken cancellationToken)
     {
@@ -30,7 +29,7 @@ public class PublishPushToDamEventsService
             _logger.LogInformation("Publishing PushToDamEvent (Add) for item {ItemId} with {Count} assets",
                 itemAssetChanges.Item.ItemId, itemAssetChanges.ToAddAssetIds.Count);
 
-            await _mediater.PublishAsync(addEvent, cancellationToken);
+            await _mediator.PublishAsync(addEvent, cancellationToken);
         }
 
         if (itemAssetChanges.ToRemoveAssetIds?.Count > 0)
@@ -45,9 +44,7 @@ public class PublishPushToDamEventsService
             _logger.LogInformation("Publishing PushToDamEvent (Remove) for item {ItemId} with {Count} assets",
                 itemAssetChanges.Item.ItemId, itemAssetChanges.ToRemoveAssetIds.Count);
 
-            await _mediater.PublishAsync(removeEvent, cancellationToken);
+            await _mediator.PublishAsync(removeEvent, cancellationToken);
         }
     }
 }
-
-   

@@ -5,12 +5,12 @@ using Microsoft.Extensions.Logging;
 
 namespace AssetUsageService.Business.Events;
 
-public sealed class InMemoryMediater : IMediater
+public sealed class InMemoryMediator : IMediator
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<InMemoryMediater> _logger;
+    private readonly ILogger<InMemoryMediator> _logger;
 
-    public InMemoryMediater(IServiceProvider serviceProvider, ILogger<InMemoryMediater> logger)
+    public InMemoryMediator(IServiceProvider serviceProvider, ILogger<InMemoryMediator> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;

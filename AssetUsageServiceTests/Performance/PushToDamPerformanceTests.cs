@@ -14,7 +14,7 @@ public class PushToDamPerformanceTests
 {
     private readonly ITestOutputHelper _output;
     private readonly Mock<ILogger<PublishPushToDamEventsService>> _mockLogger;
-    private readonly Mock<IMediater> _mockMediater;
+    private readonly Mock<IMediator> _mockMediator;
     private readonly PublishPushToDamEventsService _service;
 
     private const int MaxPublishTimeMs = 50;
@@ -24,13 +24,13 @@ public class PushToDamPerformanceTests
     {
         _output = output;
         _mockLogger = new Mock<ILogger<PublishPushToDamEventsService>>();
-        _mockMediater = new Mock<IMediater>();
+        _mockMediator = new Mock<IMediator>();
         
-        _mockMediater
+        _mockMediator
             .Setup(m => m.PublishAsync(It.IsAny<PushToDamEvent>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         
-        _service = new PublishPushToDamEventsService(_mockLogger.Object, _mockMediater.Object);
+        _service = new PublishPushToDamEventsService(_mockLogger.Object, _mockMediator.Object);
     }
 
     #region Single Event Performance Tests
@@ -136,11 +136,11 @@ public class PushToDamPerformanceTests
         Assert.True(elapsedMs < MaxBulkPublishTimeMs,
             $"Bulk publish took {elapsedMs}ms, expected < {MaxBulkPublishTimeMs}ms");
         
-        _mockMediater.Verify(m => m.PublishAsync(
+        _mockMediator.Verify(m => m.PublishAsync(
             It.Is<PushToDamEvent>(e => e.Operation == DamOperation.Add),
             It.IsAny<CancellationToken>()), Times.Once);
         
-        _mockMediater.Verify(m => m.PublishAsync(
+        _mockMediator.Verify(m => m.PublishAsync(
             It.Is<PushToDamEvent>(e => e.Operation == DamOperation.Remove),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -175,7 +175,7 @@ public class PushToDamPerformanceTests
         
         _output.WriteLine($"Concurrent publishing ({concurrentCount} items): {elapsedMs}ms, {throughput:F0} ops/sec");
         
-        _mockMediater.Verify(m => m.PublishAsync(
+        _mockMediator.Verify(m => m.PublishAsync(
             It.IsAny<PushToDamEvent>(),
             It.IsAny<CancellationToken>()), Times.Exactly(concurrentCount * 2));
     }

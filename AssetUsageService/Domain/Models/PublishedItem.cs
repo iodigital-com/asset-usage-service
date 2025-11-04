@@ -1,9 +1,4 @@
 ﻿using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AssetUsageService.Domain.Models;
 
@@ -17,7 +12,7 @@ public class PublishedItem
     public List<int> AssetIds { get; private set; }
     public string? PublicLink { get; private set; }
 
-    private PublishedItem(Guid itemId,string? language, string? itemName, int? version, string? itemPath, List<int> assetIds, string? publicLink)
+    private PublishedItem(Guid itemId, string? language, string? itemName, int? version, string? itemPath, List<int> assetIds, string? publicLink)
     {
         ItemId = itemId;
         Language = language;
@@ -46,7 +41,7 @@ public class PublishedItem
             ["itemName"] = ItemName,
             ["itemPath"] = ItemPath,
             ["language"] = Language,
-            ["version"] = Version,
+            ["version"] = Version
         };
     }
 }
