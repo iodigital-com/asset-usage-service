@@ -75,11 +75,7 @@ namespace iO.Sitecore.Publishing.Services
 
             if (fieldTypeKey == RichTextFieldType)
             {
-                var richTextContent = field.InheritedValue;
-                if (string.IsNullOrWhiteSpace(richTextContent))
-                {
-                    richTextContent = field.Value;
-                }
+                var richTextContent = string.IsNullOrWhiteSpace(field.InheritedValue) ? field.Value : field.InheritedValue;
 
                 if (!string.IsNullOrWhiteSpace(richTextContent))
                 {
