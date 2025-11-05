@@ -1,5 +1,4 @@
 ﻿using iO.Sitecore.Publishing.Models;
-using Sitecore.Configuration;
 using Sitecore.Diagnostics;
 using System;
 using System.Net.Http;
@@ -14,7 +13,6 @@ namespace iO.Sitecore.Publishing.Events
     {
         private static readonly Lazy<HttpClient> LazyHttpClient = new Lazy<HttpClient>(CreateHttpClient, LazyThreadSafetyMode.ExecutionAndPublication);
         private static HttpClient SharedHttpClient => LazyHttpClient.Value;
-
         private readonly string endpointUrl;
         private readonly JsonSerializerOptions jsonOptions;
         private bool disposed = false;
@@ -62,25 +60,15 @@ namespace iO.Sitecore.Publishing.Events
                         await HandleHttpError(httpResponse, payload.ItemId).ConfigureAwait(false);
                     }
                 }
-            }
-            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || cancellationToken.IsCancellationRequested)
-            {
+            } catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || cancellationToken.IsCancellationRequested) {
                 Log.Warn($"[AssetUsageServiceClient] Request timeout or cancelled for ItemId={payload.ItemId}", typeof(AssetUsageServiceClient));
-            }
-            catch (HttpRequestException ex)
-            {
+            } catch (HttpRequestException ex) {
                 Log.Error($"[AssetUsageServiceClient] HTTP request failed for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
-            }
-            catch (JsonException ex)
-            {
+            } catch (JsonException ex) {
                 Log.Error($"[AssetUsageServiceClient] JSON serialization failed for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Log.Error($"[AssetUsageServiceClient] Unexpected error sending data for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
-            }
-            finally
-            {
+            } finally {
                 httpResponse?.Dispose();
             }
         }
@@ -116,9 +104,7 @@ namespace iO.Sitecore.Publishing.Events
             try
             {
                 responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Log.Warn($"[AssetUsageServiceClient] Could not read error response body: {ex.Message}", typeof(AssetUsageServiceClient));
                 responseBody = "[Could not read response]";
             }

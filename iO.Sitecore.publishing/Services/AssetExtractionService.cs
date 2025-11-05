@@ -1,200 +1,132 @@
 ﻿using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
-using Sitecore.Resources.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
 
 namespace iO.Sitecore.Publishing.Services
 {
     public sealed class AssetExtractionService : IAssetExtractionService
     {
-        private readonly PublishLoggingService loggingService;
-        private static readonly Regex GatewayIdRegex = new Regex(@"/api/gateway/(\d+)/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private const string ImageFieldType = "image";
+        private const string RichTextFieldType = "rich text";
+        private const string ThumbnailSourceAttribute = "thumbnailsrc";
+        private const string GatewayUrlPattern = @"/api/gateway/(\d+)/";
+        private static readonly Regex GatewayIdRegex = new Regex(GatewayUrlPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ImgSrcRegex = new Regex(@"<img[^>]+src=""([^""]+)""", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private readonly PublishLoggingService _loggingService;
 
         public AssetExtractionService(PublishLoggingService loggingService)
         {
-            this.loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
+            _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
         }
 
         public List<string> ExtractAssetIds(Item item)
         {
-            var assetIdsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            try
-            {
-                item.Fields.ReadAll();
-
-                foreach (Field field in item.Fields)
-                {
-                    if (string.IsNullOrEmpty(field?.Value)) continue;
-                    var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
-
-                    switch (fieldTypeKey)
-                    {
-                        case "image":
-                            var imageField = (ImageField)field;
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("DamId"));
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("dam-id"));
-                            AddIfNotEmpty(assetIdsSet, imageField.GetAttribute("stylelabs-content-id"));
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Thumbnail"));
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("thumbnailsrc"));
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("Source"));
-                            ExtractIdsFromUrl(assetIdsSet, imageField.GetAttribute("src"));
-                            break;
-
-                        case "general link":
-                        case "link":
-                            try
-                            {
-                                var xmlElement = XElement.Parse(field.Value);
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("DamId"));
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("dam-id"));
-                                AddIfNotEmpty(assetIdsSet, (string)xmlElement.Attribute("stylelabs-content-id"));
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("url"));
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("href"));
-                                ExtractIdsFromUrl(assetIdsSet, (string)xmlElement.Attribute("Source"));
-                            }
-                            catch (Exception exception)
-                            {
-                                loggingService.LogMalformedLinkXml(field.Name, item.Paths.FullPath, exception);
-                            }
-                            break;
-
-                        default:
-                            foreach (Match urlMatch in GatewayIdRegex.Matches(field.Value))
-                            {
-                                if (urlMatch.Success && urlMatch.Groups.Count > 1)
-                                {
-                                    AddIfNotEmpty(assetIdsSet, urlMatch.Groups[1].Value);
-                                }
-                            }
-                            break;
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                loggingService.LogExtractAssetIdsError(item.Paths.FullPath, exception);
-            }
-
-            return assetIdsSet.ToList();
+            return ExtractFromFields(item, ProcessAssetIdField, exception => _loggingService.LogExtractAssetIdsError(item.Paths.FullPath, exception));
         }
 
-        public string ExtractPublicLink(Item item)
+        public List<string> ExtractPublicLinks(Item item)
         {
+            return ExtractFromFields(item, ProcessPublicLinkField, exception => _loggingService.LogExtractPublicLinkError(item.Paths.FullPath, exception));
+        }
+
+        private List<string> ExtractFromFields(Item item, Action<Field, HashSet<string>> fieldProcessor, Action<Exception> errorLogger)
+        {
+            var resultSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             try
             {
                 item.Fields.ReadAll();
 
                 foreach (Field field in item.Fields)
                 {
-                    if (string.IsNullOrEmpty(field?.Value)) continue;
-                    var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
+                    if (string.IsNullOrEmpty(field?.Value))
+                        continue;
 
-                    switch (fieldTypeKey)
-                    {
-                        case "image":
-                            var imageField = (ImageField)field;
-                            var contentHubUrl = FirstNonEmpty(
-                                imageField.GetAttribute("Source"),
-                                imageField.GetAttribute("source"),
-                                imageField.GetAttribute("src"),
-                                imageField.GetAttribute("url"),
-                                imageField.GetAttribute("public_link")
-                            );
-                            if (!string.IsNullOrEmpty(contentHubUrl)) return contentHubUrl;
-
-                            if (imageField.MediaItem != null)
-                            {
-                                var mediaUrl = MediaManager.GetMediaUrl(imageField.MediaItem);
-                                if (!string.IsNullOrWhiteSpace(mediaUrl)) return mediaUrl;
-                            }
-                            break;
-
-                        case "general link":
-                        case "link":
-                            var linkField = new LinkField(field);
-                            var linkFieldUrl = FirstNonEmpty(linkField.Url);
-                            if (!string.IsNullOrEmpty(linkFieldUrl)) return linkFieldUrl;
-
-                            try
-                            {
-                                var xmlElement = XElement.Parse(field.Value);
-                                var mappedUrl = FirstNonEmpty(
-                                    (string)xmlElement.Attribute("url"),
-                                    (string)xmlElement.Attribute("href"),
-                                    (string)xmlElement.Attribute("Source"),
-                                    (string)xmlElement.Attribute("source"),
-                                    (string)xmlElement.Attribute("public_link")
-                                );
-                                if (!string.IsNullOrEmpty(mappedUrl)) return mappedUrl;
-                            }
-                            catch (Exception exception)
-                            {
-                                loggingService.LogMalformedPublicLinkXml(field.Name, exception);
-                            }
-                            break;
-
-                        case "file":
-                            try
-                            {
-                                var xmlElement = XElement.Parse(field.Value);
-                                var fileUrl = FirstNonEmpty(
-                                    (string)xmlElement.Attribute("url"),
-                                    (string)xmlElement.Attribute("href"),
-                                    (string)xmlElement.Attribute("Source"),
-                                    (string)xmlElement.Attribute("src"),
-                                    (string)xmlElement.Attribute("public_link")
-                                );
-                                if (!string.IsNullOrEmpty(fileUrl)) return fileUrl;
-                            }
-                            catch (Exception exception)
-                            {
-                                loggingService.LogMalformedFileXml(field.Name, exception);
-                            }
-                            break;
-                    }
+                    fieldProcessor(field, resultSet);
                 }
             }
             catch (Exception exception)
             {
-                loggingService.LogExtractPublicLinkError(item.Paths.FullPath, exception);
+                errorLogger(exception);
             }
 
-            return string.Empty;
+            return resultSet.ToList();
+        }
+
+        private void ProcessAssetIdField(Field field, HashSet<string> resultSet)
+        {
+            var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
+
+            if (fieldTypeKey == ImageFieldType)
+            {
+                var imageField = (ImageField)field;
+                var thumbnailSrc = imageField.GetAttribute(ThumbnailSourceAttribute);
+
+                ExtractIdsFromUrl(resultSet, thumbnailSrc);
+            }
+        }
+
+        private void ProcessPublicLinkField(Field field, HashSet<string> resultSet)
+        {
+            var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
+
+            if (fieldTypeKey == RichTextFieldType)
+            {
+                var richTextContent = field.InheritedValue;
+                if (string.IsNullOrWhiteSpace(richTextContent))
+                {
+                    richTextContent = field.Value;
+                }
+
+                if (!string.IsNullOrWhiteSpace(richTextContent))
+                {
+                    ExtractImageUrlsFromHtml(resultSet, richTextContent);
+                }
+            }
+        }
+
+        private void ExtractImageUrlsFromHtml(HashSet<string> sink, string htmlContent)
+        {
+            var matches = ImgSrcRegex.Matches(htmlContent);
+
+            foreach (Match match in matches)
+            {
+                if (match.Success && match.Groups.Count > 1)
+                {
+                    var imageUrl = match.Groups[1].Value;
+                    AddIfNotEmpty(sink, imageUrl);
+                }
+            }
         }
 
         private void AddIfNotEmpty(HashSet<string> sink, string value)
         {
             var trimmedValue = value?.Trim();
+
             if (!string.IsNullOrWhiteSpace(trimmedValue))
             {
                 sink.Add(trimmedValue);
-                loggingService.LogAssetIdAdded(trimmedValue);
+                _loggingService.LogAssetIdAdded(trimmedValue);
             }
         }
 
         private void ExtractIdsFromUrl(HashSet<string> sink, string url)
         {
-            if (string.IsNullOrWhiteSpace(url)) return;
+            if (string.IsNullOrWhiteSpace(url))
+                return;
+
             var urlMatch = GatewayIdRegex.Match(url);
+
             if (urlMatch.Success && urlMatch.Groups.Count > 1)
             {
                 var gatewayIdValue = urlMatch.Groups[1].Value;
-                sink.Add(gatewayIdValue);
-                loggingService.LogAssetIdExtractedFromUrl(gatewayIdValue, url);
-            }
-        }
 
-        private static string FirstNonEmpty(params string[] values)
-        {
-            foreach (var valueCandidate in values)
-            {
-                if (!string.IsNullOrWhiteSpace(valueCandidate)) return valueCandidate.Trim();
+                AddIfNotEmpty(sink, gatewayIdValue);
+                _loggingService.LogAssetIdExtractedFromUrl(gatewayIdValue, url);
             }
-            return string.Empty;
         }
     }
 }
