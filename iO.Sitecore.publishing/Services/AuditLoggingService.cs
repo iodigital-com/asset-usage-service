@@ -39,9 +39,7 @@ namespace iO.Sitecore.Publishing.Services
                 }
 
                 loggingService.LogAuditWriteComplete();
-            }
-            catch (Exception exception)
-            {
+            } catch (Exception exception) {
                 loggingService.LogWriteAuditError(exception);
             }
         }
