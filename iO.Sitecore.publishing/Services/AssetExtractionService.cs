@@ -10,9 +10,11 @@ namespace iO.Sitecore.Publishing.Services
     public sealed class AssetExtractionService : IAssetExtractionService
     {
         private const string ImageFieldType = "image";
+        private const string RichTextFieldType = "rich text";
         private const string ThumbnailSourceAttribute = "thumbnailsrc";
         private const string GatewayUrlPattern = @"/api/gateway/(\d+)/";
         private static readonly Regex GatewayIdRegex = new Regex(GatewayUrlPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ImgSrcRegex = new Regex(@"<img[^>]+src=""([^""]+)""", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private readonly PublishLoggingService _loggingService;
 
         public AssetExtractionService(PublishLoggingService loggingService)
@@ -40,11 +42,14 @@ namespace iO.Sitecore.Publishing.Services
 
                 foreach (Field field in item.Fields)
                 {
-                    if (string.IsNullOrEmpty(field?.Value)) continue;
+                    if (string.IsNullOrEmpty(field?.Value))
+                        continue;
 
                     fieldProcessor(field, resultSet);
                 }
-            } catch (Exception exception) {
+            }
+            catch (Exception exception)
+            {
                 errorLogger(exception);
             }
 
@@ -66,7 +71,35 @@ namespace iO.Sitecore.Publishing.Services
 
         private void ProcessPublicLinkField(Field field, HashSet<string> resultSet)
         {
-            AddIfNotEmpty(resultSet, field.Value);
+            var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
+
+            if (fieldTypeKey == RichTextFieldType)
+            {
+                var richTextContent = field.InheritedValue;
+                if (string.IsNullOrWhiteSpace(richTextContent))
+                {
+                    richTextContent = field.Value;
+                }
+
+                if (!string.IsNullOrWhiteSpace(richTextContent))
+                {
+                    ExtractImageUrlsFromHtml(resultSet, richTextContent);
+                }
+            }
+        }
+
+        private void ExtractImageUrlsFromHtml(HashSet<string> sink, string htmlContent)
+        {
+            var matches = ImgSrcRegex.Matches(htmlContent);
+
+            foreach (Match match in matches)
+            {
+                if (match.Success && match.Groups.Count > 1)
+                {
+                    var imageUrl = match.Groups[1].Value;
+                    AddIfNotEmpty(sink, imageUrl);
+                }
+            }
         }
 
         private void AddIfNotEmpty(HashSet<string> sink, string value)
@@ -83,9 +116,7 @@ namespace iO.Sitecore.Publishing.Services
         private void ExtractIdsFromUrl(HashSet<string> sink, string url)
         {
             if (string.IsNullOrWhiteSpace(url))
-            {
                 return;
-            }
 
             var urlMatch = GatewayIdRegex.Match(url);
 
