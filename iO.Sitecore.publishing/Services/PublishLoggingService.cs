@@ -389,13 +389,13 @@ namespace iO.Sitecore.Publishing.Services
 
         public void LogPayloadSentSuccess()
         {
-            Log.Info("✓ Payload sent successfully to AssetUsageService", owner);
+            Log.Info("[SUCCESS] Payload sent successfully to AssetUsageService", owner);
             Log.Info("───────────────────────────────────────────────────────────────", owner);
         }
 
         public void LogPayloadSendFailure(ID itemId, Exception ex)
         {
-            Log.Error($"✗ Failed to send payload to AssetUsageService for item {itemId}", ex, owner);
+            Log.Error($"[FAILED] Failed to send payload to AssetUsageService for item {itemId}", ex, owner);
         }
 
         public void LogAuditRecordCreated(dynamic record)
@@ -445,12 +445,12 @@ namespace iO.Sitecore.Publishing.Services
 
         public void LogAuditRecordWriteSuccess()
         {
-            Log.Info("✓ Audit record written successfully", owner);
+            Log.Info("[SUCCESS] Audit record written successfully", owner);
         }
 
         public void LogAuditRecordWriteFailure(ID itemId, Exception ex)
         {
-            Log.Error($"✗ Failed to write audit record for item {itemId}", ex, owner);
+            Log.Error($"[FAILED] Failed to write audit record for item {itemId}", ex, owner);
         }
 
         public void LogRecordItemComplete(string itemName, ID itemId)
