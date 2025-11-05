@@ -1,5 +1,6 @@
 using AssetUsageService.Business.Services;
-using AssetUsageService.Data;
+using AssetUsageService.Domain.Data;
+using AssetUsageService.Domain.Models;
 using AssetUsageService.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -25,43 +26,65 @@ public class DeltaCalculationServiceTests
     public async Task CalculateDeltaAsync_WhenItemDoesNotExist_AndAssetIdsProvided_ShouldInsertNewItem()
     {
         // Arrange
-        var itemIdString = Guid.NewGuid().ToString();
-        var assetIdStrings = new List<string> { "1", "2", "3" };
-        var expectedAssetIds = new List<int> { 1, 2, 3 };
+        var itemId = Guid.NewGuid();
+        var assetIds = new List<int> { 1, 2, 3 };
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 1,
+            assetIds: assetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AssetItemLink?)null);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, assetIdStrings);
+        var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
         _mockRepository.Verify(r => r.InsertAssetItemLinkAsync(
-            Guid.Parse(itemIdString),
-            It.Is<List<int>>(ids => ids.SequenceEqual(expectedAssetIds)),
+            itemId,
+            It.Is<List<int>>(ids => ids.SequenceEqual(assetIds)),
             It.IsAny<CancellationToken>()), Times.Once);
+        
+        Assert.NotNull(result);
+        Assert.Equal(publishedItem.ItemId, result.Item.ItemId);
+        Assert.Equal(assetIds, result.ToAddAssetIds);
+        Assert.Empty(result.ToRemoveAssetIds);
     }
 
     [Fact]
     public async Task CalculateDeltaAsync_WhenItemDoesNotExist_AndNoAssetIds_ShouldNotCallRepository()
     {
         // Arrange
-        var itemIdString = Guid.NewGuid().ToString();
-        var assetIdStrings = new List<string>();
+        var itemId = Guid.NewGuid();
+        var assetIds = new List<int>();
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 1,
+            assetIds: assetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AssetItemLink?)null);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, assetIdStrings);
+        var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
         _mockRepository.Verify(r => r.InsertAssetItemLinkAsync(
             It.IsAny<Guid>(),
             It.IsAny<List<int>>(),
             It.IsAny<CancellationToken>()), Times.Never);
+        
+        Assert.NotNull(result);
+        Assert.Empty(result.ToAddAssetIds);
+        Assert.Empty(result.ToRemoveAssetIds);
     }
 
     #endregion
@@ -73,10 +96,17 @@ public class DeltaCalculationServiceTests
     {
         // Arrange
         var itemId = Guid.NewGuid();
-        var itemIdString = itemId.ToString();
         var currentAssetIds = new List<int> { 1, 2, 3 };
-        var newAssetIdStrings = new List<string> { "1", "2", "3", "4", "5" };
+        var newAssetIds = new List<int> { 1, 2, 3, 4, 5 };
         var expectedToAdd = new List<int> { 4, 5 };
+        
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 2,
+            assetIds: newAssetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
@@ -87,7 +117,7 @@ public class DeltaCalculationServiceTests
             .ReturnsAsync(currentAssetIds);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, newAssetIdStrings);
+            var result = await _service.CalculateDeltaAsync(publishedItem, newAssetIds);
 
         // Assert
         _mockRepository.Verify(r => r.AddAssetIdsToItemAsync(
@@ -99,6 +129,10 @@ public class DeltaCalculationServiceTests
             itemId,
             It.Is<List<int>>(ids => ids.Count == 0),
             It.IsAny<CancellationToken>()), Times.Once);
+        
+        Assert.NotNull(result);
+        Assert.Equal(expectedToAdd, result.ToAddAssetIds);
+        Assert.Empty(result.ToRemoveAssetIds);
     }
 
     [Fact]
@@ -106,10 +140,17 @@ public class DeltaCalculationServiceTests
     {
         // Arrange
         var itemId = Guid.NewGuid();
-        var itemIdString = itemId.ToString();
         var currentAssetIds = new List<int> { 1, 2, 3, 4, 5 };
-        var newAssetIdStrings = new List<string> { "1", "2" };
+        var newAssetIds = new List<int> { 1, 2 };
         var expectedToRemove = new List<int> { 3, 4, 5 };
+        
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 2,
+            assetIds: newAssetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
@@ -120,7 +161,7 @@ public class DeltaCalculationServiceTests
             .ReturnsAsync(currentAssetIds);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, newAssetIdStrings);
+        var result = await _service.CalculateDeltaAsync(publishedItem, newAssetIds);
 
         // Assert
         _mockRepository.Verify(r => r.RemoveAssetIdsFromItemAsync(
@@ -132,6 +173,10 @@ public class DeltaCalculationServiceTests
             itemId,
             It.Is<List<int>>(ids => ids.Count == 0),
             It.IsAny<CancellationToken>()), Times.Once);
+        
+        Assert.NotNull(result);
+        Assert.Empty(result.ToAddAssetIds);
+        Assert.Equal(expectedToRemove, result.ToRemoveAssetIds);
     }
 
     [Fact]
@@ -139,11 +184,18 @@ public class DeltaCalculationServiceTests
     {
         // Arrange
         var itemId = Guid.NewGuid();
-        var itemIdString = itemId.ToString();
         var currentAssetIds = new List<int> { 1, 2, 3, 4 };
-        var newAssetIdStrings = new List<string> { "2", "3", "5", "6" };
+        var newAssetIds = new List<int> { 2, 3, 5, 6 };
         var expectedToAdd = new List<int> { 5, 6 };
         var expectedToRemove = new List<int> { 1, 4 };
+        
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 2,
+            assetIds: newAssetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
@@ -154,7 +206,7 @@ public class DeltaCalculationServiceTests
             .ReturnsAsync(currentAssetIds);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, newAssetIdStrings);
+        var result = await _service.CalculateDeltaAsync(publishedItem, newAssetIds);
 
         // Assert
         _mockRepository.Verify(r => r.AddAssetIdsToItemAsync(
@@ -166,6 +218,10 @@ public class DeltaCalculationServiceTests
             itemId,
             It.Is<List<int>>(ids => ids.SequenceEqual(expectedToRemove)),
             It.IsAny<CancellationToken>()), Times.Once);
+        
+        Assert.NotNull(result);
+        Assert.Equal(expectedToAdd, result.ToAddAssetIds);
+        Assert.Equal(expectedToRemove, result.ToRemoveAssetIds);
     }
 
     [Fact]
@@ -173,9 +229,16 @@ public class DeltaCalculationServiceTests
     {
         // Arrange
         var itemId = Guid.NewGuid();
-        var itemIdString = itemId.ToString();
         var currentAssetIds = new List<int> { 1, 2, 3 };
-        var newAssetIdStrings = new List<string> { "1", "2", "3" };
+        var newAssetIds = new List<int> { 1, 2, 3 };
+        
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 2,
+            assetIds: newAssetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
@@ -186,7 +249,7 @@ public class DeltaCalculationServiceTests
             .ReturnsAsync(currentAssetIds);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, newAssetIdStrings);
+        var result = await _service.CalculateDeltaAsync(publishedItem, newAssetIds);
 
         // Assert
         _mockRepository.Verify(r => r.AddAssetIdsToItemAsync(
@@ -198,6 +261,10 @@ public class DeltaCalculationServiceTests
             itemId,
             It.Is<List<int>>(ids => ids.Count == 0),
             It.IsAny<CancellationToken>()), Times.Once);
+        
+        Assert.NotNull(result);
+        Assert.Empty(result.ToAddAssetIds);
+        Assert.Empty(result.ToRemoveAssetIds);
     }
 
     #endregion
@@ -209,25 +276,36 @@ public class DeltaCalculationServiceTests
     {
         // Arrange
         var itemId = Guid.NewGuid();
-        var itemIdString = itemId.ToString();
-        var assetIdStrings = new List<string>();
+        var assetIds = new List<int>();
         var currentAssetIds = new List<int> { 1, 2, 3 };
+        
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 2,
+            assetIds: assetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AssetItemLink { ItemId = itemId, AssetIds = currentAssetIds });
 
         _mockRepository
-       .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, It.IsAny<CancellationToken>()))
-       .ReturnsAsync(currentAssetIds);
+            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(currentAssetIds);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, assetIdStrings);
+        var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
         _mockRepository.Verify(r => r.RemoveItemAsync(
             itemId,
             It.IsAny<CancellationToken>()), Times.Once);
+        
+        Assert.NotNull(result);
+        Assert.Empty(result.ToAddAssetIds);
+        Assert.Equal(currentAssetIds, result.ToRemoveAssetIds);
     }
 
     #endregion
@@ -238,68 +316,64 @@ public class DeltaCalculationServiceTests
     public async Task CalculateDeltaAsync_WithDuplicateAssetIds_ShouldHandleCorrectly()
     {
         // Arrange
-        var itemIdString = Guid.NewGuid().ToString();
-        var assetIdStrings = new List<string> { "1", "2", "2", "3", "3", "3" };
-        var expectedAssetIds = new List<int> { 1, 2, 2, 3, 3, 3 };
+        var itemId = Guid.NewGuid();
+        var assetIds = new List<int> { 1, 2, 2, 3, 3, 3 };
+        
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 1,
+            assetIds: assetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AssetItemLink?)null);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, assetIdStrings);
+        var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
         _mockRepository.Verify(r => r.InsertAssetItemLinkAsync(
             It.IsAny<Guid>(),
-            It.Is<List<int>>(ids => ids.SequenceEqual(expectedAssetIds)),
+            It.Is<List<int>>(ids => ids.SequenceEqual(assetIds)),
             It.IsAny<CancellationToken>()), Times.Once);
+        
+        Assert.NotNull(result);
+        Assert.Equal(assetIds, result.ToAddAssetIds);
     }
 
     [Fact]
     public async Task CalculateDeltaAsync_WithLargeAssetList_ShouldProcessAll()
     {
         // Arrange
-        var itemIdString = Guid.NewGuid().ToString();
-        var assetIdStrings = Enumerable.Range(1, 1000).Select(i => i.ToString()).ToList();
+        var itemId = Guid.NewGuid();
+        var assetIds = Enumerable.Range(1, 1000).ToList();
+        
+        var publishedItem = PublishedItem.Create(
+            itemId: itemId,
+            language: "en",
+            itemName: "Test Item",
+            version: 1,
+            assetIds: assetIds
+        );
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AssetItemLink?)null);
 
         // Act
-        await _service.CalculateDeltaAsync(itemIdString, assetIdStrings);
+        var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
         _mockRepository.Verify(r => r.InsertAssetItemLinkAsync(
             It.IsAny<Guid>(),
             It.Is<List<int>>(ids => ids.Count == 1000),
             It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Theory]
-    [InlineData("invalid-guid")]
-    [InlineData("")]
-    public async Task CalculateDeltaAsync_WithInvalidGuid_ShouldThrowException(string invalidGuid)
-    {
-        // Arrange
-        var assetIdStrings = new List<string> { "1", "2", "3" };
-
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            _service.CalculateDeltaAsync(invalidGuid, assetIdStrings));
-    }
-
-    [Fact]
-    public async Task CalculateDeltaAsync_WithInvalidAssetId_ShouldThrowException()
-    {
-        // Arrange
-        var itemIdString = Guid.NewGuid().ToString();
-        var assetIdStrings = new List<string> { "1", "invalid", "3" };
-
-        // Act & Assert
-        await Assert.ThrowsAsync<FormatException>(() =>
-            _service.CalculateDeltaAsync(itemIdString, assetIdStrings));
+        
+        Assert.NotNull(result);
+        Assert.Equal(1000, result.ToAddAssetIds.Count);
     }
 
     #endregion

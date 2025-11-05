@@ -1,7 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace AssetUsageService.Data;
+namespace AssetUsageService.Domain.Data;
 
 public class AssetItemLink
 {
