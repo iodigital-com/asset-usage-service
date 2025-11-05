@@ -1,8 +1,16 @@
+using AssetUsageService.Domain.Models;
+
 namespace AssetUsageService.Business.Events;
 
-public class PushToDamEvent
+public sealed class PushToDamEvent
 {
-    public PushToDamEvent()
-    {
-    }
+    public required PublishedItem Item { get; init; }
+    public required List<int> AssetIds { get; init; }
+    public required DamOperation Operation { get; init; }
+}
+
+public enum DamOperation
+{
+    Add,
+    Remove
 }

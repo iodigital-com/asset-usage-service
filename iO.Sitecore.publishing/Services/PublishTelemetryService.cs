@@ -418,12 +418,21 @@ namespace iO.Sitecore.Publishing.Services
 
         private async Task RecordItemProcessedAsync(Item item, PublishOptions options, string sourceDatabaseName)
         {
+            loggingService.LogRecordItemStart();
+            loggingService.LogItemDetails(item, sourceDatabaseName, options.TargetDatabase?.Name ?? "N/A");
+
             var assetIds = assetExtractionService.ExtractAssetIds(item);
-            var publicLink = assetExtractionService.ExtractPublicLink(item);
+            loggingService.LogAssetIdsExtracted(assetIds);
+
+            var publicLinks = assetExtractionService.ExtractPublicLinks(item);
+            loggingService.LogPublicLinksExtracted(publicLinks);
+
+            var publishedBy = GetPublishedBy();
+            loggingService.LogPublishedBy(publishedBy);
 
             var payload = new AssetUsageEvent
             {
-                PublicLink = publicLink,
+                PublicLink = publicLinks,
                 ItemId = item.ID.ToString(),
                 ItemPath = item.Paths.FullPath,
                 ItemName = item.Name,
@@ -431,20 +440,32 @@ namespace iO.Sitecore.Publishing.Services
                 Language = item.Language.Name,
                 Version = item.Version.Number,
                 PublishedAtUtc = DateTime.UtcNow,
-                PublishedBy = GetPublishedBy(),
+                PublishedBy = publishedBy,
                 AssetIds = assetIds,
                 TargetDatabase = options.TargetDatabase?.Name ?? string.Empty
             };
 
-            await assetUsageClient.SendAsync(payload);
+            loggingService.LogPayloadCreated(payload);
+
+            try
+            {
+                loggingService.LogSendingPayload();
+                await assetUsageClient.SendAsync(payload);
+                loggingService.LogPayloadSentSuccess();
+            }
+            catch (Exception ex)
+            {
+                loggingService.LogPayloadSendFailure(item.ID, ex);
+                throw;
+            }
 
             var record = new
             {
-                PublicLink = publicLink,
+                PublicLink = publicLinks,
                 Timestamp = NowString(),
                 EventType = "ItemProcessed",
                 ItemId = item.ID.ToString(),
-                AssetId = assetIds.FirstOrDefault() ?? string.Empty,
+                AssetId = assetIds?.FirstOrDefault() ?? string.Empty,
                 AssetIds = assetIds,
                 ItemName = item.Name,
                 ItemPath = item.Paths.FullPath,
@@ -458,7 +479,20 @@ namespace iO.Sitecore.Publishing.Services
                 DeepPublish = options.Deep
             };
 
-            auditLoggingService.WriteAudit(record);
+            loggingService.LogAuditRecordCreated(record);
+
+            try
+            {
+                loggingService.LogWritingAuditRecord();
+                auditLoggingService.WriteAudit(record);
+                loggingService.LogAuditRecordWriteSuccess();
+            }
+            catch (Exception ex)
+            {
+                loggingService.LogAuditRecordWriteFailure(item.ID, ex);
+            }
+
+            loggingService.LogRecordItemComplete(item.Name, item.ID);
         }
 
         private void RecordPublishEndRemote(string eventQueueName, IEnumerable<string> databasesRaised)
