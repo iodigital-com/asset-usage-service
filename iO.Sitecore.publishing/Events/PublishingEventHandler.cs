@@ -21,9 +21,7 @@ namespace iO.Sitecore.Publishing.Events
                 var eventArgs = args as ItemProcessingEventArgs;
                 var telemetryService = GetTelemetryService();
                 telemetryService?.ProcessItemProcessing(eventArgs);
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Log.Error($"PublishEventHandler.OnItemProcessing: Error processing item. Exception: {ex.Message}", ex, this);
             }
         }
@@ -35,9 +33,7 @@ namespace iO.Sitecore.Publishing.Events
                 var eventArgs = args as ItemProcessedEventArgs;
                 var telemetryService = GetTelemetryService();
                 telemetryService?.ProcessItemProcessed(eventArgs);
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Log.Error($"PublishEventHandler.OnItemProcessed: Error processing item. Exception: {ex.Message}", ex, this);
             }
         }
@@ -51,9 +47,7 @@ namespace iO.Sitecore.Publishing.Events
                 {
                     Task.Run(async () => await telemetryService.ProcessPublishEndAsync(args));
                 }
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Log.Error("PublishEventHandler.OnPublishEnd: Error in publish end handler.", ex, this);
             }
         }
@@ -65,9 +59,7 @@ namespace iO.Sitecore.Publishing.Events
                 var eventArgs = Event.ExtractParameter<PublishEndRemoteEventArgs>(args, 0);
                 var telemetryService = GetTelemetryService();
                 telemetryService?.ProcessPublishEndRemote(eventArgs);
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Log.Error("PublishEventHandler.OnPublishEndRemote: Error in publish end remote handler.", ex, this);
             }
         }
@@ -75,12 +67,16 @@ namespace iO.Sitecore.Publishing.Events
         private IPublishTelemetryService GetTelemetryService()
         {
             if (_telemetryService != null)
+            {
                 return _telemetryService;
+            }
 
             lock (_telemetryLock)
             {
                 if (_telemetryService != null)
+                {
                     return _telemetryService;
+                }
 
                 try
                 {
@@ -92,8 +88,7 @@ namespace iO.Sitecore.Publishing.Events
 
                     Log.Info("PublishEventHandler.GetTelemetryService: Telemetry service initialized successfully.", this);
                     return _telemetryService;
-                }
-                catch (Exception ex)
+                } catch (Exception ex)
                 {
                     Log.Error("PublishEventHandler.GetTelemetryService: Failed to initialize telemetry service.", ex, this);
                     return null;
