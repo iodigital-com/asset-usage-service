@@ -759,7 +759,3 @@ Published items are logged locally at:
 - Validate ClientId and ClientSecret
 - Check OAuth2 permissions in ContentHub
 - Verify endpoint URL format (must include https://)
-
-## License
-
-Proprietary - WeAreYou Organization
