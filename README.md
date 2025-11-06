@@ -348,7 +348,7 @@ Goal: Every user can see the field, but not edit it.
 Goal: Only editors and the designated service user can modify the field.
 
 1. Go to **Manage (⚙️) › Users › User groups**
-2. Go to the usergroup created in the OAuth Client Setup (Asset Editors Service)
+2. Go to the user group created in the OAuth Client Setup (Asset Editors Service)
 3. Click **Policies (⚙️)**
 4. Open the **Member security** tab
 5. Under **Definitions**, select **M.Asset**
