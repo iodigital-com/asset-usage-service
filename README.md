@@ -1,401 +1,765 @@
-# Asset Usage Tracking System
+# Asset Usage Service
 
-A comprehensive C# .NET solution for tracking, analyzing, and sending telemetry assets for Sitecore publishing events. This system provides real-time monitoring of item publishing operations, detailed field-level change tracking of assets, and asynchronous telemetry transmission to Sitecore Content Hub.
+A microservice for tracking and managing relationships between items and digital assets across Sitecore CMS and ContentHub DAM. Built as an Azure Function application with MongoDB storage.
 
 ## Table of Contents
+
 - [Overview](#overview)
-- [Features](#features)
 - [Architecture](#architecture)
-- [Installation](#installation)
+- [Complete Data Flow](#complete-data-flow)
+- [Technology Stack](#technology-stack)
+- [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
-- [Sitecore Content Hub OAuth Configuration](#sitecore-content-hub-oauth-configuration)
-- [Custom Property Configuration](#custom-property-configuration)
-- [Troubleshooting](#troubleshooting)
-  
+- [Data Model](#data-model)
+- [API Endpoints](#api-endpoints)
+- [Integration Points](#integration-points)
+- [Development Setup](#development-setup)
+- [Testing](#testing)
+- [Deployment](#deployment)
+
 ## Overview
 
-This system integrates with Sitecore 10.4+ to provide comprehensive tracking and telemetry for publishing operations. It captures detailed information about items being published, including field-level changes, revision tracking, and context information, then transmits this data asynchronously to configured external telemetry services.
+The Asset Usage Service provides a centralized system for tracking which digital assets (from ContentHub DAM) are used in Sitecore CMS items. It maintains bidirectional relationships through an event-driven architecture, enabling:
 
-### Key Capabilities
-- Real-time publishing event tracking
-- Field-level change detection (Rich Text, Image, and custom fields)
-- Revision ID tracking and comparison
-- Asynchronous telemetry transmission
-- Thread-safe concurrent processing
-- Detailed diagnostic logging
-- Configurable external service integration
-
-## Features
-
-### Publishing Event Tracking
-- **Item Processing Events**: Captures items before they are processed for publishing
-- **Item Processed Events**: Captures items after they have been published
-- **Context Tracking**: Maintains publishing context including source/target databases, languages, and timestamps
-- **Concurrent Processing**: Uses thread-safe collections to handle multiple simultaneous publishing operations
-
-### Field Change Analysis
-- **Rich Text Field Tracking**: Detects changes in Rich Text fields, including HTML content analysis
-- **Image Field Tracking**: Monitors image field modifications and media library references
-- **Custom Field Support**: Extensible architecture for tracking additional field types
-- **Revision Comparison**: Compares source and target item revisions to identify actual changes
-
-### Telemetry & Logging
-- **Asynchronous Telemetry**: Non-blocking telemetry transmission to external services
-- **Detailed Logging**: Comprehensive Sitecore.Diagnostics.Log integration with Info, Warn, and Error levels
-- **Field Analysis Logs**: Detailed logging of field types, values, and change detection
-- **Performance Metrics**: Tracks processing times and queue sizes
-
-### External Service Integration
-- **HTTP Client Integration**: Configurable HTTP client for external API communication
-- **JSON Serialization**: Automatic serialization of telemetry data to JSON format
-- **Timeout Configuration**: Configurable timeout settings for external service calls
-- **Error Handling**: Robust exception handling with detailed error logging
+- Track which assets are used by specific Sitecore items
+- Find which Sitecore items are using specific assets
+- Calculate delta changes for asset usage
+- Synchronize asset metadata between Sitecore and ContentHub
 
 ## Architecture
 
-### Component Overview
+### System Components
 
-1. **Event Handlers**
-   - ItemProcessedEventHandler - Handles post-publishing events
-   - ItemProcessingEventHandler - Handles pre-publishing events
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        SITECORE CMS                               │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │         iO.Sitecore.Publishing Module                     │   │
+│  │         - PublishEventHandler                             │   │
+│  │         - OnItemProcessing                                │   │
+│  │         - OnItemProcessed                                 │   │
+│  │         - OnPublishEnd                                    │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+└───────────────────────────┼───────────────────────────────────────┘
+                            │
+                            │ HTTP POST
+                            │ (Publish Events)
+                            ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                   ASSET USAGE SERVICE                             │
+│                   (Azure Functions)                               │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │             SitecorePublishAPI                            │   │
+│  │             (HTTP Trigger)                                │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+│  ┌────────────────────────▼─────────────────────────────────┐   │
+│  │           Business Layer                                  │   │
+│  │           - AssetItemController                           │   │
+│  │           - DeltaCalculationService                       │   │
+│  │           - PushToDamHandler                              │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+│  ┌────────────────────────▼─────────────────────────────────┐   │
+│  │           Infrastructure Layer                            │   │
+│  │           - AssetItemLinkRepository                       │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+│  ┌────────────────────────▼─────────────────────────────────┐   │
+│  │           Data Access Layer                               │   │
+│  │           - DBContext                                     │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+└───────────────────────────┼───────────────────────────────────────┘
+                            │
+        ┌───────────────────┼────────────────────┐
+        │                   │                    │
+        ▼                   ▼                    ▼
+  ┌──────────┐      ┌──────────────┐    ┌──────────────┐
+  │ MongoDB  │      │  ContentHub  │    │ Application  │
+  │ Database │      │     DAM      │    │   Insights   │
+  └──────────┘      └──────────────┘    └──────────────┘
+```
 
-2. **Services**
-   - TelemetryService - Manages external telemetry API communication
-   - Singleton pattern with thread-safe initialization
+## Complete Data Flow
 
-3. **Analyzers**
-   - ItemUpdatedAnalyzer - Analyzes field changes and revision differences
+### 1. Sitecore Publish Event Flow
 
-4. **Models**
-   - ItemPublishedEvent - Telemetry event data model
-   - PublishingContext - Publishing operation context
-   - FieldUpdateInfo - Field-level change information
+```
+SITECORE CMS
+     │
+     │ (1) User publishes item
+     ▼
+┌─────────────────────────────────┐
+│  Sitecore Publishing Pipeline   │
+└──────────────┬──────────────────┘
+               │
+               │ (2) Trigger publish:itemProcessing event
+               ▼
+┌─────────────────────────────────┐
+│ iO.Sitecore.Publishing          │
+│ PublishEventHandler             │
+│ OnItemProcessing()              │
+└──────────────┬──────────────────┘
+               │
+               │ (3) Extract item data:
+               │     - Item ID (Guid)
+               │     - Asset references
+               │     - Metadata
+               ▼
+┌─────────────────────────────────┐
+│ Local Audit Log                 │
+│ $(dataFolder)/logs/             │
+│ published-items.json            │
+└──────────────┬──────────────────┘
+               │
+               │ (4) Trigger publish:itemProcessed event
+               ▼
+┌─────────────────────────────────┐
+│ PublishEventHandler             │
+│ OnItemProcessed()               │
+└──────────────┬──────────────────┘
+               │
+               │ (5) HTTP POST to Asset Usage Service
+               │     Endpoint: /api/SitecorePublishAPI
+               │     Body: {
+               │       "itemId": "guid",
+               │       "assetIds": [123, 456],
+               │       "action": "publish"
+               │     }
+               ▼
+┌─────────────────────────────────┐
+│ ASSET USAGE SERVICE             │
+│ SitecorePublishAPI Function     │
+└──────────────┬──────────────────┘
+               │
+               │ (6) Process publish event
+               ▼
+     [Continue to Service Processing Flow]
+```
 
-5. **Collections**
-   - ConcurrentQueue<T> - Thread-safe queues for processing and updated items
-   - ConcurrentDictionary<T> - Thread-safe context tracking
+### 2. Asset Usage Service Processing Flow
 
-### Data Flow
+```
+Asset Usage Service
+     │
+     │ (1) Receive publish event from Sitecore
+     ▼
+┌─────────────────────────────────┐
+│ SitecorePublishAPI              │
+│ (HTTP Trigger)                  │
+└──────────────┬──────────────────┘
+               │
+               │ (2) Validate request
+               │     - Check authentication
+               │     - Validate payload
+               ▼
+┌─────────────────────────────────┐
+│ AssetItemController             │
+└──────────────┬──────────────────┘
+               │
+               │ (3) Query existing relationships
+               ▼
+┌─────────────────────────────────┐
+│ AssetItemLinkRepository         │
+│ GetAssetItemLinkByItemIdAsync() │
+└──────────────┬──────────────────┘
+               │
+               │ (4) Fetch from MongoDB
+               ▼
+┌─────────────────────────────────┐
+│ MongoDB Database                │
+│ AssetItemLinks Collection       │
+└──────────────┬──────────────────┘
+               │
+               │ (5) Return existing data
+               ▼
+┌─────────────────────────────────┐
+│ DeltaCalculationService         │
+└──────────────┬──────────────────┘
+               │
+               │ (6) Calculate changes:
+               │     - Added assets
+               │     - Removed assets
+               │     - Unchanged assets
+               ▼
+┌─────────────────────────────────┐
+│ AssetItemLinkRepository         │
+│ InsertAssetItemLinkAsync()      │
+└──────────────┬──────────────────┘
+               │
+               │ (7) Update MongoDB
+               ▼
+┌─────────────────────────────────┐
+│ MongoDB Database                │
+│ Upsert Document                 │
+└──────────────┬──────────────────┘
+               │
+               │ (8) Trigger DAM sync
+               ▼
+┌─────────────────────────────────┐
+│ PushToDamHandler                │
+└──────────────┬──────────────────┘
+               │
+               │ (9) Update asset metadata
+               ▼
+     [Continue to ContentHub Flow]
+```
 
-1. Publishing operation starts
-2. ItemProcessingEventHandler captures pre-processing context
-3. Sitecore processes item
-4. ItemProcessedEventHandler captures post-processing data
-5. System analyzes field changes and revisions
-6. Telemetry data is queued for transmission
-7. Asynchronous HTTP POST sends data to external service
-8. Logs record operation results
+### 3. ContentHub DAM Integration Flow
 
-## Installation
+```
+Asset Usage Service
+     │
+     │ (1) Prepare asset updates
+     ▼
+┌─────────────────────────────────┐
+│ PushToDamHandler                │
+└──────────────┬──────────────────┘
+               │
+               │ (2) Get ContentHub client
+               ▼
+┌─────────────────────────────────┐
+│ APIGateway                      │
+│ GetContentHubClientAsync()      │
+└──────────────┬──────────────────┘
+               │
+               │ (3) Authenticate
+               ▼
+┌─────────────────────────────────┐
+│ ContentHubConnectionService     │
+│ CreateClient()                  │
+└──────────────┬──────────────────┘
+               │
+               │ (4) OAuth2 Client Credentials
+               │     - ClientId
+               │     - ClientSecret
+               ▼
+┌─────────────────────────────────┐
+│ Stylelabs M.Sdk WebClient       │
+└──────────────┬──────────────────┘
+               │
+               │ (5) HTTPS Connection
+               ▼
+┌─────────────────────────────────┐
+│ Sitecore ContentHub             │
+│ REST API                        │
+└──────────────┬──────────────────┘
+               │
+               │ (6) Update asset relations:
+               │     - Link to Sitecore items
+               │     - Update usage metadata
+               │     - Set relation properties
+               ▼
+┌─────────────────────────────────┐
+│ ContentHub Database             │
+│ Asset Relations Updated         │
+└─────────────────────────────────┘
+```
 
-### Prerequisites
-- Sitecore 10.4 or later
-- .NET Framework 4.8 or later
-- Visual Studio 2019 or later
-- Sitecore Publishing Service (optional, for enhanced publishing features)
+### 4. Reverse Query Flow (Asset → Items)
 
-### Package Manager Settings
+```
+External System / ContentHub
+     │
+     │ (1) Query: "Which items use Asset X?"
+     ▼
+┌─────────────────────────────────┐
+│ Asset Usage Service API         │
+└──────────────┬──────────────────┘
+               │
+               │ (2) GetItemIdsByAssetId(X)
+               ▼
+┌─────────────────────────────────┐
+│ AssetItemLinkRepository         │
+└──────────────┬──────────────────┘
+               │
+               │ (3) MongoDB Query:
+               │     db.AssetItemLinks.find({
+               │       assetIds: X
+               │     })
+               ▼
+┌─────────────────────────────────┐
+│ MongoDB Database                │
+│ Index Scan on assetIds          │
+└──────────────┬──────────────────┘
+               │
+               │ (4) Return matching documents
+               ▼
+┌─────────────────────────────────┐
+│ Response to Caller              │
+│ [                               │
+│   { itemId: "guid1", ... },     │
+│   { itemId: "guid2", ... }      │
+│ ]                               │
+└─────────────────────────────────┘
+```
 
-Before you get started, configure Package Manager settings -> Package Sources:
+### 5. Complete End-to-End Flow
 
-| Name | Source |
-|------|--------|
-| Sitecore | https://sitecore.myget.org/F/sc-packages/api/v3/index.json#myget.org |
-| nuget.org | https://api.nuget.org/v3/index.json |
+```
+┌─────────────────┐
+│ SITECORE CMS    │
+│                 │
+│ Content Editor  │
+│ publishes item  │
+│ with assets     │
+└────────┬────────┘
+         │
+         │ Publish Pipeline
+         ▼
+┌─────────────────────────────────┐
+│ iO.Sitecore.Publishing          │
+│ Event Handler                   │
+│                                 │
+│ 1. OnItemProcessing             │
+│    - Extract item data          │
+│    - Log to audit file          │
+│                                 │
+│ 2. OnItemProcessed              │
+│    - POST to Asset Service      │
+│                                 │
+│ 3. OnPublishEnd                 │
+│    - Batch processing complete  │
+└────────┬────────────────────────┘
+         │
+         │ HTTP POST
+         │ http://localhost:7183/api/SitecorePublishAPI
+         ▼
+┌─────────────────────────────────┐
+│ ASSET USAGE SERVICE             │
+│ (Azure Function)                │
+│                                 │
+│ 1. Receive Event                │
+│    - Validate payload           │
+│                                 │
+│ 2. Query MongoDB                │
+│    - Get current state          │
+│                                 │
+│ 3. Calculate Delta              │
+│    - Compare old vs new         │
+│                                 │
+│ 4. Update MongoDB               │
+│    - Save new relationships     │
+│                                 │
+│ 5. Sync to ContentHub           │
+│    - Update asset metadata      │
+└────────┬────────────────────────┘
+         │
+         │ OAuth2 + REST API
+         ▼
+┌─────────────────────────────────┐
+│ SITECORE CONTENTHUB             │
+│                                 │
+│ 1. Authenticate Request         │
+│                                 │
+│ 2. Update Asset Relations       │
+│    - Link to Sitecore items     │
+│                                 │
+│ 3. Update Metadata              │
+│    - Usage count                │
+│    - Last used date             │
+│    - Related items list         │
+└─────────────────────────────────┘
+```
 
-### Packages to Install
+## Technology Stack
 
-- Sitecore.Kernel
-- Sitecore.Mvc
-- Sitecore.Analytics
+### Core Technologies
 
-### In Your Solution
+- **.NET 8.0**: Application framework
+- **Azure Functions (Isolated Worker)**: Serverless compute
+- **MongoDB**: NoSQL document database
+- **Sitecore CMS**: Content management system
+- **Sitecore ContentHub SDK**: DAM integration
+- **Application Insights**: Monitoring and telemetry
 
-References -> Everything from Sitecore.* right-click -> Properties -> Copy Local = False (helps to avoid overwriting existing local files)
+### Key Dependencies
 
-### Steps
+- `Microsoft.Azure.Functions.Worker`
+- `MongoDB.Driver`
+- `Stylelabs.M.Sdk.WebClient`
+- `Microsoft.Extensions.DependencyInjection`
 
-**Step 1: Build Project**
+## Prerequisites
 
-Build your project in Visual Studio
-
-**Step 2: Copy DLL**
-
-After building, locate the `IO.Sitecore.publishing.dll` (Application Extension, not the Configuration Source File) in `{PROJECT_PATH}\bin\Debug`
-
-**Step 3: Deploy DLL to Sitecore**
-
-Place the DLL you copied in step 2 in `{SITECORE_ROOT}\bin`
-
-**Step 4: Create Configuration Folder**
-
-In `{SITECORE_ROOT}\App_Config\Include` you need to create folder `zzz.IO`
-
-**Step 5: Add Configuration File**
-
-In the folder place the configuration file (thus in `{SITECORE_ROOT}\App_Config\Include\zzz.IO`)
-
-Use the provided `iO.Publishing.Events.config` file
-
-**Step 6: Restart IIS**
-
-Restart IIS to apply changes
-
-**Verification:**
-
-When you now do a Site publish / Item Publish, you can find the JSON logs in:
-
-    {SITECORE_ROOT}\App_Data\logs
-
-with the name `log.[yyyy/mm/dd].[numbers]`
+- .NET 8.0 SDK or later
+- Azure Functions Core Tools v4
+- MongoDB instance (local or Azure CosmosDB with MongoDB API)
+- Sitecore CMS instance (with iO.Sitecore.Publishing module)
+- Access to Sitecore ContentHub instance
+- Azure subscription (for deployment)
 
 ## Configuration
 
+### Sitecore CMS Configuration
+
+Install the `iO.Sitecore.Publishing` event handler by placing the configuration file in:
+
+`C:\inetpub\wwwroot\[SITECORE.INSTANCE]\App_Config\Include\zzz.iO\iO.Publishing.Events.config`
+
+```xml
+<configuration xmlns:patch="http://www.sitecore.net/xmlconfig/">
+  <sitecore>
+    <events>
+      <event name="publish:itemProcessing">
+        <handler type="iO.Sitecore.publishing.Events.PublishEventHandler, iO.Sitecore.publishing" method="OnItemProcessing" />
+      </event>
+      <event name="publish:itemProcessed">
+        <handler type="iO.Sitecore.publishing.Events.PublishEventHandler, iO.Sitecore.publishing" method="OnItemProcessed" />
+      </event>
+      <event name="publish:end">
+        <handler type="iO.Sitecore.publishing.Events.PublishEventHandler, iO.Sitecore.publishing" method="OnPublishEnd" />
+      </event>
+      <event name="publish:end:remote">
+        <handler type="iO.Sitecore.publishing.Events.PublishEventHandler, iO.Sitecore.publishing" method="OnPublishEndRemote" />
+      </event>
+    </events>
+    
+    <settings>
+      <setting name="AssetUsage.AuditLogPath" value="$(dataFolder)/logs/published-items.json" />
+      <setting name="AssetUsageService.Endpoint" value="http://localhost:7183/api/SitecorePublishAPI" />
+      <setting name="AssetUsageService.UserAgent" value="Sitecore-AssetUsage/1.0" />
+    </settings>
+  </sitecore>
+</configuration>
+```
+
 ### Asset Usage Service Configuration
 
-Configure the external API endpoint for the Asset Usage Service by creating a configuration file in your Sitecore instance.
+Configure in `local.settings.json` (local) or Azure Function App Configuration (production):
 
-**File Location:**
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    
+    "MongoDB:ConnectionString": "mongodb://localhost:27017",
+    "MongoDB:DatabaseName": "AssetUsageDb",
+    "MongoDB:SeedData": "false",
+    
+    "ContentHub:Endpoint": "https://your-instance.stylelabs.cloud",
+    "ContentHub:ClientId": "your-client-id",
+    "ContentHub:ClientSecret": "your-client-secret",
+    
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "your-app-insights-connection-string"
+  }
+}
+```
 
-    {SITECORE_ROOT}\App_Config\Include\AssetUsageService.config
+### Configuration Options
 
-**Configuration Content:**
+#### Sitecore Settings
 
-    <?xml version="1.0" encoding="utf-8"?>
-    <configuration xmlns:patch="http://www.sitecore.net/xmlconfig/">
-      <sitecore>
-        <settings>
-          <!-- Azure Function endpoint for Asset Usage Service -->
-          <setting name="AssetUsageService.ApiEndpoint" value="http://localhost:7183/api/SitecorePublishAPI" />
-        </settings>
-      </sitecore>
-    </configuration>
+- **AssetUsage.AuditLogPath**: Local audit log file path for published items
+- **AssetUsageService.Endpoint**: Asset Usage Service API endpoint
+- **AssetUsageService.UserAgent**: User agent string for HTTP requests
 
-**Configuration Settings:**
+#### MongoDB Settings
 
-- **AssetUsageService.ApiEndpoint**: The URL endpoint of your external telemetry/asset tracking service
-  - For local development: `http://localhost:7183/api/SitecorePublishAPI`
-  - For production: Update to your Azure Function or external API endpoint
+- **ConnectionString**: MongoDB connection string
+- **DatabaseName**: Database name for asset usage data
+- **SeedData**: Set to `true` to populate test data on startup
 
-**Note:** Make sure to update the endpoint URL to match your environment (development, staging, production).
+#### ContentHub Settings
 
-## Sitecore Content Hub OAuth Configuration
+- **Endpoint**: ContentHub instance URL
+- **ClientId**: OAuth2 client ID
+- **ClientSecret**: OAuth2 client secret
 
-This section describes the process to setup OAuth in Sitecore Content Hub for the external asset tracking service.
+## Data Model
 
-### STEP 1: CREATE USER WITH MINIMUM REQUIRED PERMISSIONS
+### AssetItemLink Collection
 
-#### 1.1 Create New User
+Document structure in MongoDB:
 
-1. Log in to your Sitecore Content Hub
-2. Go to **Manage** (⚙️ settings icon) **> Users**
-3. Click on **User**
-4. Click + User button to add a new user
-5. Fill in the following information:
-   - **Username**: e.g., "asset-service-user"
-6. Click on **Save**
-7. Click on Edit profile button and fill in:
-   - **Email**: a valid email address
-8. Verify the email address by going to the previously filled in email address inbox
-9. After verifying click reset password (called: click here) link
+```csharp
+{
+  "_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",  // Guid (ItemId)
+  "assetIds": [34013, 13343, 23213],               // List<int>
+  "createdAt": "2025-11-06T10:30:00Z",            // DateTime
+  "updatedAt": "2025-11-06T14:25:00Z"             // DateTime
+}
+```
 
-#### 1.2 Create User Group
+#### Field Descriptions
 
-1. Go to **Manage > Users > User groups**
-2. Click on + **User group**
-3. Fill in the following information:
-   - **Name**: e.g., "Asset Editors Service"
-   - Modules: "Media"
-4. Click on the User field + button
-5. Search and add the newly created user
-6. Click on **Save**
+- **_id (ItemId)**: Unique identifier for the Sitecore item (GUID)
+- **assetIds**: Array of asset IDs from ContentHub DAM
+- **createdAt**: Timestamp when the relationship was first created (UTC)
+- **updatedAt**: Timestamp of the last update to asset relationships (UTC)
 
-#### 1.3 Configure User Group Policy
+#### Indexes
 
-1. Go to the User Group overview page
-2. Click **Policies** (⚙️ settings icon) on the User Group you created
-3. Click on **New rule**
-4. Configure the policy as follows:
+```javascript
+db.AssetItemLinks.createIndex({ "assetIds": 1 })
+db.AssetItemLinks.createIndex({ "updatedAt": -1, "createdAt": -1 })
+```
 
-**Entity Definition:**
-- Select: **M.Asset**
+## API Endpoints
 
-**Permissions:**
-Check the following permissions:
-- ✅ Read (to retrieve assets)
-- ✅ Create (to add new assets)
-- ✅ Update (to edit existing assets)
-- ✅ AddVersion (to upload new versions of assets)
-- ✅ ReadPublicLinks (to retrieve public links)
-- ⚠️ Delete (only if deletion is required)
+### SitecorePublishAPI
 
-**Conditions (optional):**
-If you want to restrict permissions to specific assets:
-- Click on **Add condition**
-- Define criteria based on metadata (e.g., only assets in certain folders)
+**Endpoint**: `POST /api/SitecorePublishAPI`
 
-5. Click on **Save**
+**Authorization**: Function level
 
-#### 1.5 Add User to Everyone Group
+**Description**: Receives publish events from Sitecore CMS
 
-1. Go back to **Manage > Users**
-2. Open the newly created user
-3. Go to the **User groups** tab
-4. Verify that the user is a member of:
-   - ✅ **Everyone** (this often happens automatically)
-   - ✅ **Asset Editors Service** (just added)
-5. Click on **Save**
+**Request Body**:
+```json
+{
+  "itemId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "assetIds": [34013, 13343, 23213],
+  "action": "publish",
+  "timestamp": "2025-11-06T14:25:00Z"
+}
+```
 
-#### 1.6 Test Permissions with Impersonation
+**Response**:
+```json
+{
+  "success": true,
+  "itemId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "assetsProcessed": 3
+}
+```
 
-1. Stay in the user details
-2. Click on **Impersonate** in the top right
-3. You are now logged in as this user
-4. Verify that you can:
-   - ✅ See assets
-   - ✅ Edit assets
-   - ✅ Add new assets
-   - ❌ DO NOT have access to other modules (Settings, Manage, etc.)
-5. Click on **Stop impersonating** in the top right to return to your own account
+### Planned Endpoints
 
-### STEP 2: CREATE OAUTH CLIENT
+- `GET /api/items/{itemId}/assets` - Get all assets for an item
+- `GET /api/assets/{assetId}/items` - Get all items using an asset
+- `DELETE /api/items/{itemId}` - Remove all asset links for an item
 
-#### 2.1 Create New OAuth Client
+## Integration Points
 
-1. Go to **Manage > OAuth clients**
-2. Click on **OAuth client** to add a new client
-3. Fill in the following information:
+### Sitecore CMS Integration
 
-**Name:**
+The `iO.Sitecore.Publishing` module captures publish events:
 
-    Asset Service Client
+- **OnItemProcessing**: Triggered when item enters publish pipeline
+- **OnItemProcessed**: Triggered after item is published
+- **OnPublishEnd**: Triggered when publish operation completes
+- **OnPublishEndRemote**: Triggered for remote publish events
 
-**Client ID:**
+### Repository Interface
 
-    asset-service-client
+```csharp
+public interface IAssetItemLinkRepository
+{
+    Task<AssetItemLink> InsertAssetItemLinkAsync(
+        Guid itemId, 
+        List<int> assetIds, 
+        CancellationToken cancellationToken = default);
+    
+    Task<AssetItemLink?> GetAssetItemLinkByItemIdAsync(
+        Guid itemId, 
+        CancellationToken cancellationToken = default);
+    
+    Task<List<int>> GetAssetIdsFromItemIdAsync(
+        Guid itemId, 
+        CancellationToken cancellationToken = default);
+    
+    Task<List<AssetItemLink>> GetItemIdsByAssetIdAsync(
+        int assetId, 
+        CancellationToken cancellationToken = default);
+}
+```
 
-**Client Secret:**
+### ContentHub Integration
 
-    generate a strong password
+The `ContentHubConnectionService` manages authentication and connectivity:
 
-⚠️ **IMPORTANT**: Copy and save the Client Secret immediately! You won't be able to see it later.
+```csharp
+var client = await apiGateway.GetContentHubClientAsync();
+var isReachable = await apiGateway.IsContentHubReachableAsync();
+```
 
-**Redirect URL:**
+## Development Setup
 
-    https://localhost/
+### Local Development
 
-⚠️ **Note**: This value is required but not used in Client Credentials flow. You can enter a dummy HTTPS URL here.
+1. Clone the repository:
+```bash
+git clone https://github.com/weareyou/asset-usage-service.git
+cd asset-usage-service
+```
 
-**Type:**
-- Select: **Client Credentials**
+2. Install dependencies:
+```bash
+dotnet restore
+```
 
-**User:**
-- Search and select the newly created user: "asset-service-user"
+3. Configure local settings:
+```bash
+cp local.settings.json.example local.settings.json
+```
 
-4. Click on **Save**
+4. Start MongoDB:
+```bash
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+```
 
-## Custom Property Configuration
+5. Run the application:
+```bash
+func start
+```
 
-### Add a Custom Property to Sitecore Content Hub (M.Asset)
+6. Configure Sitecore:
+- Copy `iO.Publishing.Events.example` to your Sitecore instance
+- Update `AssetUsageService.Endpoint` to point to your local function
+- Restart Sitecore
 
-This guide shows how to add a new property on M.Asset, place it in a member group, and set read/write permissions.
+### Project Structure
 
-#### Step 1: Open Schema
+```
+asset-usage-service/
+├── AssetUsageService/
+│   ├── Business/
+│   │   ├── Controllers/
+│   │   ├── Events/
+│   │   ├── Handlers/
+│   │   └── Services/
+│   ├── Data/
+│   │   ├── AssetItemLink.cs
+│   │   └── DBContext.cs
+│   ├── Infrastructure/
+│   │   ├── AssetItemLinkRepository.cs
+│   │   └── IAssetItemLinkRepository.cs
+│   ├── Integration/
+│   │   ├── APIGateway.cs
+│   │   ├── ContentHubConnectionService.cs
+│   │   └── MessageHandler.cs
+│   ├── Function1.cs
+│   └── Program.cs
+├── AssetUsageServiceTests/
+│   ├── Integration/
+│   └── Performance/
+├── iO.Sitecore.publishing/
+│   └── Events/
+│       └── PublishEventHandler.cs
+├── iO.Publishing.Events
+├── iO.Publishing.Events.example
+└── README.md
+```
 
-1. Sign in with a superuser or a user with schema permissions
-2. Go to **Manage (⚙️)**
-3. Open **Schema**
+## Testing
 
-#### Step 2: Find the M.Asset entity definition
+### Running Tests
 
-1. In Schema, use search and type `M.Asset`
-2. Select **M.Asset** from the results
+```bash
+dotnet test
 
-#### Step 3: Create a Member group
+dotnet test --filter "Category=Performance"
 
-Create a new group:
+dotnet test --filter "FullyQualifiedName~Integration"
+```
 
-1. Click **New group**
-2. Fill in **Name** (e.g., `UsageTracking`)
-3. Click **Save**
+### Test Categories
 
-#### Step 4: Add a new Property member
+- **Unit Tests**: Business logic and service tests
+- **Integration Tests**: ContentHub and MongoDB integration
+- **Performance Tests**: Repository performance benchmarks
 
-1. Inside the chosen member group, click **New member**
-2. In the **New member** dialog, next to **Property**, click **Select**
-3. Choose the **Data type JSON**
-4. Click **Next**, then configure the property:
-   - **Name**: (e.g., `UsageTracking`)
-   - **Allow Updates:** Selected
-   - **Secured:** Selected
-5. Click **Save**
+## Deployment
 
-#### Step 5: Grant read access for Everyone
+### Azure Deployment
 
-Goal: Every user can see the field, but not edit it.
+1. Create Azure resources:
+```bash
+az group create --name asset-usage-rg --location westeurope
+az storage account create --name assetusagestorage --resource-group asset-usage-rg
+az functionapp create --name asset-usage-service --resource-group asset-usage-rg \
+  --consumption-plan-location westeurope --runtime dotnet-isolated --runtime-version 8 \
+  --functions-version 4 --storage-account assetusagestorage
+```
 
-1. Go to **Manage (⚙️) › Users**
-2. Open the **User groups** tab
-3. Find **Everyone**, then click **Policies (⚙️)**
-4. Open the **Member security** tab
-5. Under **Definitions**, select **M.Asset**
-6. Under **Member groups**, select the group you used (e.g., `UsageTracking`)
-7. Under **Members**, find your property (e.g., `UsageTracking`) and check only **Read**
-8. Click **Save**
+2. Configure application settings:
+```bash
+az functionapp config appsettings set --name asset-usage-service \
+  --resource-group asset-usage-rg \
+  --settings "MongoDB:ConnectionString=your-connection-string" \
+             "MongoDB:DatabaseName=AssetUsageDb" \
+             "ContentHub:Endpoint=your-endpoint"
+```
 
-#### Step 6: Grant write access to a specific group and service user
+3. Deploy the application:
+```bash
+func azure functionapp publish asset-usage-service
+```
 
-Goal: Only editors and the designated service user can modify the field.
+4. Update Sitecore configuration:
+- Update `AssetUsageService.Endpoint` to Azure Function URL
+- Restart Sitecore
 
-1. Go to **Manage (⚙️) › Users › User groups**
-2. Go to the user group created in the OAuth Client Setup (Asset Editors Service)
-3. Click **Policies (⚙️)**
-4. Open the **Member security** tab
-5. Under **Definitions**, select **M.Asset**
-6. Under **Member groups**, pick the group that contains the property (e.g., `UsageTracking`)
-7. Under **Members**, find your property (e.g., `UsageTracking`) and check **Read** and **Write**
-8. Click **Save**
+### Database Deployment
 
-#### Result
+Create indexes for optimal performance:
+```bash
+mongosh "your-connection-string" --eval "
+  db.AssetItemLinks.createIndex({ 'assetIds': 1 });
+  db.AssetItemLinks.createIndex({ 'updatedAt': -1 });
+"
+```
 
-- Users in **Everyone** can see the field but cannot edit it
-- Members of the designated editor group can both view and edit the field
+## Monitoring and Logging
+
+### Application Insights
+
+The service integrates with Azure Application Insights:
+
+- Request tracing and performance monitoring
+- Exception tracking and diagnostics
+- Custom metrics and events
+- Dependency tracking (MongoDB, ContentHub, Sitecore)
+
+### Logging Levels
+
+Configure in `host.json`:
+
+```json
+{
+  "logging": {
+    "logLevel": {
+      "default": "Information",
+      "AssetUsageService": "Information",
+      "AssetUsageService.Integration": "Debug"
+    }
+  }
+}
+```
+
+### Sitecore Audit Logs
+
+Published items are logged locally at:
+`$(dataFolder)/logs/published-items.json`
 
 ## Troubleshooting
 
-### Common Issues
+### Sitecore Integration Issues
 
-1. **Telemetry Not Being Sent**
-   - Verify AssetUsageService.ApiEndpoint is configured correctly
-   - Check the API endpoint is accessible from your Sitecore instance
-   - Review Sitecore logs for HTTP request errors
-   - Ensure network connectivity to telemetry service
+- Verify `iO.Sitecore.Publishing.dll` is in the bin folder
+- Check Sitecore logs for event handler errors
+- Confirm `AssetUsageService.Endpoint` is accessible from Sitecore server
+- Validate audit log file permissions
 
-2. **Missing Field Changes**
-   - Confirm field types are supported (Rich Text, Image)
-   - Check revision IDs are different between source and target
-   - Review field analysis logs for detailed information
+### MongoDB Connection Failures
 
-3. **Configuration Not Loading**
-   - Verify AssetUsageService.config is in the correct location
-   - Check XML syntax is valid
-   - Restart IIS after configuration changes
-   - Review Sitecore logs for configuration errors
+- Verify connection string format
+- Check network connectivity and firewall rules
+- Ensure MongoDB version compatibility (4.0+)
 
-4. **OAuth Authentication Failures**
-   - Verify OAuth client credentials are correct
-   - Check that the service user has proper permissions
-   - Ensure the OAuth client type is set to Client Credentials
-   - Review Content Hub logs for authentication errors
+### ContentHub Authentication Errors
 
-### Debug Logging
+- Validate ClientId and ClientSecret
+- Check OAuth2 permissions in ContentHub
+- Verify endpoint URL format (must include https://)
 
-Check Sitecore logs located at:
+## License
 
-    {SITECORE_ROOT}\App_Data\logs
-
-Look for entries related to:
-- ItemProcessedEventHandler
-- ItemProcessingEventHandler
-- AssetUsageService
-- HTTP request failures
+Proprietary - WeAreYou Organization
