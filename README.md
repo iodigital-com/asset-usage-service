@@ -121,7 +121,7 @@ Build your project in Visual Studio
 
 **Step 2: Copy DLL**
 
-In `{PROJECT_PATH}\bin\Debug` place the `IO.Sitecore.publishing.dll` (Application Extension, not the Configuration Source File)
+After building, locate the `IO.Sitecore.publishing.dll` (Application Extension, not the Configuration Source File) in `{PROJECT_PATH}\bin\Debug`
 
 **Step 3: Deploy DLL to Sitecore**
 
