@@ -10,6 +10,11 @@ using System.Threading.Tasks;
 
 namespace iO.Sitecore.Publishing.Events
 {
+    /// <summary>
+    /// Client for sending asset usage events to the Azure Function endpoint.
+    /// Requires the "AssetUsageService.ApiEndpoint" setting to be configured in Sitecore configuration files
+    /// with a valid HTTP/HTTPS URL pointing to the Azure Function endpoint.
+    /// </summary>
     public class AssetUsageServiceClient : IDisposable
     {
         private const string ApiEndpointSettingName = "AssetUsageService.ApiEndpoint";
@@ -20,6 +25,17 @@ namespace iO.Sitecore.Publishing.Events
         private readonly JsonSerializerOptions jsonOptions;
         private bool disposed = false;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AssetUsageServiceClient"/> class.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the "AssetUsageService.ApiEndpoint" setting is not configured or contains an invalid URL.
+        /// </exception>
+        /// <remarks>
+        /// The "AssetUsageService.ApiEndpoint" setting must be configured in Sitecore configuration files
+        /// (e.g., App_Config/Include or App_Config/Layers) with a valid HTTP/HTTPS URL.
+        /// Example: &lt;setting name="AssetUsageService.ApiEndpoint" value="https://your-function-app.azurewebsites.net/api/endpoint" /&gt;
+        /// </remarks>
         public AssetUsageServiceClient()
         {
             endpointUrl = GetAndValidateEndpointUrl();
