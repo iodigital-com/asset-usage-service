@@ -6,7 +6,7 @@ namespace iO.Sitecore.Publishing.Models
 {
     public class AssetUsageEvent
     {
-            public List<string> PublicLink { get; set; }
+            public List<string> PublicLinks { get; set; }
             public string ItemId { get; set; }
             public string ItemPath { get; set; }
             public string ItemName { get; set; }

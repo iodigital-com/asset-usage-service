@@ -432,7 +432,7 @@ namespace iO.Sitecore.Publishing.Services
 
             var payload = new AssetUsageEvent
             {
-                PublicLink = publicLinks,
+                PublicLinks = publicLinks,
                 ItemId = item.ID.ToString(),
                 ItemPath = item.Paths.FullPath,
                 ItemName = item.Name,
@@ -461,7 +461,7 @@ namespace iO.Sitecore.Publishing.Services
 
             var record = new
             {
-                PublicLink = publicLinks,
+                PublicLinks = publicLinks,
                 Timestamp = NowString(),
                 EventType = "ItemProcessed",
                 ItemId = item.ID.ToString(),
