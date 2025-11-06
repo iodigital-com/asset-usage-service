@@ -358,12 +358,6 @@ namespace iO.Sitecore.Publishing.Services
             Log.Info("───────────────────────────────────────────────────────────────", owner);
         }
 
-        public void LogPublishedBy(string publishedBy)
-        {
-            Log.Info($"Published By: {publishedBy}", owner);
-            Log.Info("───────────────────────────────────────────────────────────────", owner);
-        }
-
         public void LogPayloadCreated(AssetUsageEvent payload)
         {
             Log.Info("Creating AssetUsageEvent payload...", owner);
@@ -375,7 +369,6 @@ namespace iO.Sitecore.Publishing.Services
             Log.Info($"  Language: {payload.Language}", owner);
             Log.Info($"  Version: {payload.Version}", owner);
             Log.Info($"  PublishedAtUtc: {payload.PublishedAtUtc:yyyy-MM-dd HH:mm:ss.fff}", owner);
-            Log.Info($"  PublishedBy: {payload.PublishedBy}", owner);
             Log.Info($"  TargetDatabase: {payload.TargetDatabase}", owner);
             Log.Info($"  AssetIds Count: {payload.AssetIds?.Count ?? 0}", owner);
             Log.Info($"  PublicLinks Count: {payload.PublicLinks?.Count ?? 0}", owner);
