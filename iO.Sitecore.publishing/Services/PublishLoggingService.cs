@@ -378,7 +378,7 @@ namespace iO.Sitecore.Publishing.Services
             Log.Info($"  PublishedBy: {payload.PublishedBy}", owner);
             Log.Info($"  TargetDatabase: {payload.TargetDatabase}", owner);
             Log.Info($"  AssetIds Count: {payload.AssetIds?.Count ?? 0}", owner);
-            Log.Info($"  PublicLinks Count: {payload.PublicLink?.Count ?? 0}", owner);
+            Log.Info($"  PublicLinks Count: {payload.PublicLinks?.Count ?? 0}", owner);
             Log.Info("───────────────────────────────────────────────────────────────", owner);
         }
 
