@@ -8,7 +8,7 @@ namespace iO.Sitecore.Publishing.Services
     {
         private readonly string auditLogPath;
         private readonly PublishLoggingService loggingService;
-        private static readonly object FileLock = new object();
+        private static readonly object _fileLock = new object();
 
         public AuditLoggingService(string auditLogPath, PublishLoggingService loggingService)
         {
@@ -33,7 +33,7 @@ namespace iO.Sitecore.Publishing.Services
                     Directory.CreateDirectory(directory);
                 }
 
-                lock (FileLock)
+                lock (_fileLock)
                 {
                     File.AppendAllText(auditLogPath, json + Environment.NewLine);
                 }

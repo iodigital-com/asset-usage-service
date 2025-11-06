@@ -28,7 +28,7 @@ namespace iO.Sitecore.Publishing.Services
         private static readonly ConcurrentDictionary<string, ItemProcessingInfo> _processingItems = new ConcurrentDictionary<string, ItemProcessingInfo>();
         private static readonly ConcurrentBag<ItemUpdateInfo> _updatedItems = new ConcurrentBag<ItemUpdateInfo>();
         private static readonly object _statsLock = new object();
-        private const int UPDATED_TIMESTAMP_THRESHOLD_SECONDS = 1;
+        private const int UpdatedTimestampThresholdSeconds = 1;
 
         public PublishTelemetryService(AssetUsageServiceClient client, string auditLogPath)
         {
@@ -284,7 +284,7 @@ namespace iO.Sitecore.Publishing.Services
         {
             if (processingInfo.TargetRevisionId == ID.Null && newRevisionId != ID.Null) return true;
             if (processingInfo.TargetRevisionId != newRevisionId && newRevisionId != ID.Null) return true;
-            return Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > UPDATED_TIMESTAMP_THRESHOLD_SECONDS;
+            return Math.Abs((processingInfo.TargetUpdated - newUpdated).TotalSeconds) > UpdatedTimestampThresholdSeconds;
         }
 
         private PublishOptions ExtractPublishOptions(EventArgs args)
