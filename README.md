@@ -202,7 +202,7 @@ This section describes the process to setup OAuth in Sitecore Content Hub for th
 #### 1.2 Create User Group
 
 1. Go to **Manage > Users > User groups**
-2. Click on + **Usergroup**
+2. Click on + **User group**
 3. Fill in the following information:
    - **Name**: e.g., "Asset Editors Service"
    - Modules: "Media"
