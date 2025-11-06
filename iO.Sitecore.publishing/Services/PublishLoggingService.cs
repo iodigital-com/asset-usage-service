@@ -419,10 +419,10 @@ namespace iO.Sitecore.Publishing.Services
                 }
             }
 
-            if (record.PublicLink != null && record.PublicLink.Count > 0)
+            if (record.PublicLinks != null && record.PublicLinks.Count > 0)
             {
-                Log.Info($"  PublicLinks ({record.PublicLink.Count}):", owner);
-                foreach (var link in record.PublicLink)
+                Log.Info($"  PublicLinks ({record.PublicLinks.Count}):", owner);
+                foreach (var link in record.PublicLinks)
                 {
                     Log.Info($"    - {link}", owner);
                 }

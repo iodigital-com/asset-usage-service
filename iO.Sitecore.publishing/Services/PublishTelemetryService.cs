@@ -27,7 +27,6 @@ namespace iO.Sitecore.Publishing.Services
 
         private static readonly ConcurrentDictionary<string, ItemProcessingInfo> _processingItems = new ConcurrentDictionary<string, ItemProcessingInfo>();
         private static readonly ConcurrentBag<ItemUpdateInfo> _updatedItems = new ConcurrentBag<ItemUpdateInfo>();
-        private static readonly ConcurrentDictionary<string, PublishContextInfo> _publishContexts = new ConcurrentDictionary<string, PublishContextInfo>();
         private static readonly object _statsLock = new object();
         private const int UPDATED_TIMESTAMP_THRESHOLD_SECONDS = 1;
 
@@ -49,8 +48,6 @@ namespace iO.Sitecore.Publishing.Services
 
             var context = eventArgs.Context;
             var publishContext = context.PublishContext;
-
-            StorePublishContext(publishContext);
 
             var (language, version, hasVersionInfo) = GetLanguageAndVersion(context, publishContext);
             var sourceItem = GetSourceItem(context, publishContext, language, version);
@@ -293,27 +290,7 @@ namespace iO.Sitecore.Publishing.Services
         private PublishOptions ExtractPublishOptions(EventArgs args)
         {
             var publisher = Event.ExtractParameter(args, 0) as Publisher;
-            if (publisher?.Options != null) return publisher.Options;
-
-            var contextInfo = _publishContexts.Values.FirstOrDefault();
-            return contextInfo?.PublishOptions;
-        }
-
-        private void StorePublishContext(PublishContext publishContext)
-        {
-            if (publishContext?.PublishOptions == null) return;
-
-            var sourceDbName = publishContext.PublishOptions.SourceDatabase?.Name ?? "Unknown";
-            var targetDbName = publishContext.PublishOptions.TargetDatabase?.Name ?? "Unknown";
-            var contextKey = $"{sourceDbName}_{targetDbName}_{DateTime.UtcNow.Ticks}";
-
-            var contextInfo = new PublishContextInfo
-            {
-                PublishOptions = publishContext.PublishOptions,
-                StartTime = DateTime.UtcNow
-            };
-
-            _publishContexts.AddOrUpdate(contextKey, contextInfo, (key, existing) => contextInfo);
+            return publisher?.Options;
         }
 
         private void LogPublishStatistics()
@@ -353,13 +330,11 @@ namespace iO.Sitecore.Publishing.Services
             {
                 int processingCount = _processingItems.Count;
                 int updatedCount = _updatedItems.Count;
-                int contextCount = _publishContexts.Count;
 
                 _processingItems.Clear();
-                _publishContexts.Clear();
                 while (_updatedItems.TryTake(out _)) { }
 
-                loggingService.LogClearBuffers(processingCount, updatedCount, contextCount);
+                loggingService.LogClearBuffers(processingCount, updatedCount, 0);
             }
         }
 
