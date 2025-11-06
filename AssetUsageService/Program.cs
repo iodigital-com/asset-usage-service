@@ -39,6 +39,8 @@ builder.Services.AddSingleton<DeltaCalculationService>();
 builder.Services.AddSingleton<DBContext>();
 builder.Services.AddSingleton<IMediator, InMemoryMediator>();
 builder.Services.AddSingleton<IEventHandler<PushToDamEvent>, PushToDamHandler>();
+builder.Services.AddSingleton<IEventHandler<AssetIdsByPublicLinksEvent>, AssetIdsByPublicLinksHandler>();
+builder.Services.AddSingleton<PublishAssetIdsByPublicLinksEventService>();
 builder.Services.AddSingleton<PublishPushToDamEventsService>();
 builder.Services.AddSingleton<PublishedItemMapper>();
 builder.Services.AddSingleton<IContentHubConnectionService, ContentHubConnectionService>();
