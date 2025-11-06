@@ -14,7 +14,6 @@ namespace iO.Sitecore.Publishing.Models
             public string Language { get; set; }
             public int Version { get; set; }
             public DateTime PublishedAtUtc { get; set; }
-            public string PublishedBy { get; set; }
             public List<string> AssetIds { get; set; }
             public string TargetDatabase { get; set; }
     }

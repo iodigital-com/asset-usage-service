@@ -427,9 +427,6 @@ namespace iO.Sitecore.Publishing.Services
             var publicLinks = assetExtractionService.ExtractPublicLinks(item);
             loggingService.LogPublicLinksExtracted(publicLinks);
 
-            var publishedBy = GetPublishedBy();
-            loggingService.LogPublishedBy(publishedBy);
-
             var payload = new AssetUsageEvent
             {
                 PublicLinks = publicLinks,
@@ -440,7 +437,6 @@ namespace iO.Sitecore.Publishing.Services
                 Language = item.Language.Name,
                 Version = item.Version.Number,
                 PublishedAtUtc = DateTime.UtcNow,
-                PublishedBy = publishedBy,
                 AssetIds = assetIds,
                 TargetDatabase = options.TargetDatabase?.Name ?? string.Empty
             };
@@ -505,21 +501,6 @@ namespace iO.Sitecore.Publishing.Services
                 DatabasesRaised = databasesRaised?.ToList() ?? new List<string>()
             };
             auditLoggingService.WriteAudit(summary);
-        }
-
-        private static string GetPublishedBy()
-        {
-            try
-            {
-                var currentUser = global::Sitecore.Security.Accounts.User.Current;
-                if (currentUser != null && currentUser.IsAuthenticated && !string.IsNullOrWhiteSpace(currentUser.Name))
-                    return currentUser.Name;
-            }
-            catch { }
-
-            var windowsIdentity = System.Security.Principal.WindowsIdentity.GetCurrent();
-            var userName = windowsIdentity?.Name;
-            return string.IsNullOrWhiteSpace(userName) ? "system" : userName;
         }
 
         private static string NowString()
