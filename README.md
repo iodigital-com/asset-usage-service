@@ -210,7 +210,7 @@ This section describes the process to setup OAuth in Sitecore Content Hub for th
 5. Search and add the newly created user
 6. Click on **Save**
 
-#### 1.4 Configure User Group Policy
+#### 1.3 Configure User Group Policy
 
 1. Go to the User Group overview page
 2. Click **Policies** (⚙️ settings icon) on the User Group you created
