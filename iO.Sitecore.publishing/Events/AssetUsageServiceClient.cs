@@ -96,7 +96,7 @@ namespace iO.Sitecore.Publishing.Events
 
         private string GetAndValidateEndpointUrl()
         {
-            var url = Settings.GetSetting(ApiEndpointSettingName);
+            var url = Settings.GetSetting(ApiEndpointSettingName, string.Empty);
 
             if (string.IsNullOrWhiteSpace(url))
             {
