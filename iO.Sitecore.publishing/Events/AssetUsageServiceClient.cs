@@ -1,4 +1,5 @@
 ﻿using iO.Sitecore.Publishing.Models;
+using Sitecore.Configuration;
 using Sitecore.Diagnostics;
 using System;
 using System.Net.Http;
@@ -11,6 +12,8 @@ namespace iO.Sitecore.Publishing.Events
 {
     public class AssetUsageServiceClient : IDisposable
     {
+        private const string ApiEndpointSettingName = "AssetUsageService.ApiEndpoint";
+
         private static readonly Lazy<HttpClient> LazyHttpClient = new Lazy<HttpClient>(CreateHttpClient, LazyThreadSafetyMode.ExecutionAndPublication);
         private static HttpClient SharedHttpClient => LazyHttpClient.Value;
         private readonly string endpointUrl;
@@ -60,15 +63,25 @@ namespace iO.Sitecore.Publishing.Events
                         await HandleHttpError(httpResponse, payload.ItemId).ConfigureAwait(false);
                     }
                 }
-            } catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || cancellationToken.IsCancellationRequested) {
+            }
+            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || cancellationToken.IsCancellationRequested)
+            {
                 Log.Warn($"[AssetUsageServiceClient] Request timeout or cancelled for ItemId={payload.ItemId}", typeof(AssetUsageServiceClient));
-            } catch (HttpRequestException ex) {
+            }
+            catch (HttpRequestException ex)
+            {
                 Log.Error($"[AssetUsageServiceClient] HTTP request failed for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
-            } catch (JsonException ex) {
+            }
+            catch (JsonException ex)
+            {
                 Log.Error($"[AssetUsageServiceClient] JSON serialization failed for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
-            } catch (Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 Log.Error($"[AssetUsageServiceClient] Unexpected error sending data for ItemId={payload.ItemId}. Error: {ex.Message}", ex, typeof(AssetUsageServiceClient));
-            } finally {
+            }
+            finally
+            {
                 httpResponse?.Dispose();
             }
         }
@@ -83,17 +96,19 @@ namespace iO.Sitecore.Publishing.Events
 
         private string GetAndValidateEndpointUrl()
         {
-            var url = "http://localhost:7183/api/SitecorePublishAPI";
+            var url = Settings.GetSetting(ApiEndpointSettingName);
 
             if (string.IsNullOrWhiteSpace(url))
             {
-                throw new InvalidOperationException("AssetUsageService.Endpoint setting is required but not configured.");
+                throw new InvalidOperationException($"{ApiEndpointSettingName} setting is required but not configured.");
             }
 
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
             {
-                throw new InvalidOperationException($"AssetUsageService.Endpoint setting '{url}' is not a valid HTTP/HTTPS URL.");
+                throw new InvalidOperationException($"{ApiEndpointSettingName} setting '{url}' is not a valid HTTP/HTTPS URL.");
             }
+
+            Log.Info($"[AssetUsageServiceClient] Using Azure Function endpoint: {url}", typeof(AssetUsageServiceClient));
 
             return url;
         }
@@ -104,7 +119,9 @@ namespace iO.Sitecore.Publishing.Events
             try
             {
                 responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            } catch (Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 Log.Warn($"[AssetUsageServiceClient] Could not read error response body: {ex.Message}", typeof(AssetUsageServiceClient));
                 responseBody = "[Could not read response]";
             }
