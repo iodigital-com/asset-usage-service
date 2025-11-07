@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AssetUsageService.Business.Services;
 
-public sealed class PublishAssetIdsByPublicLinksEventService
+public class PublishAssetIdsByPublicLinksEventService
 {
     private const string ContentHubEndpointConfigKey = "ContentHub:Endpoint";
 
