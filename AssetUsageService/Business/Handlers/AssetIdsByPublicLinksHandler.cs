@@ -103,25 +103,33 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 
     private async Task<long?> GetPublicLinkIdByRelativeUrlAsync(IWebMClient contentHubClient, string relativeUrl, CancellationToken cancellationToken)
     {
-        var query = new Query
+        try
         {
-            Filter = new PropertyQueryFilter
+            var query = new Query
             {
-                Property = RelativeUrlProperty,
-                Value = relativeUrl,
-                DataType = FilterDataType.String
+                Filter = new PropertyQueryFilter
+                {
+                    Property = RelativeUrlProperty,
+                    Value = relativeUrl,
+                    DataType = FilterDataType.String
+                }
+            };
+
+            var result = await contentHubClient.Querying.QueryAsync(query);
+
+            if (!result.Items.Any())
+            {
+                _logger.LogWarning("No public link found for relative URL: {RelativeUrl}", relativeUrl);
+                return null;
             }
-        };
 
-        var result = await contentHubClient.Querying.QueryAsync(query);
-
-        if (!result.Items.Any())
-        {
-            _logger.LogWarning("No public link found for relative URL: {RelativeUrl}", relativeUrl);
-            return null;
+            return result.Items.First().Id.Value;
         }
-
-        return result.Items.First().Id.Value;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving public link ID for relative URL: {RelativeUrl}", relativeUrl);
+            throw;
+        }
     }
 
     private async Task<long?> GetAssetIdFromPublicLinkAsync(IWebMClient contentHubClient, long publicLinkId, CancellationToken cancellationToken)
