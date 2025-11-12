@@ -65,7 +65,7 @@ public class PublishAssetIdsByPublicLinksEventService
         }
 
         var filteredLinks = publicLinks
-            .Where(link => link.StartsWith(contentHubEndpoint, StringComparison.OrdinalIgnoreCase))
+            .Where(link => !string.IsNullOrEmpty(link) && link.StartsWith(contentHubEndpoint, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         _logger.LogDebug("Filtered {FilteredCount} ContentHub links from {TotalCount} total public links",
