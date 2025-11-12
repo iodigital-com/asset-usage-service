@@ -50,15 +50,13 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
         var assetIds = new List<int>(publicLinks.Count);
         var contentHubClient = _contentHubConnection.CreateClient();
 
-        foreach (var url in publicLinks)
-        {
-            var assetId = await TryGetAssetIdFromPublicLinkAsync(contentHubClient, url, cancellationToken);
-            if (assetId.HasValue)
-            {
-                assetIds.Add((int)assetId.Value);
-            }
-        }
+        var tasks = publicLinks
+            .Select(url => TryGetAssetIdFromPublicLinkAsync(contentHubClient, url, cancellationToken))
+            .ToList();
 
+        var results = await Task.WhenAll(tasks);
+
+        assetIds.AddRange(results.Where(id => id.HasValue).Select(id => (int)id.Value));
         return assetIds;
     }
 
