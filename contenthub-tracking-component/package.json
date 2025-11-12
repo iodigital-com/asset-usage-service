@@ -1,0 +1,26 @@
+{
+  "name": "contenthub-asset-usage-tracker",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "webpack --mode development --watch",
+    "build": "webpack --mode production",
+    "preview": "npx serve dist"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "css-loader": "^7.1.2",
+    "node-polyfill-webpack-plugin": "^4.0.0",
+    "process": "^0.11.10",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "~5.9.3",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^6.0.1"
+  }
+}
