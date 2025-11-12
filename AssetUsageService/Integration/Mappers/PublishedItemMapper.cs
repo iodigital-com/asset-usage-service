@@ -26,7 +26,7 @@ public class PublishedItemMapper
             version: dto.Version,
             itemPath: dto.ItemPath,
             assetIds: assetIds,
-            publicLinks: dto.PublicLink);
+            publicLinks: dto.PublicLinks);
     }
 
     private Guid ValidateAndParseItemId(string itemIdString)
