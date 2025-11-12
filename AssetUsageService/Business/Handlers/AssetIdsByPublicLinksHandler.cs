@@ -98,7 +98,20 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
             return null;
         }
 
-        return uri.Segments[^1].Split('?')[0];
+        if (uri.Segments.Length == 0)
+        {
+            _logger.LogWarning("URL has no path segments: {Url}", url);
+            return null;
+        }
+
+        var segment = uri.Segments[^1];
+        if (string.IsNullOrEmpty(segment))
+        {
+            _logger.LogWarning("URL segment is empty: {Url}", url);
+            return null;
+        }
+
+        return segment.Split('?')[0];
     }
 
     private async Task<long?> GetPublicLinkIdByRelativeUrlAsync(IWebMClient contentHubClient, string relativeUrl, CancellationToken cancellationToken)
