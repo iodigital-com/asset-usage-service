@@ -45,31 +45,8 @@ builder.Services.AddSingleton<PublishPushToDamEventsService>();
 builder.Services.AddSingleton<PublishedItemMapper>();
 builder.Services.AddSingleton<IContentHubConnectionService, ContentHubConnectionService>();
 builder.Services.AddSingleton<MessageHandler>();
-builder.Services.AddSingleton<APIGateway>();
 builder.Services.AddSingleton<AssetItemController>();
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    if (services.GetRequiredService<IConfiguration>().GetValue<bool>("MongoDB:SeedData", false))
-    {
-        await services.GetRequiredService<DBContext>().SeedDataAsync();
-    }
-
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    var gateway = services.GetRequiredService<APIGateway>();
-
-    try
-    {
-        var reachable = await gateway.IsContentHubReachableAsync();
-        var client = await gateway.GetContentHubClientAsync();
-    }
-    catch (Exception exception)
-    {
-        logger.LogError(exception, "ContentHub test failed");
-    }
-}
 
 app.Run();
