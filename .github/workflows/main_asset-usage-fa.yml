@@ -26,12 +26,13 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           
-      - name: 'Add Sitecore NuGet Source'
+      - name: 'Add NuGet Sources'
         shell: bash
         run: |
-          dotnet nuget add source https://sitecore.myget.org/F/sc-packages/api/v3/index.json \
-            --name SitecorePublic
-            
+          # Sitecore official feed (for Stylelabs packages)
+          dotnet nuget add source https://nuget.sitecore.com/resources/v3/index.json \
+            --name SitecoreOfficial
+              
       - name: 'Resolve Project Dependencies Using Dotnet'
         shell: bash
         run: |
@@ -53,4 +54,5 @@ jobs:
           app-name: 'asset-usage-fa'
           slot-name: 'Production'
           package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+
 
