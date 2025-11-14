@@ -26,12 +26,6 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: 'Add Stylelabs NuGet Source'
-        shell: bash
-        run: |
-          dotnet nuget add source https://nuget.stylelabs.com/nuget \
-            --name Stylelabs
-
       - name: 'Resolve Project Dependencies Using Dotnet'
         shell: bash
         run: |
@@ -53,3 +47,4 @@ jobs:
           app-name: 'asset-usage-fa'
           slot-name: 'Production'
           package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+
