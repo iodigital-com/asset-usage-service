@@ -1,4 +1,4 @@
-using AssetUsageService.Data;
+using AssetUsageService.Domain.Data;
 
 namespace AssetUsageService.Infrastructure;
 
