@@ -15,11 +15,12 @@ A microservice for tracking and managing relationships between items and digital
 - [Integration Points](#integration-points)
 - [Development Setup](#development-setup)
 - [Testing](#testing)
-- [Deployment](#deployment)
 
 ## Overview
 
-The Asset Usage Service provides a centralized system for tracking which digital assets (from ContentHub DAM) are used in Sitecore CMS items. It maintains bidirectional relationships through an event-driven architecture, enabling:
+The Asset Usage Service provides a centralized system for tracking which digital assets (from ContentHub DAM) are used in Sitecore CMS items. It maintains bidirectional relationships through an event-driven architecture.
+
+### Key Features
 
 - Track which assets are used by specific Sitecore items
 - Find which Sitecore items are using specific assets
@@ -27,7 +28,8 @@ The Asset Usage Service provides a centralized system for tracking which digital
 - Synchronize asset metadata between Sitecore and ContentHub
 
 ## Architecture
-Microsrvice diagram: 
+
+Microservice diagram: 
 ```mermaid
 classDiagram
     %% Integration Layer
@@ -116,7 +118,7 @@ classDiagram
         +int Version
         +string ItemPath
         +List~string~ AssetIds
-        +List~string~ PublicLink
+        +List~string~ PublicLinks
     }
 
     class ItemAssetChanges {
@@ -134,7 +136,9 @@ classDiagram
 
     %% Events
     class PushToDamEvent {
-        +Properties
+        +PublishedItem Item
+        +List~int~ AssetIds
+        +DamOperation Operation
     }
 
     %% Infrastructure
@@ -193,6 +197,7 @@ classDiagram
 
     ItemAssetChanges --> PublishedItem : contains                                                                                                         
 ```
+
 Publishing script diagram: 
 ```mermaid
 classDiagram
@@ -202,7 +207,7 @@ classDiagram
         -PublishTelemetryService _telemetryService
         -PublishLoggingService _loggingService
         -AuditLoggingService _auditLoggingService
-        -IServiceBusClient _serviceBusClient
+        -AssetUsageServiceClient _serviceClient
         +OnItemPublished(sender, args) void
         -CreateAssetUsageEvent(item, targetDatabase) AssetUsageEvent
         -SendEventToServiceBus(event) void
@@ -228,23 +233,19 @@ classDiagram
 
     %% Event Model
     class AssetUsageEvent {
-        +List~string~ PublicLink
+        +List~string~ PublicLinks
         +string ItemId
         +string ItemPath
         +string ItemName
-        +string TemplateName
         +string Language
         +int Version
-        +DateTime PublishedAtUtc
-        +string PublishedBy
         +List~string~ AssetIds
-        +string TargetDatabase
     }
     
     %% External Dependency
-    class IServiceBusClient {
-        <<interface>>
-        +SendMessageAsync(event) Task
+    class AssetUsageServiceClient {
+        <<service>>
+        +SendAsync(event, cancellationToken) Task
     }
 
     %% Relationships
@@ -252,13 +253,14 @@ classDiagram
     PublishingEventHandler --> PublishTelemetryService : uses
     PublishingEventHandler --> PublishLoggingService : uses
     PublishingEventHandler --> AuditLoggingService : uses
-    PublishingEventHandler --> IServiceBusClient : uses
+    PublishingEventHandler --> AssetUsageServiceClient : uses
     PublishingEventHandler --> AssetUsageEvent : creates
 
     PublishTelemetryService --> AssetUsageEvent : tracks
     PublishLoggingService --> AssetUsageEvent : logs
     AuditLoggingService --> AssetUsageEvent : logs
 ```
+
 ### System Components
 
 ```
@@ -339,27 +341,24 @@ SITECORE CMS
                │ (3) Extract item data:
                │     - Item ID (Guid)
                │     - Asset references
+               │     - Public links
                │     - Metadata
                ▼
 ┌─────────────────────────────────┐
-│ Local Audit Log                 │
-│ $(dataFolder)/logs/             │
-│ published-items.json            │
+│ AssetUsageServiceClient         │
+│ SendAsync()                     │
 └──────────────┬──────────────────┘
                │
-               │ (4) Trigger publish:itemProcessed event
-               ▼
-┌─────────────────────────────────┐
-│ PublishEventHandler             │
-│ OnItemProcessed()               │
-└──────────────┬──────────────────┘
-               │
-               │ (5) HTTP POST to Asset Usage Service
+               │ (4) HTTP POST to Asset Usage Service
                │     Endpoint: /api/SitecorePublishAPI
-               │     Body: {
+               │     Body: AssetUsageEvent {
                │       "itemId": "guid",
-               │       "assetIds": [123, 456],
-               │       "action": "publish"
+               │       "assetIds": ["123", "456"],
+               │       "publicLinks": ["..."],
+               │       "itemName": "...",
+               │       "itemPath": "...",
+               │       "language": "en",
+               │       "version": 1
                │     }
                ▼
 ┌─────────────────────────────────┐
@@ -367,7 +366,7 @@ SITECORE CMS
 │ SitecorePublishAPI Function     │
 └──────────────┬──────────────────┘
                │
-               │ (6) Process publish event
+               │ (5) Process publish event
                ▼
      [Continue to Service Processing Flow]
 ```
@@ -385,57 +384,78 @@ Asset Usage Service
 └──────────────┬──────────────────┘
                │
                │ (2) Validate request
-               │     - Check authentication
-               │     - Validate payload
+               │     - Check payload
+               ▼
+┌─────────────────────────────────┐
+│ MessageHandler                  │
+│ HandleMessageAsync()            │
+└──────────────┬──────────────────┘
+               │
+               │ (3) Map DTO to Domain
+               ▼
+┌─────────────────────────────────┐
+│ PublishedItemMapper             │
+│ MapToDomain()                   │
+└──────────────┬──────────────────┘
+               │
+               │ (4) Process published item
                ▼
 ┌─────────────────────────────────┐
 │ AssetItemController             │
+│ ProcessPublishedItemAsync()     │
 └──────────────┬──────────────────┘
                │
-               │ (3) Query existing relationships
+               │ (5) Get asset IDs from public links
+               ▼
+┌─────────────────────────────────┐
+│ PublishAssetIdsByPublicLinks    │
+│ EventService                    │
+└──────────────┬──────────────────┘
+               │
+               │ (6) Calculate delta changes
+               ▼
+┌─────────────────────────────────┐
+│ DeltaCalculationService         │
+│ CalculateDeltaAsync()           │
+└──────────────┬──────────────────┘
+               │
+               │ (7) Query existing relationships
                ▼
 ┌─────────────────────────────────┐
 │ AssetItemLinkRepository         │
 │ GetAssetItemLinkByItemIdAsync() │
 └──────────────┬──────────────────┘
                │
-               │ (4) Fetch from MongoDB
+               │ (8) Fetch from MongoDB
                ▼
 ┌─────────────────────────────────┐
 │ MongoDB Database                │
 │ AssetItemLinks Collection       │
 └──────────────┬──────────────────┘
                │
-               │ (5) Return existing data
+               │ (9) Return existing data
                ▼
 ┌─────────────────────────────────┐
 │ DeltaCalculationService         │
+│ - Calculate added assets        │
+│ - Calculate removed assets      │
 └──────────────┬──────────────────┘
                │
-               │ (6) Calculate changes:
-               │     - Added assets
-               │     - Removed assets
-               │     - Unchanged assets
+               │ (10) Update MongoDB
                ▼
 ┌─────────────────────────────────┐
 │ AssetItemLinkRepository         │
 │ InsertAssetItemLinkAsync()      │
 └──────────────┬──────────────────┘
                │
-               │ (7) Update MongoDB
+               │ (11) Publish DAM events
                ▼
 ┌─────────────────────────────────┐
-│ MongoDB Database                │
-│ Upsert Document                 │
+│ PublishPushToDamEventsService   │
+│ PublishPushToDamEventsAsync()   │
 └──────────────┬──────────────────┘
                │
-               │ (8) Trigger DAM sync
-               ▼
-┌─────────────────────────────────┐
-│ PushToDamHandler                │
-└──────────────┬──────────────────┘
-               │
-               │ (9) Update asset metadata
+               │ (12) Handle DAM updates
                ▼
      [Continue to ContentHub Flow]
 ```
@@ -449,6 +469,7 @@ Asset Usage Service
      ▼
 ┌─────────────────────────────────┐
 │ PushToDamHandler                │
+│ Handle(PushToDamEvent)          │
 └──────────────┬──────────────────┘
                │
                │ (2) Get ContentHub client
@@ -500,6 +521,7 @@ External System / ContentHub
      ▼
 ┌─────────────────────────────────┐
 │ Asset Usage Service API         │
+│ (Future endpoint)               │
 └──────────────┬──────────────────┘
                │
                │ (2) GetItemIdsByAssetId(X)
@@ -548,9 +570,11 @@ External System / ContentHub
 │                                 │
 │ 1. OnItemProcessing             │
 │    - Extract item data          │
-│    - Log to audit file          │
+│    - Extract asset IDs          │
+│    - Extract public links       │
 │                                 │
 │ 2. OnItemProcessed              │
+│    - Create AssetUsageEvent     │
 │    - POST to Asset Service      │
 │                                 │
 │ 3. OnPublishEnd                 │
@@ -566,17 +590,24 @@ External System / ContentHub
 │                                 │
 │ 1. Receive Event                │
 │    - Validate payload           │
+│    - Map to domain model        │
 │                                 │
-│ 2. Query MongoDB                │
+│ 2. Resolve Asset IDs            │
+│    - Convert public links       │
+│                                 │
+│ 3. Query MongoDB                │
 │    - Get current state          │
 │                                 │
-│ 3. Calculate Delta              │
+│ 4. Calculate Delta              │
 │    - Compare old vs new         │
+│    - Identify changes           │
 │                                 │
-│ 4. Update MongoDB               │
+│ 5. Update MongoDB               │
 │    - Save new relationships     │
+│    - Update timestamps          │
 │                                 │
-│ 5. Sync to ContentHub           │
+│ 6. Sync to ContentHub           │
+│    - Publish DAM events         │
 │    - Update asset metadata      │
 └────────┬────────────────────────┘
          │
@@ -622,11 +653,12 @@ External System / ContentHub
 - MongoDB instance (local or Azure CosmosDB with MongoDB API)
 - Sitecore CMS instance (with iO.Sitecore.Publishing module)
 - Access to Sitecore ContentHub instance
-- Azure subscription (for deployment)
 
 ## Configuration
 
 ### Sitecore CMS Configuration
+
+#### 1. Event Handler Configuration
 
 Install the `iO.Sitecore.Publishing` event handler by placing the configuration file in:
 
@@ -649,11 +681,23 @@ Install the `iO.Sitecore.Publishing` event handler by placing the configuration 
         <handler type="iO.Sitecore.publishing.Events.PublishEventHandler, iO.Sitecore.publishing" method="OnPublishEndRemote" />
       </event>
     </events>
-    
+  </sitecore>
+</configuration>
+```
+
+#### 2. Asset Usage Service Configuration
+
+Create a configuration file in:
+
+`C:\inetpub\wwwroot\[SITECORE.INSTANCE]\App_Config\Include\AssetUsageService.config`
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration xmlns:patch="http://www.sitecore.net/xmlconfig/">
+  <sitecore>
     <settings>
-      <setting name="AssetUsage.AuditLogPath" value="$(dataFolder)/logs/published-items.json" />
-      <setting name="AssetUsageService.Endpoint" value="http://localhost:7183/api/SitecorePublishAPI" />
-      <setting name="AssetUsageService.UserAgent" value="Sitecore-AssetUsage/1.0" />
+      <!-- Azure Function endpoint for Asset Usage Service -->
+      <setting name="AssetUsageService.ApiEndpoint" value="http://localhost:7183/api/SitecorePublishAPI" />
     </settings>
   </sitecore>
 </configuration>
@@ -687,9 +731,7 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 
 #### Sitecore Settings
 
-- **AssetUsage.AuditLogPath**: Local audit log file path for published items
-- **AssetUsageService.Endpoint**: Asset Usage Service API endpoint
-- **AssetUsageService.UserAgent**: User agent string for HTTP requests
+- **AssetUsageService.ApiEndpoint**: Asset Usage Service API endpoint (HTTP/HTTPS URL)
 
 #### MongoDB Settings
 
@@ -709,7 +751,7 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 
 Document structure in MongoDB:
 
-```csharp
+```json
 {
   "_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",  // Guid (ItemId)
   "assetIds": [34013, 13343, 23213],               // List<int>
@@ -746,26 +788,25 @@ db.AssetItemLinks.createIndex({ "updatedAt": -1, "createdAt": -1 })
 ```json
 {
   "itemId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "assetIds": [34013, 13343, 23213],
-  "action": "publish",
-  "timestamp": "2025-11-06T14:25:00Z"
+  "itemName": "Home Page",
+  "itemPath": "/sitecore/content/Home",
+  "language": "en",
+  "version": 1,
+  "assetIds": ["34013", "13343", "23213"],
+  "publicLinks": ["https://contenthub.example.com/api/public/content/...", "..."]
 }
 ```
 
 **Response**:
+- `202 Accepted`: Event successfully queued for processing
+- `400 Bad Request`: Invalid payload or processing error
+
+**Response Body** (on error):
 ```json
 {
-  "success": true,
-  "itemId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "assetsProcessed": 3
+  "error": "Error message describing the issue"
 }
 ```
-
-### Planned Endpoints
-
-- `GET /api/items/{itemId}/assets` - Get all assets for an item
-- `GET /api/assets/{assetId}/items` - Get all items using an asset
-- `DELETE /api/items/{itemId}` - Remove all asset links for an item
 
 ## Integration Points
 
@@ -774,9 +815,26 @@ db.AssetItemLinks.createIndex({ "updatedAt": -1, "createdAt": -1 })
 The `iO.Sitecore.Publishing` module captures publish events:
 
 - **OnItemProcessing**: Triggered when item enters publish pipeline
-- **OnItemProcessed**: Triggered after item is published
+- **OnItemProcessed**: Triggered after item is published - sends HTTP POST to Asset Usage Service
 - **OnPublishEnd**: Triggered when publish operation completes
 - **OnPublishEndRemote**: Triggered for remote publish events
+
+### AssetUsageServiceClient
+
+The client handles HTTP communication with the Asset Usage Service:
+
+```csharp
+public class AssetUsageServiceClient : IDisposable
+{
+    public async Task SendAsync(AssetUsageEvent payload, CancellationToken cancellationToken = default)
+    {
+        // Validates payload
+        // Serializes to JSON
+        // POSTs to configured endpoint
+        // Handles errors and logging
+    }
+}
+```
 
 ### Repository Interface
 
@@ -798,6 +856,20 @@ public interface IAssetItemLinkRepository
     
     Task<List<AssetItemLink>> GetItemIdsByAssetIdAsync(
         int assetId, 
+        CancellationToken cancellationToken = default);
+        
+    Task RemoveAssetIdsFromItemAsync(
+        Guid itemId, 
+        List<int> assetIds, 
+        CancellationToken cancellationToken = default);
+        
+    Task AddAssetIdsToItemAsync(
+        Guid itemId, 
+        List<int> assetIds, 
+        CancellationToken cancellationToken = default);
+        
+    Task RemoveItemAsync(
+        Guid itemId, 
         CancellationToken cancellationToken = default);
 }
 ```
@@ -829,6 +901,7 @@ dotnet restore
 3. Configure local settings:
 ```bash
 cp local.settings.json.example local.settings.json
+# Edit local.settings.json with your configuration
 ```
 
 4. Start MongoDB:
@@ -842,8 +915,10 @@ func start
 ```
 
 6. Configure Sitecore:
-- Copy `iO.Publishing.Events.example` to your Sitecore instance
-- Update `AssetUsageService.Endpoint` to point to your local function
+- Copy `iO.Sitecore.publishing.dll` to your Sitecore instance bin folder
+- Create `iO.Publishing.Events.config` in `App_Config\Include\zzz.iO\`
+- Create `AssetUsageService.config` in `App_Config\Include\`
+- Update `AssetUsageService.ApiEndpoint` to point to your local function
 - Restart Sitecore
 
 ### Project Structure
@@ -853,27 +928,42 @@ asset-usage-service/
 ├── AssetUsageService/
 │   ├── Business/
 │   │   ├── Controllers/
+│   │   │   └── AssetItemController.cs
 │   │   ├── Events/
+│   │   │   ├── PushToDamEvent.cs
+│   │   │   └── AssetIdsByPublicLinksEvent.cs
 │   │   ├── Handlers/
+│   │   │   ├── PushToDamHandler.cs
+│   │   │   └── AssetIdsByPublicLinksHandler.cs
 │   │   └── Services/
-│   ├── Data/
-│   │   ├── AssetItemLink.cs
-│   │   └── DBContext.cs
+│   │       ├── DeltaCalculationService.cs
+│   │       ├── PublishAssetIdsByPublicLinksEventService.cs
+│   │       └── PublishPushToDamEventsService.cs
+│   ├── Domain/
+│   │   ├── Data/
+│   │   │   ├── AssetItemLink.cs
+│   │   │   └── DBContext.cs
+│   │   └── Models/
+│   │       ├── PublishedItem.cs
+│   │       ├── PublishedItemDto.cs
+│   │       └── ItemAssetChanges.cs
 │   ├── Infrastructure/
 │   │   ├── AssetItemLinkRepository.cs
 │   │   └── IAssetItemLinkRepository.cs
 │   ├── Integration/
 │   │   ├── APIGateway.cs
 │   │   ├── ContentHubConnectionService.cs
-│   │   └── MessageHandler.cs
-│   ├── Function1.cs
+│   │   ├── MessageHandler.cs
+│   │   └── PublishedItemMapper.cs
 │   └── Program.cs
 ├── AssetUsageServiceTests/
 │   ├── Integration/
+│   │   └── ContentHubConnectionServiceTests.cs
 │   └── Performance/
 ├── iO.Sitecore.publishing/
 │   └── Events/
-│       └── PublishEventHandler.cs
+│       ├── PublishEventHandler.cs
+│       └── AssetUsageServiceClient.cs
 ├── iO.Publishing.Events
 ├── iO.Publishing.Events.example
 └── README.md
@@ -884,10 +974,13 @@ asset-usage-service/
 ### Running Tests
 
 ```bash
+# Run all tests
 dotnet test
 
+# Run performance tests only
 dotnet test --filter "Category=Performance"
 
+# Run integration tests only
 dotnet test --filter "FullyQualifiedName~Integration"
 ```
 
@@ -897,45 +990,18 @@ dotnet test --filter "FullyQualifiedName~Integration"
 - **Integration Tests**: ContentHub and MongoDB integration
 - **Performance Tests**: Repository performance benchmarks
 
-## Deployment
+### Example Test Data
 
-### Azure Deployment
+The service includes seed data for testing (when `MongoDB:SeedData` is `true`):
 
-1. Create Azure resources:
-```bash
-az group create --name asset-usage-rg --location westeurope
-az storage account create --name assetusagestorage --resource-group asset-usage-rg
-az functionapp create --name asset-usage-service --resource-group asset-usage-rg \
-  --consumption-plan-location westeurope --runtime dotnet-isolated --runtime-version 8 \
-  --functions-version 4 --storage-account assetusagestorage
-```
-
-2. Configure application settings:
-```bash
-az functionapp config appsettings set --name asset-usage-service \
-  --resource-group asset-usage-rg \
-  --settings "MongoDB:ConnectionString=your-connection-string" \
-             "MongoDB:DatabaseName=AssetUsageDb" \
-             "ContentHub:Endpoint=your-endpoint"
-```
-
-3. Deploy the application:
-```bash
-func azure functionapp publish asset-usage-service
-```
-
-4. Update Sitecore configuration:
-- Update `AssetUsageService.Endpoint` to Azure Function URL
-- Restart Sitecore
-
-### Database Deployment
-
-Create indexes for optimal performance:
-```bash
-mongosh "your-connection-string" --eval "
-  db.AssetItemLinks.createIndex({ 'assetIds': 1 });
-  db.AssetItemLinks.createIndex({ 'updatedAt': -1 });
-"
+```csharp
+new AssetItemLink
+{
+    ItemId = Guid.NewGuid(),
+    AssetIds = new List<int>{34013, 13343},
+    CreatedAt = DateTime.UtcNow,
+    UpdatedAt = DateTime.UtcNow
+}
 ```
 
 ## Monitoring and Logging
@@ -965,10 +1031,13 @@ Configure in `host.json`:
 }
 ```
 
-### Sitecore Audit Logs
+### Sitecore Logging
 
-Published items are logged locally at:
-`$(dataFolder)/logs/published-items.json`
+The `AssetUsageServiceClient` logs all activities to Sitecore logs:
+
+- Event creation and validation
+- HTTP request/response details
+- Error conditions and warnings
 
 ## Troubleshooting
 
@@ -976,17 +1045,33 @@ Published items are logged locally at:
 
 - Verify `iO.Sitecore.Publishing.dll` is in the bin folder
 - Check Sitecore logs for event handler errors
-- Confirm `AssetUsageService.Endpoint` is accessible from Sitecore server
-- Validate audit log file permissions
+- Confirm `AssetUsageService.ApiEndpoint` is accessible from Sitecore server
+- Validate endpoint URL format (must include http:// or https://)
+- Test endpoint connectivity using curl or Postman
 
 ### MongoDB Connection Failures
 
 - Verify connection string format
 - Check network connectivity and firewall rules
 - Ensure MongoDB version compatibility (4.0+)
+- Validate database and collection names
 
 ### ContentHub Authentication Errors
 
 - Validate ClientId and ClientSecret
 - Check OAuth2 permissions in ContentHub
 - Verify endpoint URL format (must include https://)
+- Test connectivity using `IsContentHubReachableAsync()`
+
+### Common Error Messages
+
+**"AssetUsageService.ApiEndpoint setting is required but not configured"**
+- Solution: Add the `AssetUsageService.ApiEndpoint` setting to `AssetUsageService.config`
+
+**"Payload ItemId is null or empty; skipping send"**
+- Solution: Verify the item being published has a valid GUID
+
+**"HTTP request failed for ItemId"**
+- Solution: Check Azure Function logs for detailed error information
+- Verify the function is running and accessible
+- Check Application Insights for request traces
