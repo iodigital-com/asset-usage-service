@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
     plugins: [react()],
+    define: {
+        'process.env': {}
+    },
     build: {
         target: 'es2020',
         lib: {
@@ -11,7 +14,6 @@ export default defineConfig({
             fileName: 'AssetUsageTracker'
         },
         rollupOptions: {
-            external: ['react', 'react-dom'], // React als external dependencies
             output: {
                 format: 'es',
                 globals: {
