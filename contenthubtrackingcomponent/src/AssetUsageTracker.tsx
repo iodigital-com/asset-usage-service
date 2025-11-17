@@ -1,10 +1,13 @@
 import { createRoot } from "react-dom/client";
+import { useEffect, useState } from "react";
 
 interface ContentHubEntity {
-    id: number;
+    id?: number;
     properties: {
         UsageTracking?: {
-            [itemId: string]: UsageTrackingItem;
+            [language: string]: {
+                [itemId: string]: UsageTrackingItem;
+            };
         };
     };
 }
@@ -21,145 +24,243 @@ interface AssetUsageTrackerProps {
 }
 
 function AssetUsageTrackerComponent({ entity }: AssetUsageTrackerProps) {
-    if (!entity) {
+    const [currentEntity, setCurrentEntity] = useState(entity);
+
+    useEffect(() => {
+        setCurrentEntity(entity);
+    }, [entity]);
+
+    if (!currentEntity) {
         return (
-            <div style={styles.container}>
-                <div style={styles.error}>
+            <div style={styles.wrapper}>
+                <div style={styles.errorMessage}>
                     <strong>Error:</strong> No entity available
                 </div>
             </div>
         );
     }
 
-    const usageData = entity.properties.UsageTracking || {};
-    const usageCount = Object.keys(usageData).length;
+    const usageTrackingData = currentEntity.properties.UsageTracking || {};
+    
+    let allUsageItems : { [compositeKey: string]: UsageTrackingItem } = {};
+    let totalCount = 0;
+    
+    Object.entries(usageTrackingData).forEach(([languageKey, languageItems]) => {
+        if (languageItems && typeof languageItems === 'object') {
+            const itemEntries = Object.entries(languageItems);
+            
+            itemEntries.forEach(([itemId, itemData]) => {
+                allUsageItems[`${languageKey}-${itemId}`] = itemData;
+                totalCount++;
+            });
+        }
+    });
 
-    if (usageCount === 0) {
+    if (totalCount === 0) {
         return (
-            <div style={styles.container}>
-                <h3 style={styles.title}>Asset Usage Tracking</h3>
-                <div style={styles.noUsage}>
+            <div style={styles.wrapper}>
+                <div style={styles.headerRow}>
+                    <h3 style={styles.heading}>Usage in CMS items</h3>
+                </div>
+                <div style={styles.emptyState}>
                     <p>This asset is not currently used in any published items.</p>
                 </div>
             </div>
         );
     }
 
+    const mappedEntries = Object.entries(allUsageItems).map(([compositeKey, item], index) => {
+        const [languageKey] = compositeKey.split('-', 2);
+        const itemId = compositeKey.substring(languageKey.length + 1);
+
+        const displayItemName = item.itemName || '-';
+        const displayItemPath = item.itemPath || '-';
+        const displayLanguage = item.language || languageKey || '-';
+        const displayVersion = item.version ?? '-';
+        const isLastItem = index === totalCount - 1;
+
+        return (
+            <a href="#" style={styles.link}>
+                <div key={compositeKey} style={{...styles.tableRow, borderBottom: isLastItem ? 'none' : '1px solid #e0e0e0'}}>
+                    <div style={styles.nameColumn}>
+                        <h5 style={styles.itemName}>{displayItemName}</h5>
+                        <p style={styles.itemPath}>Path: {displayItemPath}</p>
+                        <p style={styles.itemId}>Item ID: {itemId}</p>
+                    </div>
+                    <div style={styles.languageColumn}>
+                        <span style={styles.badge}>{displayLanguage}</span>
+                    </div>
+                    <div style={styles.versionColumn}>
+                        <span style={styles.badge}>V{displayVersion}</span>
+                    </div>
+                </div>
+            </a>
+        );
+    });
+
     return (
-        <div style={styles.container}>
-            <h3 style={styles.title}>Asset Usage Tracking</h3>
-            <div style={styles.summary}>
-                <p>
-                    This asset (ID: <strong>{entity.id}</strong>) is used in{' '}
-                    <strong>{usageCount}</strong> published item(s)
-                </p>
+        <div style={styles.wrapper} key={currentEntity.id}>
+            <div style={styles.headerRow}>
+                <h4 className="MuiTypography-root MuiTypography-h4 css-1xfybxt-title-titleMargin ltr-djzpxj">Usage in CMS items</h4>
+                <span style={styles.itemCount}>Used in {totalCount} items</span>
+            </div>
+            
+            <div style={styles.tableHeader}>
+                <div style={styles.headerNameColumn}>Name and path</div>
+                <div style={styles.headerLanguageColumn}>Language</div>
+                <div style={styles.headerVersionColumn}>Version</div>
             </div>
 
-            <table style={styles.table}>
-                <thead>
-                    <tr>
-                        <th style={styles.th}>Item ID</th>
-                        <th style={styles.th}>Item Name</th>
-                        <th style={styles.th}>Item Path</th>
-                        <th style={styles.th}>Language</th>
-                        <th style={styles.th}>Version</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {Object.entries(usageData).map(([itemId, item]) => (
-                        <tr key={itemId} style={styles.tr}>
-                            <td style={styles.tdCode}>{itemId}</td>
-                            <td style={styles.td}>{item.itemName || '-'}</td>
-                            <td style={styles.td}>{item.itemPath || '-'}</td>
-                            <td style={styles.td}>{item.language || '-'}</td>
-                            <td style={styles.td}>{item.version ?? '-'}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            <div style={styles.scrollableContent}>
+                {mappedEntries}
+            </div>
         </div>
     );
 }
 
 const styles = {
-    container: {
-        padding: '20px',
-        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-        backgroundColor: '#fff',
+    link: {
+        textDecoration: 'none',
     },
-    title: {
-        margin: '0 0 16px 0',
+    wrapper: {
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+        padding: '24px',
+        border: "1px solid rgba(0, 0, 0, 0.11)",
+        backgroundColor: '#fff',
+        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+        borderRadius: '0.375rem',
+    },
+    headerRow: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '16px',
+    },
+    heading: {
+        margin: '0',
         color: '#333',
-        fontSize: '20px',
+        fontSize: '24px',
         fontWeight: 600,
     },
-    error: {
+    itemCount: {
+        color: '#999',
+        fontSize: '16px',
+        fontWeight: 400,
+    },
+    errorMessage: {
         padding: '16px',
         backgroundColor: '#fee',
         border: '1px solid #fcc',
         borderRadius: '4px',
         color: '#c00',
     },
-    noUsage: {
+    emptyState: {
         padding: '20px',
         textAlign: 'center' as const,
         backgroundColor: '#f5f5f5',
         borderRadius: '4px',
         color: '#666',
     },
-    summary: {
-        padding: '12px 16px',
-        backgroundColor: '#f0f7ff',
-        borderLeft: '4px solid #0078d4',
-        borderRadius: '4px',
-        marginBottom: '20px',
-    },
-    table: {
-        width: '100%',
-        borderCollapse: 'collapse' as const,
-        backgroundColor: '#fff',
-        border: '1px solid #e0e0e0',
-    },
-    th: {
-        padding: '12px',
-        textAlign: 'left' as const,
-        backgroundColor: '#f5f5f5',
-        fontWeight: 600,
-        color: '#666',
-        borderBottom: '2px solid #e0e0e0',
-        fontSize: '14px',
-    },
-    tr: {
+    tableHeader: {
+        display: 'flex',
+        padding: '8px 0',
         borderBottom: '1px solid #e0e0e0',
-    },
-    td: {
-        padding: '12px',
-        fontSize: '14px',
-        color: '#333',
-    },
-    tdCode: {
-        padding: '12px',
+        color: '#999',
         fontSize: '13px',
-        fontFamily: '"Courier New", monospace',
-        color: '#0078d4',
+        fontWeight: 500,
+    },
+    headerNameColumn: {
+        flex: 1,
+    },
+    headerLanguageColumn: {
+        textAlign: 'center' as const,
+    },
+    headerVersionColumn: {
+        minWidth: '80px',
+        textAlign: 'center' as const,
+    },
+    headerLinkColumn: {
+        textAlign: 'center' as const,
+    },
+    tableRow: {
+        display: 'flex',
+        alignItems: 'center',
+        padding: '10px 0',
+    },
+    nameColumn: {
+        flex: 1,
+        minWidth: 0,
+    },
+    languageColumn: {
+        display: 'flex',
+        justifyContent: 'center',
+    },
+    versionColumn: {
+        flex: '0 0 60px',
+        minWidth: '60px',
+        display: 'flex',
+        justifyContent: 'center',
+    },
+    linkColumn: {
+        display: 'flex',
+        justifyContent: 'center',
+        cursor: 'pointer',
+    },
+    itemName: {
+        margin: '0 0 2px 0',
+        fontWeight: 600,
+        color: '#6E3FFF',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap' as const,
+    },
+    itemPath: {
+        margin: '0 0 2px 0',    
+        color: '#999',
+        fontSize: '12px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap' as const,
+    },
+    itemId: {
+        margin: '0',    
+        color: '#ccc',
+        fontSize: '11px',
+    },
+    badge: {
+        backgroundColor: '#f3f3f3',
+        color: '#666',
+        borderRadius: '4px',
+        padding: '4px 12px',
+        fontSize: '13px',
+        fontWeight: 400,
+    },
+    scrollableContent: {
+        maxHeight: '500px',
+        overflowY: 'auto' as const,
     },
 };
 
-// Factory function for ContentHub integration
 export function createAssetUsageTracker(container: HTMLElement) {
     const root = createRoot(container);
+    let currentContext: any = null;
     
     return {
         render(context: any) {
+            currentContext = context;
             root.render(<AssetUsageTrackerComponent entity={context.entity} />);
         },
         unmount() {
             root.unmount();
         },
+        refresh() {
+            if (currentContext) {
+                root.render(<AssetUsageTrackerComponent entity={currentContext.entity} />);
+            }
+        }
     };
 }
 
-// ContentHub registration
 if (!window.ContentHub) {
     window.ContentHub = {
         registerComponent: () => {}

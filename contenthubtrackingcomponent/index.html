@@ -3,58 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asset Usage Tracker - Development</title>
+    <title>AssetUsageTracker Test</title>
+
 </head>
 <body>
     <div id="app"></div>
-
-    <script>
-        // Mock Content Hub API voor local testing
-        window.ContentHub = {
-            context: {
-                entityId: 12345
-            },
-            api: {
-                entities: {
-                    get: async (id) => {
-                        // Mock response
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        return {
-                            id: id,
-                            properties: {
-                                UsageTracking: {
-                                    'item-1': {
-                                        itemName: 'Homepage Banner',
-                                        itemPath: '/sitecore/content/home/banner',
-                                        language: 'en-US',
-                                        version: 1
-                                    },
-                                    'item-2': {
-                                        itemName: 'Product Page',
-                                        itemPath: '/sitecore/content/products/laptop',
-                                        language: 'en-US',
-                                        version: 2
-                                    }
-                                }
-                            }
-                        };
-                    }
-                }
-            }
-        };
-    </script>
-
-    <script type="module" src="/src/AssetUsageTracker.ts"></script>
-
-    <script type="module">
-        import createExternalRoot from '/src/AssetUsageTracker.ts';
-
-        const container = document.getElementById('app');
-        const component = createExternalRoot(container);
-
-        component.render({
-            config: { debug: true }
-        });
-    </script>
+    <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
