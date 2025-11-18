@@ -93,7 +93,7 @@ function processUsageTrackingData(
 }
 
 function buildCmsItemUrl(itemId: string): string {
-    return `${CONSTANTS.CMS_BASE_URL}/sitecore/shell/Applications/Content%20Editor.aspx?fo=${itemId}`;
+    return `${CONSTANTS.CMS_BASE_URL}/${itemId}`;
 }
 
 // ============================================================================
