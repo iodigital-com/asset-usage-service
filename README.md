@@ -1005,8 +1005,8 @@ Before deploying, you'll need the following values:
 
 ### Step 1: Prepare Azure Resources and Identity
 
-1. Ensure the Function App (`<FUNCTION_APP_NAME>`) exists and uses .NET 8 isolated (Linux)
-2. Enable system-assigned Managed Identity on the Function App
+1. Create the Function App (`<FUNCTION_APP_NAME>`) using .NET 8 isolated (Linux) - [Create Azure Function App](https://learn.microsoft.com/en-us/azure/azure-functions/functions-create-function-app-portal?tabs=core-tools&pivots=flex-consumption-plan "Microsoft Learn - Create Function App in Portal")
+2. Enable status -> "On" under the tab system-assigned in Settings -> Identity on the Function App
 3. Grant Key Vault access:
    - **If using Azure RBAC**: Assign "Key Vault Secrets User" to the Function App's identity at vault scope
    - **If using Access Policies**: Grant get/list on secrets
@@ -1035,79 +1035,10 @@ Restart the Function App and verify in Kudu `/Env` that `WEBSITE_KEYVAULT_REFERE
 
 ### Step 4: Set Up CI/CD with GitHub Actions
 
-#### Option A: Azure-Generated Workflow (Recommended)
-
-1. In Azure Portal, go to: Function App > Deployment Center
-2. Set Source: GitHub
-3. Choose your repository and branch `main`
-4. Set Runtime: .NET 8 (isolated)
-5. Set Build provider: GitHub Actions
-6. Click Save
-
-Azure will automatically commit a workflow file and create the needed GitHub secrets for OIDC.
-
-#### Option B: Manual Workflow Setup
-
 1. Create the following repository secrets:
    - `AZURE_SUBSCRIPTION_ID` = `<AZ_SUBSCRIPTION_ID>`
    - `AZURE_TENANT_ID` = `<AZ_TENANT_ID>`
    - `AZURE_CLIENT_ID` = `<AZ_CLIENT_ID>`
-
-2. Add this file at `.github/workflows/function-deploy.yml`:
-
-```yaml
-name: Build and deploy dotnet core project to Azure Function App
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
-env:
-  DOTNET_VERSION: '8.0.x'
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: './AssetUsageService'    # change if your project path differs
-  FUNCTION_APP_NAME: '<FUNCTION_APP_NAME>'                 # or set via repo/environment variables
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
-
-    - name: Add Sitecore NuGet feed
-      run: dotnet nuget add source https://nuget.sitecore.com/resources/v3/index.json --name SitecoreOfficial
-
-    - name: Build
-      run: |
-        pushd '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
-        dotnet restore
-        dotnet build --configuration Release --output ./output
-        popd
-
-    - name: Azure login (OIDC)
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-    - name: Deploy to Azure Functions
-      uses: Azure/functions-action@v1
-      with:
-        app-name: ${{ env.FUNCTION_APP_NAME }}
-        slot-name: 'Production'
-        package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
-```
 
 > **Notes**:
 > - If you deploy multiple environments, use GitHub "environments" (dev/stage/prod) with environment-level secrets and set `FUNCTION_APP_NAME` per environment
