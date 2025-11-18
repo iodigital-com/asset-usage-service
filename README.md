@@ -13,7 +13,9 @@ A microservice for tracking and managing relationships between items and digital
 - [Data Model](#data-model)
 - [API Endpoints](#api-endpoints)
 - [Integration Points](#integration-points)
+- [React Component Setup](#setting-up-the-react-component)
 - [Development Setup](#development-setup)
+- [Deployment](#deployment)
 - [Testing](#testing)
 
 ## Overview
@@ -921,53 +923,458 @@ func start
 - Update `AssetUsageService.ApiEndpoint` to point to your local function
 - Restart Sitecore
 
-### Project Structure
+ ## Setting up the React Component
 
+This guide will show you how to add the React component to your Content Hub instance.
+
+### Prerequisites
+
+- Access to the asset-usage-service project folder
+- Node.js and npm installed
+- Admin access to your Content Hub instance
+- Your Sitecore XP URL
+
+### Installation Steps
+
+#### 1. Install Dependencies
+
+Open your terminal and navigate to the component directory:
+
+```bash
+cd asset-usage-service/contenthubtrackingcomponent
+npm install
 ```
-asset-usage-service/
-├── AssetUsageService/
-│   ├── Business/
-│   │   ├── Controllers/
-│   │   │   └── AssetItemController.cs
-│   │   ├── Events/
-│   │   │   ├── PushToDamEvent.cs
-│   │   │   └── AssetIdsByPublicLinksEvent.cs
-│   │   ├── Handlers/
-│   │   │   ├── PushToDamHandler.cs
-│   │   │   └── AssetIdsByPublicLinksHandler.cs
-│   │   └── Services/
-│   │       ├── DeltaCalculationService.cs
-│   │       ├── PublishAssetIdsByPublicLinksEventService.cs
-│   │       └── PublishPushToDamEventsService.cs
-│   ├── Domain/
-│   │   ├── Data/
-│   │   │   ├── AssetItemLink.cs
-│   │   │   └── DBContext.cs
-│   │   └── Models/
-│   │       ├── PublishedItem.cs
-│   │       ├── PublishedItemDto.cs
-│   │       └── ItemAssetChanges.cs
-│   ├── Infrastructure/
-│   │   ├── AssetItemLinkRepository.cs
-│   │   └── IAssetItemLinkRepository.cs
-│   ├── Integration/
-│   │   ├── APIGateway.cs
-│   │   ├── ContentHubConnectionService.cs
-│   │   ├── MessageHandler.cs
-│   │   └── PublishedItemMapper.cs
-│   └── Program.cs
-├── AssetUsageServiceTests/
-│   ├── Integration/
-│   │   └── ContentHubConnectionServiceTests.cs
-│   └── Performance/
-├── iO.Sitecore.publishing/
-│   └── Events/
-│       ├── PublishEventHandler.cs
-│       └── AssetUsageServiceClient.cs
-├── iO.Publishing.Events
-├── iO.Publishing.Events.example
-└── README.md
+
+#### 2. Configure the Component
+
+1. Open the file `src/AssetUsageTracker.tsx` in your preferred editor
+2. Replace the constant `CMS_BASE_URL` with your Sitecore XP URL
+3. Save the file
+
+#### 3. Build the Component
+
+Run the build command:
+
+```bash
+npm run build
 ```
+
+This will generate an `AssetUsageTracker.js` file in the `dist` folder.
+
+#### 4. Upload to Content Hub
+
+1. Log in to your Content Hub instance
+2. Navigate to **Manage** (settings icon)
+3. Go to the **Portal assets** page
+4. Click **Upload file** and upload the `AssetUsageTracker.js` file from the `dist` folder
+
+#### 5. Wait for Processing
+
+1. Click on your profile picture
+2. Open **Background processes**
+3. Refresh the page and wait until the upload job is processed
+
+#### 6. Add Component to Asset Details Page
+
+1. Go to **Manage** → **Pages**
+2. Select the **Asset details** page
+3. Click **+ Component** where you want to add the component
+4. In the "Add component" popup, search for **External**
+5. Click **Add**
+
+#### 7. Configure the Component
+
+1. Give it a title (e.g., "AssetUsageTracker")
+2. Turn the **Visible** switch **on**
+3. Click on the component you just added
+4. Under **JS bundle**, select **From asset**
+5. Click the **+** icon
+6. Search for the `AssetUsageTracker.js` file
+7. Select it and click **Save**
+8. Click **Save** in the upper right corner of the page
+
+### Verification
+
+The Asset Usage Tracker component should now be visible on your Asset details page and ready to use.
+
+## Deployment
+
+This guide covers deploying the .NET 8 isolated Azure Function that integrates with Sitecore Content Hub and Cosmos DB for MongoDB (vCore).
+
+### Prerequisites
+
+Before deploying the Asset Usage Service, you must provision the following Azure resources. These resources are referenced throughout the deployment configuration and **must be created first**.
+
+#### Required Azure Resources
+
+Based on your Azure environment, ensure the following resources exist:
+
+| Resource | Type | Purpose | Creation Guide |
+|----------|------|---------|----------------|
+| **Subscription** | Azure Subscription | Container for all Azure resources | Managed at organization level |
+| **Resource Group** | Resource Group | Logical container for related resources | [Create via CLI](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-cli#create-a-resource-group) |
+| **Function App** | Azure Functions (Linux, .NET 8 isolated) | Hosts the Asset Usage Service microservice | [Create via Portal](https://learn.microsoft.com/en-us/azure/azure-functions/functions-create-your-first-function-visual-studio) or [Create via CLI](https://learn.microsoft.com/en-us/azure/azure-functions/how-to-create-function-azure-cli) |
+| **Key Vault** | Azure Key Vault | Secure storage for secrets (connection strings, credentials) | [Create via Portal](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-portal) |
+| **Cosmos DB** | Azure Cosmos DB for MongoDB (vCore) | Database for asset-item relationship storage | [Create vCore Cluster](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/quickstart-portal) |
+| **Application Insights** | Application Insights | Monitoring, logging, and telemetry | Auto-created with Function App or [create separately](https://learn.microsoft.com/en-us/azure/azure-monitor/app/create-workspace-resource) |
+
+#### Resource Naming Convention (Example)
+
+Based on your Azure environment, here's an example naming pattern:
+
+    Subscription:        Assets Usage Microservices
+    Resource Group:      asset-usage-microservices
+    Function App:        asset-usage-fa
+    Key Vault:           asset-usage-kv
+    Cosmos DB:           asset-usage-mongo
+    Application Insights: asset-usage-ai
+
+> **Note**: Adjust names to match your organization's naming standards. Ensure names are globally unique where required (Function App, Key Vault, Cosmos DB).
+
+#### Step-by-Step Resource Provisioning
+
+**1. Create Resource Group**
+
+   ```az group create --name asset-usage-microservices --location westeurope```
+
+   📘 [Documentation](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-cli#create-a-resource-group)
+
+**2. Create Key Vault**
+   - Navigate to Azure Portal → Create a resource → Key Vault
+   - Set resource group, name, and region
+   - Enable RBAC authorization (recommended)
+   
+   📘 [Documentation](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-portal)
+
+**3. Create Cosmos DB for MongoDB (vCore)**
+   - Navigate to Azure Portal → Create a resource → Azure Cosmos DB
+   - Select **Azure Cosmos DB for MongoDB** → **vCore cluster**
+   - Configure cluster tier and credentials
+   
+   📘 [Documentation](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/quickstart-portal)
+   
+   📘 [Connection Troubleshooting](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/troubleshoot-common-issues)
+
+**4. Create Function App**
+   - Navigate to Azure Portal → Create a resource → Function App
+   - **Runtime**: .NET 8 (isolated)
+   - **Operating System**: Linux
+   - **Plan Type**: Flex Consumption (recommended) or Consumption
+   
+   📘 [Documentation](https://learn.microsoft.com/en-us/azure/azure-functions/functions-create-function-app-portal?tabs=core-tools&pivots=flex-consumption-plan)
+
+**5. Create Application Insights** (if not auto-created)
+   - Usually created automatically with Function App
+   - If manual creation needed: Azure Portal → Create a resource → Application Insights
+   
+   📘 [Documentation](https://learn.microsoft.com/en-us/azure/azure-monitor/app/create-workspace-resource)
+
+---
+
+### Overview
+
+All environment-specific values are provided via Azure Key Vault and GitHub Secrets; nothing is hard-coded in source.
+
+> **Note**: Double-underscore (`__`) in app settings maps to `:` for .NET configuration.
+
+### Required App Settings
+
+- `ContentHub__Endpoint`
+- `ContentHub__ClientId`
+- `ContentHub__ClientSecret`
+- `MongoDb__ConnectionString` (note the capital S)
+- `MongoDB__DatabaseName`
+
+### Deployment Values Checklist
+
+Before proceeding with deployment, gather the following values from the resources you created:
+
+- `<AZ_SUBSCRIPTION_ID>` - Your Azure subscription ID
+- `<AZ_TENANT_ID>` - Your Azure tenant ID
+- `<AZ_CLIENT_ID>` - GitHub OIDC service principal client ID
+- `<RESOURCE_GROUP>` - Azure resource group name (e.g., `asset-usage-microservices`)
+- `<FUNCTION_APP_NAME>` - Function app name (e.g., `asset-usage-fa`)
+- `<KEYVAULT_NAME>` - Key vault name (e.g., `asset-usage-kv`)
+- `<MONGO_CONNECTION_STRING>` - SRV format; tls=true; SCRAM-SHA-256; optionally authSource=admin
+- `<MONGO_DATABASE_NAME>` - Logical database name (e.g., `asset-usage`)
+- `<CONTENTHUB_ENDPOINT>` - ContentHub endpoint (e.g., `https://your-env.sitecoresandbox.cloud`)
+- `<CONTENTHUB_CLIENT_ID>` - ContentHub client ID
+- `<CONTENTHUB_CLIENT_SECRET>` - ContentHub client secret
+
+### Step 1: Prepare Azure Resources and Identity
+
+1. **Enable System-Assigned Managed Identity** on your Function App:
+   - Navigate to Function App → Settings → Identity
+   - Under "System assigned" tab, set Status → **On**
+   - Save and note the Object (principal) ID
+
+2. **Grant Key Vault access** to the Function App's managed identity:
+   - **If using Azure RBAC** (recommended): 
+     - Navigate to Key Vault → Access control (IAM) → Add role assignment
+     - Select **Key Vault Secrets User** role
+     - Assign to the Function App's managed identity
+     
+     📘 [RBAC Guide](https://learn.microsoft.com/en-us/azure/key-vault/general/rbac-guide)
+     
+     📘 [Built-in Roles](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#security)
+   
+   - **If using Access Policies**: 
+     - Navigate to Key Vault → Access policies → Create
+     - Grant **Get** and **List** permissions for secrets
+
+3. **Configure Cosmos DB Networking**:
+   - Navigate to Cosmos DB → Networking
+   - Add your deployment environment's IP addresses or enable Azure service access
+   
+   📘 [Troubleshooting Guide](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/troubleshoot-common-issues)
+
+### Step 2: Create Key Vault Secrets
+
+Navigate to your Key Vault and create the following secrets:
+
+1. Go to Key Vault → Secrets → Generate/Import
+2. Create these versionless secrets:
+
+   - **Name**: `MongoDbConnectionString`  
+     **Value**: `<MONGO_CONNECTION_STRING>`  
+     (Format: `mongodb+srv://<user>:<password>@<cluster>.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000`)
+   
+   - **Name**: `ContentHub-ClientId`  
+     **Value**: `<CONTENTHUB_CLIENT_ID>`
+   
+   - **Name**: `ContentHub-ClientSecret`  
+     **Value**: `<CONTENTHUB_CLIENT_SECRET>`
+
+📘 [Add Secrets Documentation](https://learn.microsoft.com/en-us/azure/key-vault/secrets/quick-create-portal)
+
+### Step 3: Configure Function App Settings
+
+Navigate to Function App → Settings → Configuration → Application settings
+
+Set the following application settings (no secrets in plain text):
+
+    ContentHub__Endpoint = <CONTENTHUB_ENDPOINT>
+    ContentHub__ClientId = @Microsoft.KeyVault(SecretUri=https://<KEYVAULT_NAME>.vault.azure.net/secrets/ContentHub-ClientId)
+    ContentHub__ClientSecret = @Microsoft.KeyVault(SecretUri=https://<KEYVAULT_NAME>.vault.azure.net/secrets/ContentHub-ClientSecret)
+    MongoDb__ConnectionString = @Microsoft.KeyVault(SecretUri=https://<KEYVAULT_NAME>.vault.azure.net/secrets/MongoDbConnectionString)
+    MongoDB__DatabaseName = <MONGO_DATABASE_NAME>
+
+📘 [Key Vault References Documentation](https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references)
+
+**Save** the configuration and **restart** the Function App.
+
+**Verify** in Kudu (`https://<FUNCTION_APP_NAME>.scm.azurewebsites.net/Env`) that:
+- Key Vault references show `[Hidden Credential]` or similar
+- `WEBSITE_KEYVAULT_REFERENCES` section shows status **Resolved**
+
+### Step 4: Set Up CI/CD with GitHub Actions
+
+#### Option A: Automatic Setup via Azure Portal (Recommended)
+
+1. Navigate to Function App → Deployment Center
+2. Select **GitHub** as the source
+3. Authorize Azure to access your GitHub account
+4. Select your repository and branch
+5. Azure will automatically:
+   - Create the workflow file in `.github/workflows/`
+   - Configure OIDC authentication
+   - Add necessary secrets to your repository
+
+📘 [Continuous Deployment Documentation](https://learn.microsoft.com/en-us/azure/azure-functions/functions-continuous-deployment)
+
+#### Option B: Manual Setup
+
+1. **Create GitHub Repository Secrets**:
+   - Navigate to GitHub repository → Settings → Secrets and variables → Actions
+   - Add the following repository secrets:
+     - `AZURE_SUBSCRIPTION_ID` = `<AZ_SUBSCRIPTION_ID>`
+     - `AZURE_TENANT_ID` = `<AZ_TENANT_ID>`
+     - `AZURE_CLIENT_ID` = `<AZ_CLIENT_ID>`
+
+📘 [Azure Functions Action Repository](https://github.com/Azure/functions-action)
+
+> **Notes**:
+> - The Sitecore NuGet feed step is **required** for building this project
+
+### Step 5: Configure Sitecore to Use Your Function
+
+#### Recommended Approach (No Secrets in URL)
+
+Keep the endpoint clean; send the function key via HTTP header `x-functions-key`.
+
+**Sitecore Configuration**:
+
+    <?xml version="1.0" encoding="utf-8"?>
+    <configuration xmlns:patch="http://www.sitecore.net/xmlconfig/">
+      <sitecore>
+        <settings>
+          <setting name="AssetUsageService.ApiEndpoint" 
+                   value="https://<FUNCTION_APP_NAME>.azurewebsites.net/api/SitecorePublishAPI" />
+          <setting name="AssetUsageService.FunctionKey" 
+                   value="<FUNCTION_KEY>" />
+        </settings>
+      </sitecore>
+    </configuration>
+
+Store the function key outside source control (e.g., Sitecore Secret Manager/Key Vault or appSetting).
+
+When calling, your HTTP client should set header: `x-functions-key: <FUNCTION_KEY>`
+
+📘 [Function Keys Documentation](https://learn.microsoft.com/en-us/azure/azure-functions/function-keys-how-to)
+
+📘 [HTTP Trigger Documentation](https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-http-webhook-trigger)
+
+#### Legacy Approach (Query String)
+
+If you must embed the code in the query string:
+
+1. **Get the function-level key** (not the master host key):
+
+    ```az functionapp function keys list \
+      -g <RESOURCE_GROUP> \
+      -n <FUNCTION_APP_NAME> \
+      --function-name SitecorePublishAPI \
+      --query "default" -o tsv```
+
+2. **Update Sitecore configuration**:
+
+    <?xml version="1.0" encoding="utf-8"?>
+    <configuration xmlns:patch="http://www.sitecore.net/xmlconfig/">
+      <sitecore>
+        <settings>
+          <setting name="AssetUsageService.ApiEndpoint" 
+                   value="https://<FUNCTION_APP_NAME>.azurewebsites.net/api/SitecorePublishAPI?code=<FUNCTION_KEY>" />
+        </settings>
+      </sitecore>
+    </configuration>
+
+### Step 6: Smoke Test
+
+1. Navigate to Azure Portal → Function App → Functions → **SitecorePublishAPI** → **Test/Run**
+
+2. Set header:
+
+       Content-Type: application/json
+
+3. Use this test body:
+
+    ```json
+      "ItemId": "110d559f-dea5-42ea-9c1c-8a5df7e70ef9",
+      "Language": "en",
+      "ItemName": "Home",
+      "Version": 1,
+      "ItemPath": "/sitecore/content/Home",
+      "AssetIds": [],
+      "PublicLinks": []
+    ```
+
+4. Click **Run** and expect `200`/`202` response
+
+5. **Verify in Application Insights**:
+   - Navigate to Application Insights → Transaction search
+   - Look for recent requests to `/api/SitecorePublishAPI`
+   - Dependencies should show successful calls to Content Hub and MongoDB
+   - Check for any exceptions or failures
+
+6. **Verify in Cosmos DB**:
+   - Connect using MongoDB Compass or mongosh
+   - Check the `<MONGO_DATABASE_NAME>` database
+   - Verify the `AssetItemLinks` collection contains the test record
+
+📘 [Connect with MongoDB Compass](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/connect-using-compass)
+
+### Troubleshooting
+
+#### Key Vault Resolution Issues
+
+**Symptom**: App settings show `[Hidden Credential]` but function logs show "configuration not found"
+
+**Solution**:
+- After changing any secret version, restart the Function App or re-save an app setting to force immediate re-resolution
+- Check that the Function App's managed identity has `Key Vault Secrets User` role
+- Verify the SecretUri format: `@Microsoft.KeyVault(SecretUri=https://<vault>.vault.azure.net/secrets/<name>)`
+- Do not include version in SecretUri for automatic rotation
+
+📘 [Key Vault References](https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references)
+
+📘 [RBAC Guide](https://learn.microsoft.com/en-us/azure/key-vault/general/rbac-guide)
+
+#### SASL Authentication Errors
+
+**Symptom**: `MongoAuthenticationException: SASL authentication failed`
+
+**Solution**:
+- Ensure your connection string uses `mongodb+srv://` protocol (SRV format)
+- Include `tls=true` in connection string
+- Add `authSource=admin` if your user is in the admin database
+- Confirm hostname matches the vCore SRV endpoint (`.mongocluster.cosmos.azure.com`)
+- Test connection string locally using mongosh before adding to Key Vault
+
+Example connection string:
+
+    mongodb+srv://<user>:<password>@<cluster>.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000
+
+📘 [Troubleshooting Common Issues](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/troubleshoot-common-issues)
+
+#### Missing "ContentHub:Endpoint" Error
+
+**Symptom**: Application logs show `Configuration key 'ContentHub:Endpoint' not found`
+
+**Solution**:
+- Verify `ContentHub__Endpoint` is set in Function App configuration (note double underscore)
+- Ensure `ClientId`/`ClientSecret` are present as Key Vault references
+- Restart the Function App after making configuration changes
+- Check that Key Vault references show status "Resolved" in Kudu `/Env`
+
+#### Verify Settings in Kudu
+
+Navigate to Kudu diagnostics console: `https://<FUNCTION_APP_NAME>.scm.azurewebsites.net/Env`
+
+Look for:
+- Key Vault-backed settings should show `[Hidden Credential]` or similar
+- `WEBSITE_KEYVAULT_REFERENCES` section should show:
+
+  ```json
+  {
+    "status": "Resolved",
+    "details": {
+      "ContentHub__ClientId": { "status": "Resolved" },
+      "ContentHub__ClientSecret": { "status": "Resolved" },
+      "MongoDb__ConnectionString": { "status": "Resolved" }
+    }
+  }
+  ```
+
+#### Network Connectivity Issues
+
+**Symptom**: Function cannot reach Cosmos DB or Content Hub
+
+**Solution**:
+- For **Cosmos DB**: Check Networking → Firewall settings → Add Function App's outbound IPs
+- For **Content Hub**: Verify endpoint URL is accessible from Azure
+- Test connectivity using Kudu → Debug console → PowerShell: `Test-NetConnection <hostname> -Port 443`
+
+📘 [Cosmos DB vCore Networking](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/troubleshoot-common-issues)
+
+### Visual Studio Publish (Optional, One-Time)
+
+For initial deployment or quick updates:
+
+1. Right-click your Function project in Visual Studio
+2. Select **Publish**
+3. Choose **Azure** → **Azure Function App (Linux)**
+4. Select your subscription and `<FUNCTION_APP_NAME>`
+5. Click **Publish**
+
+📘 [Visual Studio Quickstart](https://learn.microsoft.com/en-us/azure/azure-functions/functions-create-your-first-function-visual-studio)
+
+> **Note**: Use the CI/CD workflow for ongoing deployments. Visual Studio publish is useful for initial setup or emergency hotfixes.
+
+### Additional Resources
+
+- **ARM/Bicep Templates**: [Provision via Infrastructure as Code](https://learn.microsoft.com/en-us/azure/azure-functions/functions-create-first-function-resource-manager)
+- **Entra ID Authentication**: [Configure OIDC for Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/how-to-configure-entra-authentication)
+- **Multiple Environments**: Use GitHub Environments feature to separate dev/stage/prod configurations
 
 ## Testing
 
