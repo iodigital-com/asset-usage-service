@@ -962,7 +962,7 @@ Based on your Azure environment, here's an example naming pattern:
 
 **1. Create Resource Group**
 
-   az group create --name asset-usage-microservices --location westeurope
+   ```az group create --name asset-usage-microservices --location westeurope```
 
    📘 [Documentation](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-cli#create-a-resource-group)
 
@@ -1157,11 +1157,11 @@ If you must embed the code in the query string:
 
 1. **Get the function-level key** (not the master host key):
 
-    az functionapp function keys list \
+    ```az functionapp function keys list \
       -g <RESOURCE_GROUP> \
       -n <FUNCTION_APP_NAME> \
       --function-name SitecorePublishAPI \
-      --query "default" -o tsv
+      --query "default" -o tsv```
 
 2. **Update Sitecore configuration**:
 
@@ -1185,7 +1185,7 @@ If you must embed the code in the query string:
 
 3. Use this test body:
 
-    {
+    ```json
       "ItemId": "110d559f-dea5-42ea-9c1c-8a5df7e70ef9",
       "Language": "en",
       "ItemName": "Home",
@@ -1193,7 +1193,7 @@ If you must embed the code in the query string:
       "ItemPath": "/sitecore/content/Home",
       "AssetIds": [],
       "PublicLinks": []
-    }
+    ```
 
 4. Click **Run** and expect `200`/`202` response
 
@@ -1261,14 +1261,16 @@ Look for:
 - Key Vault-backed settings should show `[Hidden Credential]` or similar
 - `WEBSITE_KEYVAULT_REFERENCES` section should show:
 
-      {
-        "status": "Resolved",
-        "details": {
-          "ContentHub__ClientId": { "status": "Resolved" },
-          "ContentHub__ClientSecret": { "status": "Resolved" },
-          "MongoDb__ConnectionString": { "status": "Resolved" }
-        }
-      }
+  ```json
+  {
+    "status": "Resolved",
+    "details": {
+      "ContentHub__ClientId": { "status": "Resolved" },
+      "ContentHub__ClientSecret": { "status": "Resolved" },
+      "MongoDb__ConnectionString": { "status": "Resolved" }
+    }
+  }
+  ```
 
 #### Network Connectivity Issues
 
