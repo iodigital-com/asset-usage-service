@@ -1,5 +1,10 @@
 import { createAssetUsageTracker } from './AssetUsageTracker';
 
+// ============================================================================
+// This file sets up a test environment for the AssetUsageTracker component.
+// It creates buttons to simulate different entity scenarios to test the styling.
+// ============================================================================
+
 const mockEntityWithData = {
     id: 36280,
     properties: {

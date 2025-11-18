@@ -1,5 +1,9 @@
 import { createRoot } from "react-dom/client";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+
+// ============================================================================
+// Types & Interfaces
+// ============================================================================
 
 interface ContentHubEntity {
     id?: number;
@@ -23,100 +27,223 @@ interface AssetUsageTrackerProps {
     entity: ContentHubEntity | null;
 }
 
-function AssetUsageTrackerComponent({ entity }: AssetUsageTrackerProps) {
-    const [currentEntity, setCurrentEntity] = useState(entity);
+interface ProcessedUsageItem extends UsageTrackingItem {
+    compositeKey: string;
+    itemId: string;
+    languageKey: string;
+}
 
-    useEffect(() => {
-        setCurrentEntity(entity);
-    }, [entity]);
+interface ContentHubContext {
+    entity: ContentHubEntity | null;
+}
 
-    if (!currentEntity) {
-        return (
-            <div style={styles.wrapper}>
-                <div style={styles.errorMessage}>
-                    <strong>Error:</strong> No entity available
-                </div>
-            </div>
-        );
+interface ContentHubComponent {
+    render: (context: ContentHubContext) => void;
+    unmount: () => void;
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const CONSTANTS = {
+    CMS_BASE_URL: 'https://Sitecore-xp-localsc.dev.local',
+    MAX_WRAPPER_HEIGHT: '600px',
+    MAX_CONTENT_HEIGHT: '500px',
+} as const;
+
+const LABELS = {
+    TITLE: 'Usage in CMS items',
+    NO_ENTITY: 'No entity available',
+    NO_USAGE: 'This asset is not currently used in any published items.',
+    USED_IN: 'Used in',
+    ITEMS_SUFFIX: 'items',
+    COLUMN_NAME: 'Name and path',
+    COLUMN_LANGUAGE: 'Language',
+    COLUMN_VERSION: 'Version',
+    PATH_PREFIX: 'Path:',
+    ITEM_ID_PREFIX: 'Item ID:',
+    VERSION_PREFIX: 'V',
+    FALLBACK_VALUE: '-',
+} as const;
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+function processUsageTrackingData(
+    usageTracking: ContentHubEntity['properties']['UsageTracking']
+): ProcessedUsageItem[] {
+    if (!usageTracking) {
+        return [];
     }
 
-    const usageTrackingData = currentEntity.properties.UsageTracking || {};
-    
-    let allUsageItems : { [compositeKey: string]: UsageTrackingItem } = {};
-    let totalCount = 0;
-    
-    Object.entries(usageTrackingData).forEach(([languageKey, languageItems]) => {
-        if (languageItems && typeof languageItems === 'object') {
-            const itemEntries = Object.entries(languageItems);
-            
-            itemEntries.forEach(([itemId, itemData]) => {
-                allUsageItems[`${languageKey}-${itemId}`] = itemData;
-                totalCount++;
-            });
+    return Object.entries(usageTracking).flatMap(([languageKey, languageItems]) => {
+        if (!languageItems || typeof languageItems !== 'object') {
+            return [];
         }
+
+        return Object.entries(languageItems).map(([itemId, itemData]) => ({
+            ...itemData,
+            compositeKey: `${languageKey}-${itemId}`,
+            itemId,
+            languageKey,
+        }));
     });
+}
 
-    if (totalCount === 0) {
-        return (
-            <div style={styles.wrapper}>
-                <div style={styles.headerRow}>
-                    <h3 style={styles.heading}>Usage in CMS items</h3>
-                </div>
-                <div style={styles.emptyState}>
-                    <p>This asset is not currently used in any published items.</p>
-                </div>
-            </div>
-        );
-    }
+function buildCmsItemUrl(itemId: string): string {
+    return `${CONSTANTS.CMS_BASE_URL}/${itemId}`;
+}
 
-    const mappedEntries = Object.entries(allUsageItems).map(([compositeKey, item], index) => {
-        const [languageKey] = compositeKey.split('-', 2);
-        const itemId = compositeKey.substring(languageKey.length + 1);
+// ============================================================================
+// Custom Hooks
+// ============================================================================
 
-        const displayItemName = item.itemName || '-';
-        const displayItemPath = item.itemPath || '-';
-        const displayLanguage = item.language || languageKey || '-';
-        const displayVersion = item.version ?? '-';
-        const isLastItem = index === totalCount - 1;
+function useProcessedUsageItems(entity: ContentHubEntity | null) {
+    return useMemo(() => {
+        if (!entity) {
+            return [];
+        }
 
-        return (
-            <a href="#" style={styles.link}>
-                <div key={compositeKey} style={{...styles.tableRow, borderBottom: isLastItem ? 'none' : '1px solid #e0e0e0'}}>
-                    <div style={styles.nameColumn}>
-                        <h5 style={styles.itemName}>{displayItemName}</h5>
-                        <p style={styles.itemPath}>Path: {displayItemPath}</p>
-                        <p style={styles.itemId}>Item ID: {itemId}</p>
-                    </div>
-                    <div style={styles.languageColumn}>
-                        <span style={styles.badge}>{displayLanguage}</span>
-                    </div>
-                    <div style={styles.versionColumn}>
-                        <span style={styles.badge}>V{displayVersion}</span>
-                    </div>
-                </div>
-            </a>
-        );
-    });
+        return processUsageTrackingData(entity.properties.UsageTracking);
+    }, [entity]);
+}
 
+// ============================================================================
+// Sub-Components
+// ============================================================================
+
+function ErrorMessage() {
     return (
-        <div style={styles.wrapper} key={currentEntity.id}>
-            <div style={styles.headerRow}>
-                <h4 className="MuiTypography-root MuiTypography-h4 css-1xfybxt-title-titleMargin ltr-djzpxj">Usage in CMS items</h4>
-                <span style={styles.itemCount}>Used in {totalCount} items</span>
-            </div>
-            
-            <div style={styles.tableHeader}>
-                <div style={styles.headerNameColumn}>Name and path</div>
-                <div style={styles.headerLanguageColumn}>Language</div>
-                <div style={styles.headerVersionColumn}>Version</div>
-            </div>
-
-            <div style={styles.scrollableContent}>
-                {mappedEntries}
+        <div style={styles.wrapper}>
+            <div style={styles.errorMessage}>
+                <strong>Error:</strong> {LABELS.NO_ENTITY}
             </div>
         </div>
     );
 }
+
+function EmptyState() {
+    return (
+        <div style={styles.wrapper}>
+            <Header totalCount={0} />
+            <div style={styles.emptyState}>
+                <p>{LABELS.NO_USAGE}</p>
+            </div>
+        </div>
+    );
+}
+
+interface HeaderProps {
+    totalCount: number;
+}
+
+function Header({ totalCount }: HeaderProps) {
+    return (
+        <div style={styles.headerRow}>
+            <h4 className="MuiTypography-root MuiTypography-h4 css-1xfybxt-title-titleMargin ltr-djzpxj">
+                {LABELS.TITLE}
+            </h4>
+            {totalCount > 0 && (
+                <span className="ltr-djzpxj" style={styles.itemCount}>
+                    {LABELS.USED_IN} {totalCount} {LABELS.ITEMS_SUFFIX}
+                </span>
+            )}
+        </div>
+    );
+}
+
+function TableHeader() {
+    return (
+        <div style={styles.tableHeader}>
+            <div style={styles.headerNameColumn}>{LABELS.COLUMN_NAME}</div>
+            <div style={styles.headerLanguageColumn}>{LABELS.COLUMN_LANGUAGE}</div>
+            <div style={styles.headerVersionColumn}>{LABELS.COLUMN_VERSION}</div>
+        </div>
+    );
+}
+
+interface UsageItemRowProps {
+    item: ProcessedUsageItem;
+    isLast: boolean;
+}
+
+function UsageItemRow({ item, isLast }: UsageItemRowProps) {
+    const displayItemName = item.itemName || LABELS.FALLBACK_VALUE;
+    const displayItemPath = item.itemPath || LABELS.FALLBACK_VALUE;
+    const displayLanguage = item.language || item.languageKey || LABELS.FALLBACK_VALUE;
+    const displayVersion = item.version ?? LABELS.FALLBACK_VALUE;
+
+    const rowStyle = {
+        ...styles.tableRow,
+        borderBottom: isLast ? 'none' : '1px solid #e0e0e0',
+    };
+
+    return (
+        <a 
+            key={item.compositeKey} 
+            href={buildCmsItemUrl(item.itemId)} 
+            style={styles.link}
+        >
+            <div style={rowStyle}>
+                <div style={styles.nameColumn}>
+                    <h5 style={styles.itemName}>{displayItemName}</h5>
+                    <p style={styles.itemPath}>
+                        {LABELS.PATH_PREFIX} {displayItemPath}
+                    </p>
+                    <p style={styles.itemId}>
+                        {LABELS.ITEM_ID_PREFIX} {item.itemId}
+                    </p>
+                </div>
+                <div style={styles.languageColumn}>
+                    <span style={styles.badge}>{displayLanguage}</span>
+                </div>
+                <div style={styles.versionColumn}>
+                    <span style={styles.badge}>
+                        {LABELS.VERSION_PREFIX}{displayVersion}
+                    </span>
+                </div>
+            </div>
+        </a>
+    );
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
+
+function AssetUsageTrackerComponent({ entity }: AssetUsageTrackerProps) {
+    const processedItems = useProcessedUsageItems(entity);
+
+    if (!entity) {
+        return <ErrorMessage />;
+    }
+
+    if (processedItems.length === 0) {
+        return <EmptyState />;
+    }
+
+    return (
+        <div style={styles.wrapper}>
+            <Header totalCount={processedItems.length} />
+            <TableHeader />
+            <div style={styles.scrollableContent}>
+                {processedItems.map((item, index) => (
+                    <UsageItemRow
+                        key={item.compositeKey}
+                        item={item}
+                        isLast={index === processedItems.length - 1}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// Styles
+// ============================================================================
 
 const styles = {
     link: {
@@ -129,18 +256,12 @@ const styles = {
         backgroundColor: '#fff',
         boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
         borderRadius: '0.375rem',
+        maxHeight: CONSTANTS.MAX_WRAPPER_HEIGHT,
     },
     headerRow: {
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '16px',
-    },
-    heading: {
-        margin: '0',
-        color: '#333',
-        fontSize: '24px',
-        fontWeight: 600,
+        gap: '12px',
     },
     itemCount: {
         color: '#999',
@@ -165,8 +286,8 @@ const styles = {
         display: 'flex',
         padding: '8px 0',
         borderBottom: '1px solid #e0e0e0',
-        color: '#999',
-        fontSize: '13px',
+        color: '#c7c7c7ff',
+        fontSize: '10px',
         fontWeight: 500,
     },
     headerNameColumn: {
@@ -176,10 +297,7 @@ const styles = {
         textAlign: 'center' as const,
     },
     headerVersionColumn: {
-        minWidth: '80px',
-        textAlign: 'center' as const,
-    },
-    headerLinkColumn: {
+        minWidth: '60px',
         textAlign: 'center' as const,
     },
     tableRow: {
@@ -201,11 +319,6 @@ const styles = {
         display: 'flex',
         justifyContent: 'center',
     },
-    linkColumn: {
-        display: 'flex',
-        justifyContent: 'center',
-        cursor: 'pointer',
-    },
     itemName: {
         margin: '0 0 2px 0',
         fontWeight: 600,
@@ -215,7 +328,7 @@ const styles = {
         whiteSpace: 'nowrap' as const,
     },
     itemPath: {
-        margin: '0 0 2px 0',    
+        margin: '0 0 2px 0',
         color: '#999',
         fontSize: '12px',
         overflow: 'hidden',
@@ -223,7 +336,7 @@ const styles = {
         whiteSpace: 'nowrap' as const,
     },
     itemId: {
-        margin: '0',    
+        margin: '0',
         color: '#ccc',
         fontSize: '11px',
     },
@@ -236,34 +349,35 @@ const styles = {
         fontWeight: 400,
     },
     scrollableContent: {
-        maxHeight: '500px',
         overflowY: 'auto' as const,
+        maxHeight: CONSTANTS.MAX_CONTENT_HEIGHT,
     },
-};
+} as const;
 
-export function createAssetUsageTracker(container: HTMLElement) {
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+export function createAssetUsageTracker(container: HTMLElement): ContentHubComponent {
     const root = createRoot(container);
-    let currentContext: any = null;
-    
+
     return {
-        render(context: any) {
-            currentContext = context;
+        render(context: ContentHubContext) {
             root.render(<AssetUsageTrackerComponent entity={context.entity} />);
         },
         unmount() {
             root.unmount();
         },
-        refresh() {
-            if (currentContext) {
-                root.render(<AssetUsageTrackerComponent entity={currentContext.entity} />);
-            }
-        }
     };
 }
 
+// ============================================================================
+// Registration
+// ============================================================================
+
 if (!window.ContentHub) {
     window.ContentHub = {
-        registerComponent: () => {}
+        registerComponent: () => {},
     };
 }
 
