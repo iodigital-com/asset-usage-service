@@ -1,5 +1,9 @@
 <Solution>
   <Project Path="AssetUsageService/AssetUsageService.csproj" />
-  <Project Path="iO.Sitecore.publishing/iO.Sitecore.publishing.csproj" Id="3bb11310-6839-4845-b173-527480223523" />
   <Project Path="AssetUsageServiceTests/AssetUsageServiceTests.csproj" Id="a6a9fd4a-441f-4691-bddf-efa45b777cf5" />
+  <Project Path="ContentHubTrackingComponent/contenthubtrackingcomponent.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="iO.Sitecore.publishing/iO.Sitecore.publishing.csproj" Id="3bb11310-6839-4845-b173-527480223523" />
 </Solution>
