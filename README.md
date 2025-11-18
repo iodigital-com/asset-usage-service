@@ -13,6 +13,7 @@ A microservice for tracking and managing relationships between items and digital
 - [Data Model](#data-model)
 - [API Endpoints](#api-endpoints)
 - [Integration Points](#integration-points)
+- [React Component Setup](#setting-up-the-react-component)
 - [Development Setup](#development-setup)
 - [Deployment](#deployment)
 - [Testing](#testing)
@@ -922,7 +923,79 @@ func start
 - Update `AssetUsageService.ApiEndpoint` to point to your local function
 - Restart Sitecore
 
-### Project Structure
+ ## Setting up the React Component
+
+This guide will show you how to add the React component to your Content Hub instance.
+
+### Prerequisites
+
+- Access to the asset-usage-service project folder
+- Node.js and npm installed
+- Admin access to your Content Hub instance
+- Your Sitecore XP URL
+
+### Installation Steps
+
+#### 1. Install Dependencies
+
+Open your terminal and navigate to the component directory:
+
+```bash
+cd asset-usage-service/contenthubtrackingcomponent
+npm install
+```
+
+#### 2. Configure the Component
+
+1. Open the file `src/AssetUsageTracker.tsx` in your preferred editor
+2. Replace the constant `CMS_BASE_URL` with your Sitecore XP URL
+3. Save the file
+
+#### 3. Build the Component
+
+Run the build command:
+
+```bash
+npm run build
+```
+
+This will generate an `AssetUsageTracker.js` file in the `dist` folder.
+
+#### 4. Upload to Content Hub
+
+1. Log in to your Content Hub instance
+2. Navigate to **Manage** (settings icon)
+3. Go to the **Portal assets** page
+4. Click **Upload file** and upload the `AssetUsageTracker.js` file from the `dist` folder
+
+#### 5. Wait for Processing
+
+1. Click on your profile picture
+2. Open **Background processes**
+3. Refresh the page and wait until the upload job is processed
+
+#### 6. Add Component to Asset Details Page
+
+1. Go to **Manage** → **Pages**
+2. Select the **Asset details** page
+3. Click **+ Component** where you want to add the component
+4. In the "Add component" popup, search for **External**
+5. Click **Add**
+
+#### 7. Configure the Component
+
+1. Give it a title (e.g., "AssetUsageTracker")
+2. Turn the **Visible** switch **on**
+3. Click on the component you just added
+4. Under **JS bundle**, select **From asset**
+5. Click the **+** icon
+6. Search for the `AssetUsageTracker.js` file
+7. Select it and click **Save**
+8. Click **Save** in the upper right corner of the page
+
+### Verification
+
+The Asset Usage Tracker component should now be visible on your Asset details page and ready to use.
 
 ## Deployment
 
