@@ -964,7 +964,7 @@ This will generate an `AssetUsageTracker.js` file in the `dist` folder.
 #### 4. Upload to Content Hub
 
 1. Log in to your Content Hub instance
-2. Navigate to **Manage** → **Settings** (settings icon)
+2. Navigate to **Manage** (settings icon)
 3. Go to the **Portal assets** page
 4. Click **Upload file** and upload the `AssetUsageTracker.js` file from the `dist` folder
 
