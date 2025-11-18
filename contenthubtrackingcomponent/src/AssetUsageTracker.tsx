@@ -57,7 +57,7 @@ const LABELS = {
     NO_ENTITY: 'No entity available',
     NO_USAGE: 'This asset is not currently used in any published items.',
     USED_IN: 'Used in',
-    ITEMS_SUFFIX: 'items',
+    ITEMS_SUFFIX: 'item(s)',
     COLUMN_NAME: 'Name and path',
     COLUMN_LANGUAGE: 'Language',
     COLUMN_VERSION: 'Version',
@@ -147,7 +147,7 @@ function Header({ totalCount }: HeaderProps) {
             </h4>
             {totalCount > 0 && (
                 <span className="ltr-djzpxj" style={styles.itemCount}>
-                    {LABELS.USED_IN} {totalCount} {LABELS.ITEMS_SUFFIX}
+                    {LABELS.USED_IN} <strong>{totalCount}</strong> {LABELS.ITEMS_SUFFIX}
                 </span>
             )}
         </div>
@@ -181,11 +181,7 @@ function UsageItemRow({ item, isLast }: UsageItemRowProps) {
     };
 
     return (
-        <a 
-            key={item.compositeKey} 
-            href={buildCmsItemUrl(item.itemId)} 
-            style={styles.link}
-        >
+        <a key={item.compositeKey} href={buildCmsItemUrl(item.itemId)} style={styles.link}>
             <div style={rowStyle}>
                 <div style={styles.nameColumn}>
                     <h5 style={styles.itemName}>{displayItemName}</h5>
@@ -265,7 +261,7 @@ const styles = {
     },
     itemCount: {
         color: '#999',
-        fontSize: '16px',
+        fontSize: '12px',
         fontWeight: 400,
     },
     errorMessage: {
