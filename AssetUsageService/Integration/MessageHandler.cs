@@ -27,24 +27,8 @@ public class MessageHandler
             throw new InvalidOperationException("Failed to deserialize published items message");
         }
 
-        publishedItemDto.AssetIds = GetAssetIdsFromPairs(publishedItemDto.AssetIds);
-
         _logger.LogInformation("Processing ItemId: {ItemId}, AssetIds: {AssetCount}", publishedItemDto.ItemId, publishedItemDto.AssetIds);
         var domainPublishedItem = _publishedItemMapper.MapToDomain(publishedItemDto);
         await _assetItemController.ProcessPublishedItemAsync(domainPublishedItem, cancellationToken);
-    }
-    private List<string> GetAssetIdsFromPairs(List<string> assetIds)
-    {
-        var filteredAssets = new List<string>();
-
-        for (var index = 0; index < assetIds.Count; index++)
-        {
-            if (index % 2 != 0)
-            {
-                filteredAssets.Add(assetIds[index]);
-            }
-        }
-
-        return filteredAssets;
     }
 }
