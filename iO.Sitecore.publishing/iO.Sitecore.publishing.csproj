@@ -636,6 +636,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Start\RazorGeneratorMvcStart.cs" />
+    <Compile Include="Events\InitialItemAssetlink.cs" />
     <Compile Include="Models\AssetUsageEvent.cs" />
     <Compile Include="Events\AssetUsageServiceClient.cs" />
     <Compile Include="Events\PublishingEventHandler.cs" />
@@ -652,6 +653,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
+    <None Include="local.settings.json" />
     <None Include="packages.config" />
     <None Include="Web.config" />
   </ItemGroup>

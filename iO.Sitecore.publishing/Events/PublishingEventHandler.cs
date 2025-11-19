@@ -1,4 +1,5 @@
-﻿using iO.Sitecore.Publishing.Services;
+﻿using iO.Sitecore.publishing.Events;
+using iO.Sitecore.Publishing.Services;
 using Sitecore.Configuration;
 using Sitecore.Data.Events;
 using Sitecore.Diagnostics;
@@ -16,6 +17,8 @@ namespace iO.Sitecore.Publishing.Events
 
         protected void OnItemProcessing(object sender, EventArgs args)
         {
+            InitialItemAssetlink InitialItemAssetLink = new InitialItemAssetlink();
+
             try
             {
                 var eventArgs = args as ItemProcessingEventArgs;
