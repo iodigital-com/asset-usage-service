@@ -23,6 +23,12 @@ namespace iO.Sitecore.Publishing.Services
         public InitialItemAssetLinkService()
         {
             _webDatabase = Factory.GetDatabase("web");
+
+            if (_webDatabase == null)
+            {
+                throw new InvalidOperationException("Web database not found. Check Sitecore configuration.");
+            }
+
             _client = new AssetUsageServiceClient();
             _loggingService = new PublishLoggingService(this);
             _assetExtractionService = new AssetExtractionService(_loggingService);
@@ -30,41 +36,45 @@ namespace iO.Sitecore.Publishing.Services
 
         public async Task ExecuteMigrationAsync()
         {
+            Log.Info("[InitialItemAssetLinkService] Migration started", this);
+
             MigrationProgressTracker.Reset();
             MigrationProgressTracker.IsRunning = true;
             MigrationProgressTracker.StartTime = DateTime.UtcNow;
 
             try
             {
-                Log.Info("[InitialItemAssetLinkService] Starting migration from web database", this);
-
                 var rootItem = _webDatabase.GetRootItem();
+
                 if (rootItem == null)
                 {
-                    Log.Warn("[InitialItemAssetLinkService] Root item not found in web database", this);
-                    MigrationProgressTracker.ErrorMessage = "Root item not found in web database";
-                    return;
+                    throw new InvalidOperationException("Root item not found in web database.");
                 }
 
                 var allItems = new List<Item> { rootItem };
                 allItems.AddRange(rootItem.Axes.GetDescendants());
 
-                Log.Info($"[InitialItemAssetLinkService] Found {allItems.Count} items in total", this);
-
                 var filteredItems = FilterItemsWithContentHubLinks(allItems);
 
-                Log.Info($"[InitialItemAssetLinkService] Found {filteredItems.Count} items with Content Hub links to process", this);
+                Log.Info($"[InitialItemAssetLinkService] Found {filteredItems.Count} items with Content Hub links (out of {allItems.Count} total)", this);
+
+                if (filteredItems.Count == 0)
+                {
+                    MigrationProgressTracker.ErrorMessage = "No items with Content Hub links found";
+                    return;
+                }
 
                 MigrationProgressTracker.TotalItems = filteredItems.Count;
 
                 await ProcessItemsInBatchesAsync(filteredItems);
 
-                Log.Info("[InitialItemAssetLinkService] Migration completed successfully", this);
+                Log.Info($"[InitialItemAssetLinkService] Migration completed: {MigrationProgressTracker.SuccessCount} successful, {MigrationProgressTracker.FailureCount} failed", this);
             }
             catch (Exception ex)
             {
                 Log.Error("[InitialItemAssetLinkService] Migration failed", ex, this);
                 MigrationProgressTracker.ErrorMessage = ex.Message;
+                throw;
             }
             finally
             {
@@ -79,7 +89,7 @@ namespace iO.Sitecore.Publishing.Services
 
             if (string.IsNullOrWhiteSpace(contentHubEndpoint))
             {
-                Log.Warn("[InitialItemAssetLinkService] ContentHub.Endpoint not configured, processing all items", this);
+                Log.Warn("[InitialItemAssetLinkService] ContentHub endpoint not configured, processing all items", this);
                 return items;
             }
 
@@ -94,12 +104,11 @@ namespace iO.Sitecore.Publishing.Services
                     if (HasContentHubLinks(publicLinks, contentHubEndpoint))
                     {
                         filteredItems.Add(item);
-                        Log.Info($"[InitialItemAssetLinkService] Item {item.Paths.FullPath} contains {publicLinks.Count} Content Hub link(s)", this);
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn($"[InitialItemAssetLinkService] Failed to extract public links from item {item.Paths.FullPath}: {ex.Message}", this);
+                    Log.Warn($"[InitialItemAssetLinkService] Failed to process item {item.Paths.FullPath}: {ex.Message}", this);
                 }
             }
 
@@ -130,8 +139,6 @@ namespace iO.Sitecore.Publishing.Services
             {
                 var batch = items.Skip(batchIndex * BatchSize).Take(BatchSize).ToList();
 
-                Log.Info($"[InitialItemAssetLinkService] Processing batch {batchIndex + 1}/{totalBatches} ({batch.Count} items)", this);
-
                 foreach (var item in batch)
                 {
                     MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
@@ -141,22 +148,15 @@ namespace iO.Sitecore.Publishing.Services
                         await SendItemToAssetUsageServiceAsync(item);
                         MigrationProgressTracker.SuccessCount++;
                     }
-                    catch (Exception ex)
+                    catch (Exception exception)
                     {
                         Log.Error($"[InitialItemAssetLinkService] Failed to process item {item.Paths.FullPath}", ex, this);
                         MigrationProgressTracker.FailureCount++;
                     }
 
                     MigrationProgressTracker.ProcessedItems++;
-
-                    if (MigrationProgressTracker.ProcessedItems % 100 == 0)
-                    {
-                        Log.Info($"[InitialItemAssetLinkService] Progress: {MigrationProgressTracker.ProgressPercentage}% ({MigrationProgressTracker.ProcessedItems}/{MigrationProgressTracker.TotalItems}) - Success: {MigrationProgressTracker.SuccessCount}, Failed: {MigrationProgressTracker.FailureCount}", this);
-                    }
                 }
             }
-
-            Log.Info($"[InitialItemAssetLinkService] Final results: {MigrationProgressTracker.SuccessCount} successful, {MigrationProgressTracker.FailureCount} failed out of {MigrationProgressTracker.TotalItems} total items", this);
         }
 
         private async Task SendItemToAssetUsageServiceAsync(Item item)
