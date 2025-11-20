@@ -9,16 +9,17 @@ export default defineConfig({
     build: {
         target: 'es2020',
         lib: {
-            entry: './src/AssetUsageTracker.tsx',
+            entry: './src/DeleteAssetButton.tsx',
             formats: ['es'],
-            fileName: 'AssetUsageTracker'
+            fileName: 'DeleteAssetButton'
         },
         rollupOptions: {
             output: {
                 format: 'es',
                 globals: {
                     react: 'React',
-                    'react-dom': 'ReactDOM'
+                    'react-dom': 'ReactDOM',
+                    'react-dom/client': 'ReactDOM'
                 }
             }
         }

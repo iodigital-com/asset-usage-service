@@ -1,9 +1,27 @@
 import { createAssetUsageTracker } from './AssetUsageTracker';
+import createDeleteAssetButton from './DeleteAssetButton';
 
 // ============================================================================
-// This file sets up a test environment for the AssetUsageTracker component.
+// This file sets up a test environment for both components.
 // It creates buttons to simulate different entity scenarios to test the styling.
 // ============================================================================
+
+// Mock client for DeleteAssetButton
+const mockClient = {
+    entities: {
+        deleteAsync: async (entityId: number) => {
+            console.log(`Mock deleteAsync called for entity ${entityId}`);
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            if (Math.random() > 0.1) {
+                console.log(`Mock delete successful for entity ${entityId}`);
+                return Promise.resolve();
+            } else {
+                throw new Error('Simulated API error: Failed to delete asset');
+            }
+        }
+    }
+};
 
 const mockEntityWithData = {
     id: 36280,
@@ -76,21 +94,35 @@ const mockEntityEmpty = {
 
 const mockEntityNull = null;
 
-const testScenarios = [
-    { name: 'Entity with Usage Data (4 items)', entity: mockEntityWithData },
+const usageTrackerScenarios = [
+    { name: 'Entity with Usage Data (7 items)', entity: mockEntityWithData },
     { name: 'Entity with No Usage', entity: mockEntityEmpty },
     { name: 'Null Entity', entity: mockEntityNull }
 ];
 
+const deleteButtonScenarios = [
+    { name: 'With Usage (5 items)', entity: mockEntityWithData, entityId: 36280 },
+    { name: 'No Usage (Simple)', entity: mockEntityEmpty, entityId: 12345 },
+    { name: 'Null Entity', entity: mockEntityNull, entityId: 99999 }
+];
 
 const appContainer = document.getElementById('app');
 if (!appContainer) {
-    console.error('AssetUsageTracker Main - App container not found');
+    console.error('Main - App container not found');
 } else {
-    console.log('AssetUsageTrackerMain - App container found, setting up test environment');
+    console.log('Main - App container found, setting up test environment');
     
-    const controlsContainer = document.createElement('div');
-    controlsContainer.style.cssText = `
+    appContainer.innerHTML = '';
+    
+    // ========================================================================
+    // AssetUsageTracker Section
+    // ========================================================================
+    
+    const usageTrackerSection = document.createElement('div');
+    usageTrackerSection.style.cssText = 'margin-bottom: 40px;';
+    
+    const usageTrackerControls = document.createElement('div');
+    usageTrackerControls.style.cssText = `
         padding: 20px;
         background-color: #f0f0f0;
         margin-bottom: 20px;
@@ -98,29 +130,25 @@ if (!appContainer) {
         border: 1px solid #ddd;
     `;
     
-    // Add title
-    const title = document.createElement('h2');
-    title.textContent = 'AssetUsageTracker Test Environment';
-    title.style.cssText = 'margin: 0 0 16px 0; color: #333;';
-    controlsContainer.appendChild(title);
+    const usageTrackerTitle = document.createElement('h2');
+    usageTrackerTitle.textContent = 'AssetUsageTracker Test Environment';
+    usageTrackerTitle.style.cssText = 'margin: 0 0 16px 0; color: #333;';
+    usageTrackerControls.appendChild(usageTrackerTitle);
     
-    // Add description
-    const description = document.createElement('p');
-    description.textContent = 'Click the buttons below to test different scenarios:';
-    description.style.cssText = 'margin: 0 0 16px 0; color: #666;';
-    controlsContainer.appendChild(description);
+    const usageTrackerDescription = document.createElement('p');
+    usageTrackerDescription.textContent = 'Click the buttons below to test different scenarios:';
+    usageTrackerDescription.style.cssText = 'margin: 0 0 16px 0; color: #666;';
+    usageTrackerControls.appendChild(usageTrackerDescription);
     
-    // Create component container
-    const componentContainer = document.createElement('div');
-    componentContainer.id = 'asset-usage-tracker-container';
+    const usageTrackerContainer = document.createElement('div');
+    usageTrackerContainer.id = 'asset-usage-tracker-container';
     
-    // Initialize the tracker
-    const tracker = createAssetUsageTracker(componentContainer);
+    const tracker = createAssetUsageTracker(usageTrackerContainer);
     
-    // Create buttons for each test scenario
-    testScenarios.forEach((scenario) => {
+    usageTrackerScenarios.forEach((scenario) => {
         const button = document.createElement('button');
         button.textContent = scenario.name;
+        button.className = 'usage-tracker-btn';
         button.style.cssText = `
             margin: 5px 10px 5px 0;
             padding: 10px 16px;
@@ -133,53 +161,170 @@ if (!appContainer) {
             font-weight: 500;
         `;
         
-        // Add hover effect
         button.addEventListener('mouseenter', () => {
             button.style.backgroundColor = '#106ebe';
         });
         button.addEventListener('mouseleave', () => {
-            button.style.backgroundColor = '#0078d4';
+            const isActive = button.style.fontWeight === '600';
+            button.style.backgroundColor = isActive ? '#005a9e' : '#0078d4';
         });
         
         button.addEventListener('click', () => {
-            console.log(`AssetUsageTracker Main - Testing scenario: ${scenario.name}`);
-            console.log('AssetUsageTracker Main - Entity data:', scenario.entity);
+            console.log(`AssetUsageTracker - Testing scenario: ${scenario.name}`);
             
-            // Update button states
-            document.querySelectorAll('button').forEach(btn => {
-                btn.style.backgroundColor = '#0078d4';
-                btn.style.fontWeight = '500';
+            document.querySelectorAll('.usage-tracker-btn').forEach(btn => {
+                if (btn instanceof HTMLElement) {
+                    btn.style.backgroundColor = '#0078d4';
+                    btn.style.fontWeight = '500';
+                }
             });
             button.style.backgroundColor = '#005a9e';
             button.style.fontWeight = '600';
             
-            // Render the scenario
             try {
                 tracker.render({ entity: scenario.entity });
-                console.log(`AssetUsageTracker Main - Successfully rendered scenario: ${scenario.name}`);
+                console.log(`AssetUsageTracker - Successfully rendered: ${scenario.name}`);
             } catch (error) {
-                console.error(`AssetUsageTracker Main - Error rendering scenario: ${scenario.name}`, error);
+                console.error(`AssetUsageTracker - Error rendering: ${scenario.name}`, error);
             }
         });
         
-        controlsContainer.appendChild(button);
+        usageTrackerControls.appendChild(button);
     });
     
-  
-    // Assemble the UI
-    appContainer.innerHTML = '';
-    appContainer.appendChild(controlsContainer);
-    appContainer.appendChild(componentContainer);
+    usageTrackerSection.appendChild(usageTrackerControls);
+    usageTrackerSection.appendChild(usageTrackerContainer);
+    appContainer.appendChild(usageTrackerSection);
     
     // Load first scenario by default
-    console.log('AssetUsageTracker Main - Loading default scenario');
     tracker.render({ entity: mockEntityWithData });
-    
-    // Highlight first button
-    const firstButton = controlsContainer.querySelector('button');
-    if (firstButton instanceof HTMLElement) {
-        firstButton.style.backgroundColor = '#005a9e';
-        firstButton.style.fontWeight = '600';
+    const firstUsageBtn = usageTrackerControls.querySelector('.usage-tracker-btn');
+    if (firstUsageBtn instanceof HTMLElement) {
+        firstUsageBtn.style.backgroundColor = '#005a9e';
+        firstUsageBtn.style.fontWeight = '600';
     }
-}
+    
+    // ========================================================================
+    // DeleteAssetButton Section
+    // ========================================================================
+    
+    const deleteButtonSection = document.createElement('div');
+    deleteButtonSection.style.cssText = 'margin-bottom: 40px;';
+    
+    const deleteButtonControls = document.createElement('div');
+    deleteButtonControls.style.cssText = `
+        padding: 20px;
+        background-color: #f0f0f0;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+    `;
+    
+    const deleteButtonTitle = document.createElement('h2');
+    deleteButtonTitle.textContent = 'DeleteAssetButton Test Environment';
+    deleteButtonTitle.style.cssText = 'margin: 0 0 16px 0; color: #333;';
+    deleteButtonControls.appendChild(deleteButtonTitle);
+    
+    const deleteButtonDescription = document.createElement('p');
+    deleteButtonDescription.textContent = 'Test delete confirmation dialog with different usage scenarios:';
+    deleteButtonDescription.style.cssText = 'margin: 0 0 16px 0; color: #666;';
+    deleteButtonControls.appendChild(deleteButtonDescription);
+    
+    const modalWrapper = document.createElement('div');
+    modalWrapper.style.cssText = `
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        max-width: 600px;
+        margin: 0 auto;
+    `;
+    
+    const deleteButtonContainer = document.createElement('div');
+    deleteButtonContainer.id = 'delete-asset-button-container';
+          // Add modal header HTML
+    const modalHeader = document.createElement('div');
+    modalHeader.innerHTML = `
+        <h2 id="Delete">
+            <div>
+                <div>Delete</div>
+            </div>
+        </h2>
+    `;
+    modalWrapper.appendChild(modalHeader);
+    modalWrapper.appendChild(deleteButtonContainer);
+    
+    const deleteButton = createDeleteAssetButton(deleteButtonContainer);
+    
+  
 
+    deleteButtonScenarios.forEach((scenario) => {
+        const button = document.createElement('button');
+        button.textContent = scenario.name;
+        button.className = 'delete-btn';
+        button.style.cssText = `
+            margin: 5px 10px 5px 0;
+            padding: 10px 16px;
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        `;
+        
+        button.addEventListener('mouseenter', () => {
+            button.style.backgroundColor = '#106ebe';
+        });
+        button.addEventListener('mouseleave', () => {
+            const isActive = button.style.fontWeight === '600';
+            button.style.backgroundColor = isActive ? '#005a9e' : '#0078d4';
+        });
+        
+        button.addEventListener('click', () => {
+            console.log(`DeleteAssetButton - Testing scenario: ${scenario.name}`);
+            
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                if (btn instanceof HTMLElement) {
+                    btn.style.backgroundColor = '#0078d4';
+                    btn.style.fontWeight = '500';
+                }
+            });
+            button.style.backgroundColor = '#005a9e';
+            button.style.fontWeight = '600';
+            
+            try {
+                deleteButton.render({ 
+                    client: mockClient,
+                    options: { entityId: scenario.entityId },
+                    entity: scenario.entity
+                });
+                console.log(`DeleteAssetButton - Successfully rendered: ${scenario.name}`);
+            } catch (error) {
+                console.error(`DeleteAssetButton - Error rendering: ${scenario.name}`, error);
+            }
+        });
+        
+        deleteButtonControls.appendChild(button);
+    });
+    
+
+    deleteButtonSection.appendChild(deleteButtonControls);
+    deleteButtonSection.appendChild(modalWrapper);
+    appContainer.appendChild(deleteButtonSection);
+    
+    // Load first scenario by default
+    deleteButton.render({ 
+        client: mockClient,
+        options: { entityId: deleteButtonScenarios[0].entityId },
+        entity: deleteButtonScenarios[0].entity
+    });
+    const firstDeleteBtn = deleteButtonControls.querySelector('.delete-btn');
+    if (firstDeleteBtn instanceof HTMLElement) {
+        firstDeleteBtn.style.backgroundColor = '#005a9e';
+        firstDeleteBtn.style.fontWeight = '600';
+    }
+    
+    console.log('Main - Test environment setup complete');
+}
