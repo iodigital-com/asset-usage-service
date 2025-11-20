@@ -13,8 +13,10 @@ namespace iO.Sitecore.Publishing.Services
         private const string RichTextFieldType = "rich text";
         private const string ThumbnailSourceAttribute = "thumbnailsrc";
         private const string GatewayUrlPattern = @"/api/gateway/(\d+)/";
+
         private static readonly Regex GatewayIdRegex = new Regex(GatewayUrlPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static readonly Regex ImgSrcRegex = new Regex(@"<img[^>]+src=""([^""]+)""", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ImageSourceRegex = new Regex(@"<img[^>]+src=""([^""]+)""", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private readonly PublishLoggingService _loggingService;
 
         public AssetExtractionService(PublishLoggingService loggingService)
@@ -27,14 +29,19 @@ namespace iO.Sitecore.Publishing.Services
             return ExtractFromFields(item, ProcessAssetIdField, exception => _loggingService.LogExtractAssetIdsError(item.Paths.FullPath, exception));
         }
 
+        public List<string> ExtractPublicLinksFromAnyField(Item item)
+        {
+            return ExtractFromFields(item, ExtractPublicLinkFromAnyField, exception => _loggingService.LogExtractPublicLinkError(item.Paths.FullPath, exception));
+        }
+
         public List<string> ExtractPublicLinks(Item item)
         {
-            return ExtractFromFields(item, ProcessPublicLinkField, exception => _loggingService.LogExtractPublicLinkError(item.Paths.FullPath, exception));
+            return ExtractFromFields(item, ProcessPublicLinkFieldForRichText, exception => _loggingService.LogExtractPublicLinkError(item.Paths.FullPath, exception));
         }
 
         private List<string> ExtractFromFields(Item item, Action<Field, HashSet<string>> fieldProcessor, Action<Exception> errorLogger)
         {
-            var resultSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var extractedValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             try
             {
@@ -45,7 +52,7 @@ namespace iO.Sitecore.Publishing.Services
                     if (string.IsNullOrEmpty(field?.Value))
                         continue;
 
-                    fieldProcessor(field, resultSet);
+                    fieldProcessor(field, extractedValues);
                 }
             }
             catch (Exception exception)
@@ -53,80 +60,114 @@ namespace iO.Sitecore.Publishing.Services
                 errorLogger(exception);
             }
 
-            return resultSet.ToList();
+            return extractedValues.ToList();
         }
 
-        private void ProcessAssetIdField(Field field, HashSet<string> resultSet)
+        private void ProcessAssetIdField(Field field, HashSet<string> extractedAssetIds)
         {
             var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
 
             if (fieldTypeKey == ImageFieldType)
             {
                 var imageField = (ImageField)field;
-                var thumbnailSrc = imageField.GetAttribute(ThumbnailSourceAttribute);
+                var thumbnailSourceUrl = imageField.GetAttribute(ThumbnailSourceAttribute);
 
-                ExtractIdsFromUrl(resultSet, thumbnailSrc);
+                ExtractGatewayIdsFromUrl(extractedAssetIds, thumbnailSourceUrl);
             }
         }
 
-        private void ProcessPublicLinkField(Field field, HashSet<string> resultSet)
+        private void ProcessPublicLinkFieldForRichText(Field field, HashSet<string> extractedPublicLinks)
         {
             var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
 
             if (fieldTypeKey == RichTextFieldType)
             {
-                var richTextContent = field.InheritedValue;
-                if (string.IsNullOrWhiteSpace(richTextContent))
-                {
-                    richTextContent = field.Value;
-                }
+                ExtractPublicLinkFromAnyField(field, extractedPublicLinks);
+            }
+        }
+
+        private void ExtractPublicLinkFromAnyField(Field field, HashSet<string> extractedPublicLinks)
+        {
+            if (field == null || string.IsNullOrWhiteSpace(field.Value))
+                return;
+
+            var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
+
+            if (fieldTypeKey == ImageFieldType)
+            {
+                var imageField = (ImageField)field;
+                var thumbnailSourceUrl = imageField.GetAttribute(ThumbnailSourceAttribute);
+
+                AddValueIfNotEmpty(extractedPublicLinks, thumbnailSourceUrl);
+                _loggingService.LogAssetIdExtractedFromUrl(thumbnailSourceUrl, $"Image field: {field.Name}");
+                return;
+            }
+
+            if (fieldTypeKey == RichTextFieldType)
+            {
+                var richTextContent = field.InheritedValue ?? field.Value;
 
                 if (!string.IsNullOrWhiteSpace(richTextContent))
                 {
-                    ExtractImageUrlsFromHtml(resultSet, richTextContent);
+                    ExtractImageUrlsFromHtmlContent(extractedPublicLinks, richTextContent);
                 }
+                return;
             }
-        }
 
-        private void ExtractImageUrlsFromHtml(HashSet<string> sink, string htmlContent)
-        {
-            var matches = ImgSrcRegex.Matches(htmlContent);
+            var fieldValue = field.Value?.Trim();
 
-            foreach (Match match in matches)
+            if (!string.IsNullOrWhiteSpace(fieldValue) && IsValidUrl(fieldValue))
             {
-                if (match.Success && match.Groups.Count > 1)
+                AddValueIfNotEmpty(extractedPublicLinks, fieldValue);
+                _loggingService.LogAssetIdExtractedFromUrl(fieldValue, $"Field: {field.Name}");
+            }
+        }
+
+        private void ExtractImageUrlsFromHtmlContent(HashSet<string> extractedUrls, string htmlContent)
+        {
+            var imageSourceMatches = ImageSourceRegex.Matches(htmlContent);
+
+            foreach (Match imageMatch in imageSourceMatches)
+            {
+                if (imageMatch.Success && imageMatch.Groups.Count > 1)
                 {
-                    var imageUrl = match.Groups[1].Value;
-                    AddIfNotEmpty(sink, imageUrl);
+                    var imageUrl = imageMatch.Groups[1].Value;
+                    AddValueIfNotEmpty(extractedUrls, imageUrl);
                 }
             }
         }
 
-        private void AddIfNotEmpty(HashSet<string> sink, string value)
+        private void AddValueIfNotEmpty(HashSet<string> targetCollection, string value)
         {
             var trimmedValue = value?.Trim();
 
             if (!string.IsNullOrWhiteSpace(trimmedValue))
             {
-                sink.Add(trimmedValue);
+                targetCollection.Add(trimmedValue);
                 _loggingService.LogAssetIdAdded(trimmedValue);
             }
         }
 
-        private void ExtractIdsFromUrl(HashSet<string> sink, string url)
+        private void ExtractGatewayIdsFromUrl(HashSet<string> extractedIds, string url)
         {
             if (string.IsNullOrWhiteSpace(url))
                 return;
 
-            var urlMatch = GatewayIdRegex.Match(url);
+            var gatewayIdMatch = GatewayIdRegex.Match(url);
 
-            if (urlMatch.Success && urlMatch.Groups.Count > 1)
+            if (gatewayIdMatch.Success && gatewayIdMatch.Groups.Count > 1)
             {
-                var gatewayIdValue = urlMatch.Groups[1].Value;
+                var gatewayId = gatewayIdMatch.Groups[1].Value;
 
-                AddIfNotEmpty(sink, gatewayIdValue);
-                _loggingService.LogAssetIdExtractedFromUrl(gatewayIdValue, url);
+                AddValueIfNotEmpty(extractedIds, gatewayId);
+                _loggingService.LogAssetIdExtractedFromUrl(gatewayId, url);
             }
+        }
+
+        private bool IsValidUrl(string value)
+        {
+            return value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                   value.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         }
     }
 }
