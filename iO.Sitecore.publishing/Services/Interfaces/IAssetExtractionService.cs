@@ -7,5 +7,6 @@ namespace iO.Sitecore.Publishing.Services
     {
         List<string> ExtractAssetIds(Item item);
         List<string> ExtractPublicLinks(Item item);
+        List<string> ExtractPublicLinksFromAnyField(Item item);
     }
 }
