@@ -18,15 +18,18 @@ namespace iO.Sitecore.Publishing.Services
 
         public static void Reset()
         {
-            IsRunning = false;
-            TotalItems = 0;
-            ProcessedItems = 0;
-            SuccessCount = 0;
-            FailureCount = 0;
-            CurrentItem = string.Empty;
-            ErrorMessage = string.Empty;
-            StartTime = null;
-            EndTime = null;
+            lock (_lock)
+            {
+                IsRunning = false;
+                TotalItems = 0;
+                ProcessedItems = 0;
+                SuccessCount = 0;
+                FailureCount = 0;
+                CurrentItem = string.Empty;
+                ErrorMessage = string.Empty;
+                StartTime = null;
+                EndTime = null;
+            }
         }
 
         public static int ProgressPercentage
