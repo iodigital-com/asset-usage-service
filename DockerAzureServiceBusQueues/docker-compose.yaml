@@ -1,0 +1,25 @@
+services:
+  servicebus-emulator:
+    container_name: "contenthub-servicebus-emulator"
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    restart: unless-stopped
+    volumes:
+      - "${CONFIG_PATH}:/ServiceBus_Emulator/ConfigFiles/Config.json"
+    ports:
+      - "5672:5672"   # AMQP
+      - "5671:5671"   # AMQP with TLS
+    environment:
+      ACCEPT_EULA: "Y"
+      SERVICEBUS_ACCEPT_EULA: "Y"
+    networks:
+      - contenthub-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5672"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  contenthub-network:
+    driver: bridge
