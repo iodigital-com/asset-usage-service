@@ -13,7 +13,8 @@ A microservice for tracking and managing relationships between items and digital
 - [Data Model](#data-model)
 - [API Endpoints](#api-endpoints)
 - [Integration Points](#integration-points)
-- [React Component Setup](#setting-up-the-react-component)
+- [ContentHub settings](#content-hub-settings)
+- [Contenthub React Component Setup](#content-hub-react-components-setup)
 - [Development Setup](#development-setup)
 - [Deployment](#deployment)
 - [Testing](#testing)
@@ -769,12 +770,6 @@ Document structure in MongoDB:
 - **createdAt**: Timestamp when the relationship was first created (UTC)
 - **updatedAt**: Timestamp of the last update to asset relationships (UTC)
 
-#### Indexes
-
-```javascript
-db.AssetItemLinks.createIndex({ "assetIds": 1 })
-db.AssetItemLinks.createIndex({ "updatedAt": -1, "createdAt": -1 })
-```
 
 ## API Endpoints
 
@@ -881,8 +876,8 @@ public interface IAssetItemLinkRepository
 The `ContentHubConnectionService` manages authentication and connectivity:
 
 ```csharp
-var client = await apiGateway.GetContentHubClientAsync();
-var isReachable = await apiGateway.IsContentHubReachableAsync();
+var client = await contentHubConnectionService.GetContentHubClientAsync();
+var isReachable = await contentHubConnectionService.IsContentHubReachableAsync();
 ```
 
 ## Development Setup
@@ -923,79 +918,316 @@ func start
 - Update `AssetUsageService.ApiEndpoint` to point to your local function
 - Restart Sitecore
 
- ## Setting up the React Component
 
-This guide will show you how to add the React component to your Content Hub instance.
+## Content Hub settings 
+This configuration is required for the Asset Tracking microservice to securely connect to Sitecore Content Hub and update asset usage data.  
+Without this setup, the microservice cannot authenticate safely and modify usage tracking information.
 
-### Prerequisites
+This section explains how to:
+1. Create a minimal-permission service user
+2. Assign permissions via a custom user group
+3. Create an OAuth client (Client Credentials flow)
+4. Extend the M.Asset schema with a secured JSON field
+5. Apply read/write member-level security
 
-- Access to the asset-usage-service project folder
-- Node.js and npm installed
-- Admin access to your Content Hub instance
-- Your Sitecore XP URL
+---
 
-### Installation Steps
+### 1. Create Service User (Minimal Required Permissions)
 
-#### 1. Install Dependencies
+#### 1.1 Create the User
+1. Log in to Sitecore Content Hub.
+2. Navigate: Manage > Users.
+3. Click User to open the user list.
+4. Click + User.
+5. Enter a username (example: asset-service-user).
+6. Click Save.
+7. Click Edit profile and add a valid Email.
+8. Open the email inbox and complete verification.
+9. After verifying, use the reset password link to set an initial password.
 
-Open your terminal and navigate to the component directory:
+#### 1.2 Create a User Group
+1. Navigate: Manage > Users > User groups.
+2. Click + Usergroup.
+3. Fill in:
+   - Name: Asset Editors Service (example)
+   - Modules: Media (or required module granting asset access)
+4. Click the User field + button.
+5. Search and add asset-service-user.
+6. Click Save.
 
+#### 1.3 Configure User Group Policy
+1. From the User groups overview, locate the newly created group.
+2. Click Policies on that group.
+3. Click New rule.
+4. Entity Definition: select M.Asset.
+5. Permissions (check only what you need):
+   - Read
+   - Create
+   - Update
+   - AddVersion
+   - ReadPublicLinks
+   - Delete (only if deletion is required; omit if not)
+6. (Optional) Add conditions to restrict scope (e.g., folder, metadata).
+7. Click Save.
+
+#### 1.4 Verify Group Memberships
+1. Go to Manage > Users.
+2. Open asset-service-user.
+3. Go to the User groups tab.
+4. Ensure membership includes:
+   - Everyone (usually automatic)
+   - Asset Editors Service
+5. Click Save.
+
+#### 1.5 Test With Impersonation
+1. Open the user details for asset-service-user.
+2. Click Impersonate.
+3. Verify:
+   - Can view assets.
+   - Can edit or create assets (as per granted permissions).
+   - Does not have access to administrative modules beyond scope.
+4. Click Stop impersonating to return.
+
+---
+
+### 2. Create OAuth Client (Client Credentials Flow)
+
+#### 2.1 Create OAuth Client
+1. Navigate: Manage > OAuth clients.
+2. Click OAuth client.
+3. Fill in:
+   - Name: Asset Service Client
+   - Client ID: asset-service-client
+   - Client Secret: (generate a strong secret; copy it immediately)
+   - Redirect URL: https://localhost/ (placeholder; not used for client credentials)
+   - Type: Client Credentials
+   - User: select asset-service-user
+4. Click Save.
+
+Important:
+- You will not be able to retrieve the Client Secret later. Store it safely.
+
+---
+
+### 3. Extend M.Asset Schema With a Secured JSON Property
+
+Goal: Add a JSON property (UsageTracking) that is readable by all but writable only by a designated group/service user.
+
+#### 3.1 Open Schema
+1. Navigate: Manage > Schema.
+
+#### 3.2 Locate M.Asset
+1. Use search: M.Asset.
+2. Select M.Asset.
+
+#### 3.3 Create a Member Group
+1. Click New group.
+2. Name: UsageTracking (!important to keep it UsageTracking or the react interface wont notice it).
+3. Click Save.
+
+#### 3.4 Add a New Property Member
+1. Inside the group, click New member.
+2. In the New member dialog:
+   - Next to Property click Select.
+   - Choose Data type: JSON.
+3. Click Next and configure:
+   - Name: UsageTracking (!important to keep it UsageTracking or the react interface wont notice it).
+   - Allow Updates: checked
+   - Secured: checked
+4. Click Save.
+
+---
+
+### 4. Member-Level Security: Read Access for Everyone
+
+Goal: All users can view the field; only specific group can modify.
+
+1. Navigate: Manage > Users > User groups.
+2. Open Everyone.
+3. Click Policies.
+4. Go to Member security tab.
+5. Definitions: select M.Asset.
+6. Member groups: select UsageTracking.
+7. Members: find property UsageTracking.
+8. Check only Read.
+9. Click Save.
+
+---
+
+### 5. Member-Level Security: Write Access for Service Group
+
+1. Navigate: Manage > Users > User groups.
+2. Open the Asset Editors Service.
+3. Click Policies.
+4. Go to Member security tab.
+5. Definitions: select M.Asset.
+6. Member groups: select UsageTracking.
+7. Members: select UsageTracking property.
+8. Check Read and Write.
+9. Click Save.
+
+---
+
+### 6. Result Verification
+
+Expected outcome:
+- Everyone: can see UsageTracking (read-only).
+- Asset Editors Service (and impersonated service user): can read and update UsageTracking.
+- The property appears under the UsageTracking member group on M.Asset entities.
+
+---
+
+### 7. Troubleshooting
+
+| Symptom | Cause | Resolution |
+|---------|-------|-----------|
+| Property not visible | Member group security misconfiguration | Re-check Everyone group member security (Read) |
+| Cannot update property as service user | Missing Write at member level | Verify Asset Editors Service policy member security |
+| OAuth calls fail (401) | Wrong client secret or user missing permissions | Recreate secret or adjust user group permissions |
+
+---
+
+### Summary
+
+You have:
+- A scoped service user with only necessary asset permissions.
+- An OAuth client using Client Credentials tied to that user.
+- A secured JSON property on M.Asset with controlled read/write access.
+- A foundation for storing and exposing asset usage metadata safely.
+
+## Content Hub React Components Setup
+
+This section describes how to add the usage insights and the custom delete Modal component to the asset details page:
+1. Asset Usage Tracker (shows which Sitecore CMS items use the asset)
+2. Custom Delete Modal (replaces the default delete action and performs usage checks)
+
+---
+
+### Asset Usage Tracker
+
+#### Requirements
+- Access to project: `asset-usage-service/contenthubtrackingcomponent`
+- Node.js + npm installed
+- Manage permissions in Content Hub
+- Your Sitecore XP base URL (for `CMS_BASE_URL` constant)
+
+#### Build & Configure
+1. Install dependencies and navigate into the component folder:
+   ```bash
+   cd asset-usage-service/contenthubtrackingcomponent
+   npm install
+   ```
+2. Open `src/AssetUsageTracker.tsx`.
+3. Replace the constant `CMS_BASE_URL` with your Sitecore XP URL.
+4. Save the file.
+5. Build:
+   ```bash
+   npm run build:usageTracking
+   ```
+6. Result: `dist/AssetUsageTracker.js`.
+
+#### Upload to Content Hub
+1. Log in to your contenthub instance.
+2. Go to: Manage → Portal assets.
+3. Upload `dist/AssetUsageTracker.js`.
+4. Click Profile picture → Background processes and wait until the job status is Success.
+
+#### Add to Asset Details Page
+1. Navigate to: Manage → Pages → Asset details.
+2. Click + Component where you want it.
+3. Search for External → Add.
+4. Configure:
+   - Title: `AssetUsageTracker`
+   - Visible: on
+   - JS bundle: From asset → + → select `AssetUsageTracker.js` → Save
+5. Save the page (top-right).
+
+#### Verification
+The component loads without errors and displays usage information on the asset details page.
+
+---
+
+### Custom Delete Modal (External Component Action)
+
+#### Requirements
+- Access to project: `asset-usage-service/contenthubtrackingcomponent`
+- Node.js + npm
+- Manage permissions in Content Hub
+
+#### Build
 ```bash
-cd asset-usage-service/contenthubtrackingcomponent
-npm install
+npm run build:deleteModal
 ```
+Result: `dist/DeleteAssetButton.js`.
 
-#### 2. Configure the Component
+#### Upload to Content Hub
+1. Log in.
+2. Manage → Portal assets → Upload `dist/DeleteAssetButton.js`.
+3. Profile picture → Background processes → wait for Success.
 
-1. Open the file `src/AssetUsageTracker.tsx` in your preferred editor
-2. Replace the constant `CMS_BASE_URL` with your Sitecore XP URL
-3. Save the file
+#### Configure on Asset Details Page
+1. Manage → Pages → Asset details.
+2. Locate component: Entity operations → click the user icon.
+3. Click on the Etity operations
+3. Add operation → External component action.
+4. Remove the existing native Delete operation:
+   - Click the X next to the current Delete.
+   - Confirm Remove.
+5. Drag the new external operation to Secondary operations.
+6. Click it to configure.
 
-#### 3. Build the Component
+#### Display Settings
+1. Choose a trash/bin icon.
+2. Set Label: `Delete`.
+3. Save component.
 
-Run the build command:
+#### Operation Settings
+1. Source: From asset (or From entity if named that way in your environment).
+2. JS bundle: + → select `DeleteAssetButton.js` → Save.
 
-```bash
-npm run build
-```
+#### Permissions
+1. Add permission: `Delete`.
+2. Save the page (top-right).
 
-This will generate an `AssetUsageTracker.js` file in the `dist` folder.
+#### Verification
+1. Open an asset that is referenced/used in the CMS.
+2. Open the context menu (three dots) → Delete.
+3. Modal should appear showing:
+   - A confirmation checkbox.
+   - A message indicating the asset is used in X items.
 
-#### 4. Upload to Content Hub
+If both appear, the external delete component is working.
 
-1. Log in to your Content Hub instance
-2. Navigate to **Manage** (settings icon)
-3. Go to the **Portal assets** page
-4. Click **Upload file** and upload the `AssetUsageTracker.js` file from the `dist` folder
+---
 
-#### 5. Wait for Processing
+### Common Issues
 
-1. Click on your profile picture
-2. Open **Background processes**
-3. Refresh the page and wait until the upload job is processed
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| JS bundle not listed | Upload not processed yet | Wait for Success in Background processes |
+| Delete action not visible | Missing permission | Ensure your role has Delete for the asset type |
 
-#### 6. Add Component to Asset Details Page
+---
 
-1. Go to **Manage** → **Pages**
-2. Select the **Asset details** page
-3. Click **+ Component** where you want to add the component
-4. In the "Add component" popup, search for **External**
-5. Click **Add**
+### Quick Reference
 
-#### 7. Configure the Component
+| Action | Command / Location |
+|--------|--------------------|
+| Build usage tracking component | `npm run build:usageTracking` |
+| Build delete modal component | `npm run build:deleteModal` |
+| Usage bundle path | `dist/AssetUsageTracker.js` |
+| Delete bundle path | `dist/DeleteAssetButton.js` |
+| Upload location | Manage → Portal assets |
+| Attach bundle | Component / Operation → JS bundle → From asset |
 
-1. Give it a title (e.g., "AssetUsageTracker")
-2. Turn the **Visible** switch **on**
-3. Click on the component you just added
-4. Under **JS bundle**, select **From asset**
-5. Click the **+** icon
-6. Search for the `AssetUsageTracker.js` file
-7. Select it and click **Save**
-8. Click **Save** in the upper right corner of the page
+---
 
-### Verification
+### Summary
+You now have:
+- An Asset Usage Tracker component that displays Sitecore usage relationships.
+- A Custom Delete Modal that conditionally allows deletion and surfaces usage details.
 
-The Asset Usage Tracker component should now be visible on your Asset details page and ready to use.
+Both are managed as external JS assets in Content Hub and can be updated independently by rebuilding and re-uploading the corresponding bundle.
 
 ## Deployment
 
