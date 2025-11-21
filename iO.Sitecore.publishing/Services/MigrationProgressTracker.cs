@@ -4,6 +4,8 @@ namespace iO.Sitecore.Publishing.Services
 {
     public static class MigrationProgressTracker
     {
+        private static readonly object _lock = new object();
+        
         public static bool IsRunning { get; set; }
         public static int TotalItems { get; set; }
         public static int ProcessedItems { get; set; }
@@ -31,10 +33,13 @@ namespace iO.Sitecore.Publishing.Services
         {
             get
             {
-                // Read values atomically to avoid race conditions
-                var total = TotalItems;
-                var processed = ProcessedItems;
-                return total > 0 ? (int)((double)processed / total * 100) : 0;
+                lock (_lock)
+                {
+                    // Read values atomically to avoid race conditions
+                    var total = TotalItems;
+                    var processed = ProcessedItems;
+                    return total > 0 ? (int)((double)processed / total * 100) : 0;
+                }
             }
         }
     }
