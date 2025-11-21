@@ -82,10 +82,11 @@ namespace iO.Sitecore.Publishing.Services
             {
                 MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
                 MigrationProgressTracker.TotalItems++;
+                MigrationProgressTracker.ProcessedItems++;
 
                 try
                 {
-                    await SendItemToAssetUsageServiceAsync(item);
+                    await SendItemToAssetUsageServiceAsync(item).ConfigureAwait(false);
                     MigrationProgressTracker.SuccessCount++;
                 }
                 catch (Exception exception)
@@ -93,8 +94,6 @@ namespace iO.Sitecore.Publishing.Services
                     Log.Error($"[InitialItemAssetLinkService] Failed to process item {item.Paths.FullPath}", exception, this);
                     MigrationProgressTracker.FailureCount++;
                 }
-
-                MigrationProgressTracker.ProcessedItems++;
             }
 
             // Process children recursively
@@ -102,7 +101,7 @@ namespace iO.Sitecore.Publishing.Services
             {
                 foreach (Item child in item.Children)
                 {
-                    processedCount += await ProcessItemTreeRecursivelyAsync(child);
+                    processedCount += await ProcessItemTreeRecursivelyAsync(child).ConfigureAwait(false);
                 }
             }
 
