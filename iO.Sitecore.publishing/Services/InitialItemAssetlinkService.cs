@@ -52,7 +52,7 @@ namespace iO.Sitecore.Publishing.Services
                     throw new InvalidOperationException("Root item not found in web database.");
                 }
 
-                // Process items recursively to avoid loading all descendants into memory
+                // Process items iteratively using queue-based traversal to avoid loading all descendants into memory
                 await ProcessItemTreeRecursivelyAsync(rootItem);
 
                 Log.Info($"[InitialItemAssetLinkService] Migration completed: {MigrationProgressTracker.SuccessCount} successful, {MigrationProgressTracker.FailureCount} failed", this);
@@ -111,7 +111,7 @@ namespace iO.Sitecore.Publishing.Services
             {
                 var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyField(item);
 
-                // Only process items that have Content Hub links
+                // Process items with Content Hub links, or all items if endpoint not configured
                 if (string.IsNullOrWhiteSpace(_contentHubEndpoint) || HasContentHubLinks(publicLinks, _contentHubEndpoint))
                 {
                     MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
