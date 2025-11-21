@@ -99,7 +99,7 @@ namespace iO.Sitecore.Publishing.Services
                 var thumbnailSourceUrl = imageField.GetAttribute(ThumbnailSourceAttribute);
 
                 AddValueIfNotEmpty(extractedPublicLinks, thumbnailSourceUrl);
-                _loggingService.LogAssetIdExtractedFromUrl(thumbnailSourceUrl, $"Image field: {field.Name}");
+                // _loggingService.LogAssetIdExtractedFromUrl(thumbnailSourceUrl, $"Image field: {field.Name}");
                 return;
             }
 
