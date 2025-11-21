@@ -1194,7 +1194,7 @@ public class MigrationHandler : IHttpHandler
 
 #### 2. Update AssetUsageService.config
 
-Add the ContentHub endpoint setting to your existing `AssetUsageService.config`:
+Add the ContentHub endpoint setting to your existing `AssetUsageService.config` (inside C:\inetpub\wwwroot\[YOUR_SITECORE_INSTANCE]\App_Config\Include :
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
