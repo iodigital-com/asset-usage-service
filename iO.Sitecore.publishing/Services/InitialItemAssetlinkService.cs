@@ -49,13 +49,22 @@ namespace iO.Sitecore.Publishing.Services
 
                 if (rootItem == null)
                 {
-                    throw new InvalidOperationException("Root item not found in web database.");
+                    MigrationProgressTracker.ErrorMessage = "Root item not found in web database.";
+                    Log.Error("[InitialItemAssetLinkService] Root item not found in web database.", this);
+                    return;
                 }
 
                 var totalItemCount = CountItemsInTree(rootItem);
                 MigrationProgressTracker.TotalItems = totalItemCount;
-                
+
                 Log.Info($"[InitialItemAssetLinkService] Found {totalItemCount} total items to scan", this);
+
+                if (totalItemCount == 0)
+                {
+                    MigrationProgressTracker.ErrorMessage = "No items found in web database.";
+                    Log.Warn("[InitialItemAssetLinkService] No items found in web database.", this);
+                    return;
+                }
 
                 await ProcessItemTreeRecursivelyAsync(rootItem);
 
@@ -70,7 +79,6 @@ namespace iO.Sitecore.Publishing.Services
             {
                 Log.Error("[InitialItemAssetLinkService] Migration failed", exception, this);
                 MigrationProgressTracker.ErrorMessage = exception.Message;
-                throw;
             }
             finally
             {
@@ -93,6 +101,11 @@ namespace iO.Sitecore.Publishing.Services
             while (queue.Count > 0)
             {
                 var currentItem = queue.Dequeue();
+                if (currentItem == null)
+                {
+                    continue;
+                }
+
                 count++;
 
                 var children = currentItem.GetChildren();
@@ -100,7 +113,10 @@ namespace iO.Sitecore.Publishing.Services
                 {
                     foreach (Item child in children)
                     {
-                        queue.Enqueue(child);
+                        if (child != null)
+                        {
+                            queue.Enqueue(child);
+                        }
                     }
                 }
             }
@@ -121,7 +137,11 @@ namespace iO.Sitecore.Publishing.Services
             while (queue.Count > 0)
             {
                 var currentItem = queue.Dequeue();
-                
+                if (currentItem == null)
+                {
+                    continue;
+                }
+
                 await ProcessSingleItemAsync(currentItem);
 
                 var children = currentItem.GetChildren();
@@ -129,7 +149,10 @@ namespace iO.Sitecore.Publishing.Services
                 {
                     foreach (Item child in children)
                     {
-                        queue.Enqueue(child);
+                        if (child != null)
+                        {
+                            queue.Enqueue(child);
+                        }
                     }
                 }
             }
@@ -137,11 +160,29 @@ namespace iO.Sitecore.Publishing.Services
 
         private async Task ProcessSingleItemAsync(Item item)
         {
+            if (item == null)
+            {
+                return;
+            }
+
+            if (item.Paths == null || string.IsNullOrWhiteSpace(item.Paths.FullPath))
+            {
+                Log.Warn("[InitialItemAssetLinkService] Item has invalid path, skipping", this);
+                MigrationProgressTracker.ProcessedItems++;
+                return;
+            }
+
             MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
-            
+
             try
             {
                 var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyField(item);
+
+                if ((publicLinks == null || publicLinks.Count == 0) && !string.IsNullOrWhiteSpace(_contentHubEndpoint))
+                {
+                    MigrationProgressTracker.ProcessedItems++;
+                    return;
+                }
 
                 if (string.IsNullOrWhiteSpace(_contentHubEndpoint) || HasContentHubLinks(publicLinks, _contentHubEndpoint))
                 {
@@ -156,7 +197,7 @@ namespace iO.Sitecore.Publishing.Services
                         MigrationProgressTracker.FailureCount++;
                     }
                 }
-                
+
                 MigrationProgressTracker.ProcessedItems++;
             }
             catch (Exception ex)
@@ -173,6 +214,11 @@ namespace iO.Sitecore.Publishing.Services
                 return false;
             }
 
+            if (string.IsNullOrWhiteSpace(contentHubEndpoint))
+            {
+                return false;
+            }
+
             return publicLinks.Any(link =>
                 !string.IsNullOrWhiteSpace(link) &&
                 link.IndexOf(contentHubEndpoint, StringComparison.OrdinalIgnoreCase) >= 0);
@@ -180,20 +226,31 @@ namespace iO.Sitecore.Publishing.Services
 
         private async Task SendItemToAssetUsageServiceAsync(Item item)
         {
+            if (item == null)
+            {
+                return;
+            }
+
             var assetIds = _assetExtractionService.ExtractAssetIds(item);
             var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyField(item);
 
+            if ((assetIds == null || assetIds.Count == 0) && (publicLinks == null || publicLinks.Count == 0))
+            {
+                Log.Info($"[InitialItemAssetLinkService] No asset IDs or public links found for item {item.Paths.FullPath}, skipping send", this);
+                return;
+            }
+
             var payload = new AssetUsageEvent
             {
-                PublicLinks = publicLinks,
+                PublicLinks = publicLinks ?? new List<string>(),
                 ItemId = item.ID.ToString(),
                 ItemPath = item.Paths.FullPath,
                 ItemName = item.Name,
                 TemplateName = item.TemplateName,
-                Language = item.Language.Name,
-                Version = item.Version.Number,
+                Language = item.Language?.Name ?? string.Empty,
+                Version = item.Version?.Number ?? 0,
                 PublishedAtUtc = DateTime.UtcNow,
-                AssetIds = assetIds,
+                AssetIds = assetIds ?? new List<string>(),
                 TargetDatabase = "web"
             };
 
