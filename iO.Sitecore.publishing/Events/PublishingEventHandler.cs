@@ -1,4 +1,5 @@
-﻿using iO.Sitecore.Publishing.Services;
+﻿using iO.Sitecore.Publishing.Events;
+using iO.Sitecore.Publishing.Services;
 using Sitecore.Configuration;
 using Sitecore.Data.Events;
 using Sitecore.Diagnostics;
@@ -97,9 +98,9 @@ namespace iO.Sitecore.Publishing.Events
                     Log.Info("PublishEventHandler.GetTelemetryService: Telemetry service initialized successfully.", this);
                     return _telemetryService;
                 }
-                catch (Exception ex)
+                catch (Exception exception)
                 {
-                    Log.Error("PublishEventHandler.GetTelemetryService: Failed to initialize telemetry service.", ex, this);
+                    Log.Error("PublishEventHandler.GetTelemetryService: Failed to initialize telemetry service.", exception, this);
                     return null;
                 }
             }
