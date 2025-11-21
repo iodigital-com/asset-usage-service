@@ -16,7 +16,7 @@ namespace iO.Sitecore.Publishing.Services
         private const int BatchSize = 500;
         private readonly Database _webDatabase;
         private readonly AssetUsageServiceClient _client;
-        private readonly AssetExtractionService _assetExtractionService;
+        private readonly IAssetExtractionService _assetExtractionService;
         private readonly PublishLoggingService _loggingService;
         private const string ContentHubEndpoint = "AssetUsageService.ContentHubEndpoint";
 
