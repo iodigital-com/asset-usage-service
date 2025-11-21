@@ -90,9 +90,10 @@ namespace iO.Sitecore.Publishing.Services
         {
             get
             {
-                int total = Interlocked.CompareExchange(ref _totalItems, 0, 0);
-                int processed = Interlocked.CompareExchange(ref _processedItems, 0, 0);
-                return total > 0 ? (int)((double)processed / total * 100) : 0;
+                lock (_lock)
+                {
+                    return _totalItems > 0 ? (int)((double)_processedItems / _totalItems * 100) : 0;
+                }
             }
         }
     }
