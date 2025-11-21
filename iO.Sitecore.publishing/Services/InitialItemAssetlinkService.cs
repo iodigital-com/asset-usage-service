@@ -61,14 +61,15 @@ namespace iO.Sitecore.Publishing.Services
                 if (filteredItems.Count == 0)
                 {
                     MigrationProgressTracker.ErrorMessage = "No items with Content Hub links found";
-                    return;
                 }
+                else
+                {
+                    MigrationProgressTracker.TotalItems = filteredItems.Count;
 
-                MigrationProgressTracker.TotalItems = filteredItems.Count;
+                    await ProcessItemsInBatchesAsync(filteredItems);
 
-                await ProcessItemsInBatchesAsync(filteredItems);
-
-                Log.Info($"[InitialItemAssetLinkService] Migration completed: {MigrationProgressTracker.SuccessCount} successful, {MigrationProgressTracker.FailureCount} failed", this);
+                    Log.Info($"[InitialItemAssetLinkService] Migration completed: {MigrationProgressTracker.SuccessCount} successful, {MigrationProgressTracker.FailureCount} failed", this);
+                }
             }
             catch (Exception exception)
             {
