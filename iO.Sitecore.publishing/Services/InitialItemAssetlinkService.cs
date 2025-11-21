@@ -17,6 +17,7 @@ namespace iO.Sitecore.Publishing.Services
         private readonly AssetUsageServiceClient _client;
         private readonly AssetExtractionService _assetExtractionService;
         private readonly PublishLoggingService _loggingService;
+        private readonly string _contentHubEndpoint;
         private const string ContentHubEndpoint = "AssetUsageService.ContentHubEndpoint";
 
         public InitialItemAssetLinkService()
@@ -31,6 +32,7 @@ namespace iO.Sitecore.Publishing.Services
             _client = new AssetUsageServiceClient();
             _loggingService = new PublishLoggingService(this);
             _assetExtractionService = new AssetExtractionService(_loggingService);
+            _contentHubEndpoint = Settings.GetSetting(ContentHubEndpoint);
         }
 
         public async Task ExecuteMigrationAsync()
@@ -80,16 +82,25 @@ namespace iO.Sitecore.Publishing.Services
                 return;
             }
 
-            // Process current item
-            await ProcessSingleItemAsync(item);
+            // Use iterative approach with a queue to avoid stack overflow in deep content trees
+            var queue = new Queue<Item>();
+            queue.Enqueue(item);
 
-            // Process children recursively
-            var children = item.GetChildren();
-            if (children != null && children.Count > 0)
+            while (queue.Count > 0)
             {
-                foreach (Item child in children)
+                var currentItem = queue.Dequeue();
+                
+                // Process current item
+                await ProcessSingleItemAsync(currentItem);
+
+                // Add children to queue for processing
+                var children = currentItem.GetChildren();
+                if (children != null && children.Count > 0)
                 {
-                    await ProcessItemTreeRecursivelyAsync(child);
+                    foreach (Item child in children)
+                    {
+                        queue.Enqueue(child);
+                    }
                 }
             }
         }
@@ -98,11 +109,10 @@ namespace iO.Sitecore.Publishing.Services
         {
             try
             {
-                var contentHubEndpoint = Settings.GetSetting(ContentHubEndpoint);
                 var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyField(item);
 
                 // Only process items that have Content Hub links
-                if (string.IsNullOrWhiteSpace(contentHubEndpoint) || HasContentHubLinks(publicLinks, contentHubEndpoint))
+                if (string.IsNullOrWhiteSpace(_contentHubEndpoint) || HasContentHubLinks(publicLinks, _contentHubEndpoint))
                 {
                     MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
                     
