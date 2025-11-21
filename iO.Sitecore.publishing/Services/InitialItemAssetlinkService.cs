@@ -51,8 +51,7 @@ namespace iO.Sitecore.Publishing.Services
                 }
 
                 // Process items recursively instead of loading all at once
-                var totalItemsProcessed = 0;
-                await ProcessItemTreeRecursivelyAsync(rootItem, ref totalItemsProcessed);
+                var totalItemsProcessed = await ProcessItemTreeRecursivelyAsync(rootItem);
 
                 Log.Info($"[InitialItemAssetLinkService] Migration completed: {MigrationProgressTracker.SuccessCount} successful, {MigrationProgressTracker.FailureCount} failed (processed {totalItemsProcessed} total items)", this);
             }
@@ -69,14 +68,14 @@ namespace iO.Sitecore.Publishing.Services
             }
         }
 
-        private async Task ProcessItemTreeRecursivelyAsync(Item item, ref int totalItemsProcessed)
+        private async Task<int> ProcessItemTreeRecursivelyAsync(Item item)
         {
             if (item == null)
             {
-                return;
+                return 0;
             }
 
-            totalItemsProcessed++;
+            var processedCount = 1;
 
             // Process current item if it has Content Hub links
             if (ShouldProcessItem(item))
@@ -103,9 +102,11 @@ namespace iO.Sitecore.Publishing.Services
             {
                 foreach (Item child in item.Children)
                 {
-                    await ProcessItemTreeRecursivelyAsync(child, ref totalItemsProcessed);
+                    processedCount += await ProcessItemTreeRecursivelyAsync(child);
                 }
             }
+
+            return processedCount;
         }
 
         private bool ShouldProcessItem(Item item)
