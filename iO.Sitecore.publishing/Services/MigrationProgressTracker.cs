@@ -38,7 +38,8 @@ namespace iO.Sitecore.Publishing.Services
             {
                 lock (_lock)
                 {
-                    // Read values atomically to avoid race conditions
+                    // Lock ensures atomic read of both values to prevent race conditions
+                    // where TotalItems could change between check and division
                     var total = TotalItems;
                     var processed = ProcessedItems;
                     return total > 0 ? (int)((double)processed / total * 100) : 0;
