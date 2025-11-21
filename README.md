@@ -1224,7 +1224,7 @@ Place the following files in your Sitecore instance:
 using System;
 using System.Web;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
+using System.Text.Json;
 using iO.Sitecore.Publishing.Services;
 using Sitecore.Diagnostics;
 
@@ -1296,7 +1296,6 @@ public class MigrationHandler : IHttpHandler
             ? (MigrationProgressTracker.EndTime ?? DateTime.UtcNow) - MigrationProgressTracker.StartTime.Value
             : TimeSpan.Zero;
         
-        var serializer = new JavaScriptSerializer();
         var status = new
         {
             isRunning = MigrationProgressTracker.IsRunning,
@@ -1310,7 +1309,7 @@ public class MigrationHandler : IHttpHandler
             durationSeconds = (int)duration.TotalSeconds
         };
         
-        context.Response.Write(serializer.Serialize(status));
+        context.Response.Write(JsonSerializer.Serialize(status));
     }
     
     public bool IsReusable
