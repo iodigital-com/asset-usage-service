@@ -52,7 +52,11 @@ namespace iO.Sitecore.Publishing.Services
                     throw new InvalidOperationException("Root item not found in web database.");
                 }
 
-                // Process items iteratively using queue-based traversal to avoid loading all descendants into memory
+                var totalItemCount = CountItemsInTree(rootItem);
+                MigrationProgressTracker.TotalItems = totalItemCount;
+                
+                Log.Info($"[InitialItemAssetLinkService] Found {totalItemCount} total items to scan", this);
+
                 await ProcessItemTreeRecursivelyAsync(rootItem);
 
                 Log.Info($"[InitialItemAssetLinkService] Migration completed: {MigrationProgressTracker.SuccessCount} successful, {MigrationProgressTracker.FailureCount} failed", this);
@@ -75,6 +79,35 @@ namespace iO.Sitecore.Publishing.Services
             }
         }
 
+        private int CountItemsInTree(Item rootItem)
+        {
+            if (rootItem == null)
+            {
+                return 0;
+            }
+
+            int count = 0;
+            var queue = new Queue<Item>();
+            queue.Enqueue(rootItem);
+
+            while (queue.Count > 0)
+            {
+                var currentItem = queue.Dequeue();
+                count++;
+
+                var children = currentItem.GetChildren();
+                if (children != null && children.Count > 0)
+                {
+                    foreach (Item child in children)
+                    {
+                        queue.Enqueue(child);
+                    }
+                }
+            }
+
+            return count;
+        }
+
         private async Task ProcessItemTreeRecursivelyAsync(Item item)
         {
             if (item == null)
@@ -82,7 +115,6 @@ namespace iO.Sitecore.Publishing.Services
                 return;
             }
 
-            // Use iterative approach with a queue to avoid stack overflow in deep content trees
             var queue = new Queue<Item>();
             queue.Enqueue(item);
 
@@ -90,10 +122,8 @@ namespace iO.Sitecore.Publishing.Services
             {
                 var currentItem = queue.Dequeue();
                 
-                // Process current item
                 await ProcessSingleItemAsync(currentItem);
 
-                // Add children to queue for processing
                 var children = currentItem.GetChildren();
                 if (children != null && children.Count > 0)
                 {
@@ -107,32 +137,32 @@ namespace iO.Sitecore.Publishing.Services
 
         private async Task ProcessSingleItemAsync(Item item)
         {
+            MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
+            
             try
             {
                 var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyField(item);
 
-                // Process items with Content Hub links, or all items if endpoint not configured
                 if (string.IsNullOrWhiteSpace(_contentHubEndpoint) || HasContentHubLinks(publicLinks, _contentHubEndpoint))
                 {
-                    MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
-                    
                     try
                     {
                         await SendItemToAssetUsageServiceAsync(item);
                         MigrationProgressTracker.SuccessCount++;
-                        MigrationProgressTracker.ProcessedItems++;
                     }
                     catch (Exception ex)
                     {
                         Log.Error($"[InitialItemAssetLinkService] Failed to process item {item.Paths.FullPath}", ex, this);
                         MigrationProgressTracker.FailureCount++;
-                        MigrationProgressTracker.ProcessedItems++;
                     }
                 }
+                
+                MigrationProgressTracker.ProcessedItems++;
             }
             catch (Exception ex)
             {
                 Log.Warn($"[InitialItemAssetLinkService] Failed to extract links from item {item.Paths.FullPath}: {ex.Message}", this);
+                MigrationProgressTracker.ProcessedItems++;
             }
         }
 
