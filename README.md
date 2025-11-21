@@ -908,26 +908,153 @@ Place the following files in your Sitecore instance:
 <head>
     <title>Asset Link Migration</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-        .btn { padding: 12px 24px; background: #007acc; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 4px; }
-        .btn:hover { background: #005a9e; }
-        .btn:disabled { background: #ccc; cursor: not-allowed; }
-        .progress-container { margin-top: 20px; display: none; }
-        .progress-bar-bg { width: 100%; height: 30px; background: #e0e0e0; border-radius: 4px; overflow: hidden; }
-        .progress-bar { height: 100%; background: #007acc; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
-        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
-        .stat-box { background: #f5f5f5; padding: 15px; border-radius: 4px; text-align: center; }
-        .stat-value { font-size: 32px; font-weight: bold; color: #007acc; }
-        .stat-label { font-size: 14px; color: #666; margin-top: 5px; }
-        .current-item { margin-top: 15px; padding: 10px; background: #f8f9fa; border-left: 4px solid #007acc; font-family: monospace; font-size: 12px; word-break: break-all; }
-        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 4px; margin-top: 20px; }
-        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 4px; margin-top: 20px; }
-        .warning { background: #fff3cd; color: #856404; padding: 15px; border-radius: 4px; margin-top: 20px; }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: #007acc;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 4px;
+        }
+
+        .btn:hover {
+            background: #005a9e;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #007acc;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .info-box p {
+            margin: 0 0 10px 0;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #007acc;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007acc;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .current-item {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #007acc;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .duration-info {
+            margin-top: 15px;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
     <h1>Initial Asset Link Migration</h1>
-    <p>This will process all items from the Web database and send them to the Asset Usage Service.</p>
+    
+    <div class="info-box">
+        <p><strong>What does this migration do?</strong></p>
+        <p>This script scans all items in the Web database to identify those that contain Content Hub asset links. Only items with Content Hub references will be sent to the Asset Usage Service for tracking.</p>
+        <p><strong>Note:</strong> The "Items Scanned" count shows all items scanned, while "Sent Successfully" indicates items that actually contained Content Hub assets and were transmitted to the service.</p>
+    </div>
     
     <button id="btnStart" class="btn" onclick="startMigration()">Start Migration</button>
     
@@ -939,11 +1066,11 @@ Place the following files in your Sitecore instance:
         <div class="stats">
             <div class="stat-box">
                 <div class="stat-value" id="processedItems">0</div>
-                <div class="stat-label">Processed</div>
+                <div class="stat-label">Items Scanned</div>
             </div>
             <div class="stat-box">
                 <div class="stat-value" id="successCount" style="color: #28a745;">0</div>
-                <div class="stat-label">Success</div>
+                <div class="stat-label">Sent Successfully</div>
             </div>
             <div class="stat-box">
                 <div class="stat-value" id="failureCount" style="color: #dc3545;">0</div>
@@ -956,7 +1083,7 @@ Place the following files in your Sitecore instance:
             <span id="currentItem">-</span>
         </div>
         
-        <div style="margin-top: 15px; color: #666;">
+        <div class="duration-info">
             <strong>Duration:</strong> <span id="duration">0s</span>
         </div>
     </div>
@@ -979,17 +1106,19 @@ Place the following files in your Sitecore instance:
             
             pollCount = 0;
             
-            fetch('/sitecore/admin/MigrationHandler.ashx?action=start', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Migration started:', data);
-                    startPolling();
-                })
-                .catch(error => {
-                    document.getElementById('errorMessage').textContent = 'Failed to start migration: ' + error.message;
-                    document.getElementById('errorMessage').style.display = 'block';
-                    document.getElementById('btnStart').disabled = false;
-                });
+            fetch('/sitecore/admin/MigrationHandler.ashx?action=start', { 
+                method: 'POST' 
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Migration started:', data);
+                startPolling();
+            })
+            .catch(error => {
+                document.getElementById('errorMessage').textContent = 'Failed to start migration: ' + error.message;
+                document.getElementById('errorMessage').style.display = 'block';
+                document.getElementById('btnStart').disabled = false;
+            });
         }
         
         function startPolling() {
@@ -1012,14 +1141,11 @@ Place the following files in your Sitecore instance:
                     console.log('Status check #' + pollCount + ':', data);
                     updateUI(data);
                     
-                    // Stop polling if migration is not running
                     if (!data.isRunning) {
-                        // Give it a few polls to see if items appear
                         if (pollCount > MAX_POLLS) {
                             stopPolling();
                             
                             if (data.totalItems === 0) {
-                                // No items found
                                 if (data.errorMessage) {
                                     document.getElementById('warningMessage').textContent = 
                                         'Migration completed but no items were processed: ' + data.errorMessage;
@@ -1031,12 +1157,10 @@ Place the following files in your Sitecore instance:
                                 }
                                 document.getElementById('btnStart').disabled = false;
                             } else if (data.processedItems > 0) {
-                                // Migration completed with items
                                 showCompletion(data);
                             }
                         }
                     } else {
-                        // Reset poll count if migration is still running
                         pollCount = 0;
                     }
                 })
@@ -1071,8 +1195,14 @@ Place the following files in your Sitecore instance:
                 document.getElementById('errorMessage').textContent = 'Migration completed with errors. Check logs for details.';
                 document.getElementById('errorMessage').style.display = 'block';
             } else {
-                document.getElementById('successMessage').textContent = 
-                    'Migration completed successfully! Processed ' + data.totalItems + ' items in ' + data.durationSeconds + 's (Success: ' + data.successCount + ', Failed: ' + data.failureCount + ')';
+                var message = 'Migration completed successfully! Scanned ' + data.totalItems + ' items in ' + data.durationSeconds + 's. ';
+                message += 'Found and sent ' + data.successCount + ' item(s) with Content Hub assets';
+                if (data.failureCount > 0) {
+                    message += ' (' + data.failureCount + ' failed)';
+                }
+                message += '.';
+                
+                document.getElementById('successMessage').textContent = message;
                 document.getElementById('successMessage').style.display = 'block';
             }
         }
