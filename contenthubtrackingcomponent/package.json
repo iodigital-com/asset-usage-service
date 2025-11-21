@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:usage": "vite build --config vite.usage.config.ts",
-    "build:delete": "vite build --config vite.delete.config.ts",
+    "build:usageTracking": "vite build --config vite.usageTracking.config.ts",
+    "build:deleteModal": "vite build --config vite.deleteModal.config.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },

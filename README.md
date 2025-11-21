@@ -920,7 +920,8 @@ func start
 
 
 ## Content Hub settings 
-Sitecore Content Hub: Service User, OAuth Client, and Schema Extension
+This configuration is required for the Asset Tracking microservice to securely connect to Sitecore Content Hub and update asset usage data.  
+Without this setup, the microservice cannot authenticate safely and modify usage tracking information.
 
 This section explains how to:
 1. Create a minimal-permission service user
@@ -1074,7 +1075,6 @@ Expected outcome:
 - Asset Editors Service (and impersonated service user): can read and update UsageTracking.
 - The property appears under the UsageTracking member group on M.Asset entities.
 
-
 ---
 
 ### 7. Troubleshooting
@@ -1084,9 +1084,6 @@ Expected outcome:
 | Property not visible | Member group security misconfiguration | Re-check Everyone group member security (Read) |
 | Cannot update property as service user | Missing Write at member level | Verify Asset Editors Service policy member security |
 | OAuth calls fail (401) | Wrong client secret or user missing permissions | Recreate secret or adjust user group permissions |
-| JSON field rejects updates | Invalid JSON format or API payload | Validate payload structure before sending |
-| Delete not allowed for assets | Delete permission not granted | Add Delete to policy only if required |
-
 
 ---
 
@@ -1100,7 +1097,7 @@ You have:
 
 ## Content Hub React Components Setup
 
-This section describes how to add two external React components to Sitecore Content Hub:
+This section describes how to add the usage insights and the custom delete Modal component to the asset details page:
 1. Asset Usage Tracker (shows which Sitecore CMS items use the asset)
 2. Custom Delete Modal (replaces the default delete action and performs usage checks)
 
@@ -1125,12 +1122,12 @@ This section describes how to add two external React components to Sitecore Cont
 4. Save the file.
 5. Build:
    ```bash
-   npm run build:usage
+   npm run build:usageTracking
    ```
 6. Result: `dist/AssetUsageTracker.js`.
 
 #### Upload to Content Hub
-1. Log in.
+1. Log in to your contenthub instance.
 2. Go to: Manage → Portal assets.
 3. Upload `dist/AssetUsageTracker.js`.
 4. Click Profile picture → Background processes and wait until the job status is Success.
@@ -1159,17 +1156,19 @@ The component loads without errors and displays usage information on the asset d
 
 #### Build
 ```bash
-npm run build:delete
+npm run build:deleteModal
 ```
 Result: `dist/DeleteAssetButton.js`.
 
-#### Upload
-1. Manage → Portal assets → Upload `dist/DeleteAssetButton.js`.
-2. Profile picture → Background processes → wait for Success.
+#### Upload to Content Hub
+1. Log in.
+2. Manage → Portal assets → Upload `dist/DeleteAssetButton.js`.
+3. Profile picture → Background processes → wait for Success.
 
-#### Configure on Asset Detail Page
-1. Manage → Pages → Asset detail.
-2. Locate component: Entity operations → click edit (user icon).
+#### Configure on Asset Details Page
+1. Manage → Pages → Asset details.
+2. Locate component: Entity operations → click the user icon.
+3. Click on the Etity operations
 3. Add operation → External component action.
 4. Remove the existing native Delete operation:
    - Click the X next to the current Delete.
@@ -1214,8 +1213,8 @@ If both appear, the external delete component is working.
 
 | Action | Command / Location |
 |--------|--------------------|
-| Build usage component | `npm run build:usage` |
-| Build delete component | `npm run build:delete` |
+| Build usage tracking component | `npm run build:usageTracking` |
+| Build delete modal component | `npm run build:deleteModal` |
 | Usage bundle path | `dist/AssetUsageTracker.js` |
 | Delete bundle path | `dist/DeleteAssetButton.js` |
 | Upload location | Manage → Portal assets |
