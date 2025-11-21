@@ -106,16 +106,23 @@ namespace iO.Sitecore.Publishing.Services
                 {
                     MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
                     
-                    await SendItemToAssetUsageServiceAsync(item);
-                    MigrationProgressTracker.SuccessCount++;
-                    MigrationProgressTracker.ProcessedItems++;
+                    try
+                    {
+                        await SendItemToAssetUsageServiceAsync(item);
+                        MigrationProgressTracker.SuccessCount++;
+                        MigrationProgressTracker.ProcessedItems++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"[InitialItemAssetLinkService] Failed to process item {item.Paths.FullPath}", ex, this);
+                        MigrationProgressTracker.FailureCount++;
+                        MigrationProgressTracker.ProcessedItems++;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Log.Error($"[InitialItemAssetLinkService] Failed to process item {item.Paths.FullPath}", ex, this);
-                MigrationProgressTracker.FailureCount++;
-                MigrationProgressTracker.ProcessedItems++;
+                Log.Warn($"[InitialItemAssetLinkService] Failed to extract links from item {item.Paths.FullPath}: {ex.Message}", this);
             }
         }
 
