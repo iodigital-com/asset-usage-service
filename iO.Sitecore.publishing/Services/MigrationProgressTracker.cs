@@ -27,6 +27,15 @@ namespace iO.Sitecore.Publishing.Services
             EndTime = null;
         }
 
-        public static int ProgressPercentage => TotalItems > 0 ? (int)((double)ProcessedItems / TotalItems * 100) : 0;
+        public static int ProgressPercentage
+        {
+            get
+            {
+                // Read values atomically to avoid race conditions
+                var total = TotalItems;
+                var processed = ProcessedItems;
+                return total > 0 ? (int)((double)processed / total * 100) : 0;
+            }
+        }
     }
 }
