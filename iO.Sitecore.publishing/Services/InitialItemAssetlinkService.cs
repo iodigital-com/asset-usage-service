@@ -70,10 +70,10 @@ namespace iO.Sitecore.Publishing.Services
 
                 Log.Info($"[InitialItemAssetLinkService] Migration completed: {MigrationProgressTracker.SuccessCount} successful, {MigrationProgressTracker.FailureCount} failed", this);
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Log.Error("[InitialItemAssetLinkService] Migration failed", ex, this);
-                MigrationProgressTracker.ErrorMessage = ex.Message;
+                Log.Error("[InitialItemAssetLinkService] Migration failed", exception, this);
+                MigrationProgressTracker.ErrorMessage = exception.Message;
                 throw;
             }
             finally
@@ -150,7 +150,7 @@ namespace iO.Sitecore.Publishing.Services
                     }
                     catch (Exception exception)
                     {
-                        Log.Error($"[InitialItemAssetLinkService] Failed to process item {item.Paths.FullPath}", ex, this);
+                        Log.Error($"[InitialItemAssetLinkService] Failed to process item {item.Paths.FullPath}", exception, this);
                         MigrationProgressTracker.FailureCount++;
                     }
 
