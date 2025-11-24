@@ -27,6 +27,12 @@
 - [ ] Performance impact getest voor grote wijzigingen
 - [ ] Edge cases getest
 
+##### TEST GUIDELINES
+- [ ] Happy Path: 1 test voor normale uitvoering
+- [ ] Edge Cases: 1-3 tests voor grensgevallen
+- [ ] Error Scenarios: 1-2 tests voor exception handling
+- [ ] Branch Coverage: Tests voor elke if/else, switch case
+
 ## SECURITY
 - [ ] Authentication en authorization correct toegepast
 - [ ] Geen hardcoded secrets of credentials
@@ -53,6 +59,7 @@
 - [ ] API/technical documentation bijgewerkt
 - [ ] Deployment procedures aangepast waar nodig
 - [ ] README files up-to-date
+- [ ] Portfolio aangepast met competentie bewijs
 
 ## CLEANUP
 - [ ] Temporary code en debug statements verwijderd (Ook Console log statements)
