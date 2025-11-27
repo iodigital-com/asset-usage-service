@@ -1,8 +1,10 @@
 ﻿using iO.Sitecore.Publishing.Events;
+using iO.Sitecore.Publishing.Interfaces.Services;
 using iO.Sitecore.Publishing.Models;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
+using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
 using Sitecore.Events;
 using Sitecore.Globalization;
@@ -396,10 +398,22 @@ namespace iO.Sitecore.Publishing.Services
             loggingService.LogRecordItemStart();
             loggingService.LogItemDetails(item, sourceDatabaseName, options.TargetDatabase?.Name ?? "N/A");
 
-            var assetIds = assetExtractionService.ExtractAssetIds(item);
-            loggingService.LogAssetIdsExtracted(assetIds);
+            item.Fields.ReadAll();
 
-            var publicLinks = assetExtractionService.ExtractPublicLinks(item);
+            var fieldData = item.Fields
+                .Cast<Field>()
+                .Select(f => (
+                    TypeKey: f.TypeKey ?? string.Empty,
+                    Value: f.Value ?? string.Empty,
+                    InheritedValue: f.InheritedValue ?? string.Empty,
+                    Name: f.Name ?? string.Empty
+                ))
+                .ToList();
+
+            var assetIds = assetExtractionService.ExtractAssetIdsFromFieldData(fieldData);
+            var publicLinks = assetExtractionService.ExtractPublicLinksFromFieldData(fieldData);
+
+            loggingService.LogAssetIdsExtracted(assetIds);
             loggingService.LogPublicLinksExtracted(publicLinks);
 
             var payload = new AssetUsageEvent

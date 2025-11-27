@@ -1,4 +1,4 @@
-﻿namespace iO.Sitecore.Publishing.Services
+﻿namespace iO.Sitecore.Publishing.Interfaces.Services
 {
     public interface IAuditLoggingService
     {
