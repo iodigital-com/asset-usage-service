@@ -1,5 +1,4 @@
 ﻿using iO.Sitecore.Publishing.Interfaces.Services;
-using Sitecore.Data.Items;
 using System;
 using System.Collections.Generic;
 using System.Linq;
