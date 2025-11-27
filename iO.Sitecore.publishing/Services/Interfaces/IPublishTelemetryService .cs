@@ -3,7 +3,7 @@ using Sitecore.Publishing.Pipelines.PublishItem;
 using System;
 using System.Threading.Tasks;
 
-namespace iO.Sitecore.Publishing.Services
+namespace iO.Sitecore.Publishing.Interfaces.Services
 {
     public interface IPublishTelemetryService
     {

@@ -1,7 +1,9 @@
 ﻿using iO.Sitecore.Publishing.Events;
+using iO.Sitecore.Publishing.Interfaces.Services;
 using iO.Sitecore.Publishing.Models;
 using Sitecore.Configuration;
 using Sitecore.Data;
+using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
 using System;
@@ -176,7 +178,19 @@ namespace iO.Sitecore.Publishing.Services
 
             try
             {
-                var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyField(item);
+                item.Fields.ReadAll();
+
+                var fieldData = item.Fields
+                    .Cast<Field>()
+                    .Select(f => (
+                        TypeKey: f.TypeKey ?? string.Empty,
+                        Value: f.Value ?? string.Empty,
+                        InheritedValue: f.InheritedValue ?? string.Empty,
+                        Name: f.Name ?? string.Empty
+                    ))
+                    .ToList();
+
+                var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyFieldData(fieldData);
 
                 if ((publicLinks == null || publicLinks.Count == 0) && !string.IsNullOrWhiteSpace(_contentHubEndpoint))
                 {
@@ -231,8 +245,20 @@ namespace iO.Sitecore.Publishing.Services
                 return;
             }
 
-            var assetIds = _assetExtractionService.ExtractAssetIds(item);
-            var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyField(item);
+            item.Fields.ReadAll();
+
+            var fieldData = item.Fields
+                .Cast<Field>()
+                .Select(f => (
+                    TypeKey: f.TypeKey ?? string.Empty,
+                    Value: f.Value ?? string.Empty,
+                    InheritedValue: f.InheritedValue ?? string.Empty,
+                    Name: f.Name ?? string.Empty
+                ))
+                .ToList();
+
+            var assetIds = _assetExtractionService.ExtractAssetIdsFromFieldData(fieldData);
+            var publicLinks = _assetExtractionService.ExtractPublicLinksFromAnyFieldData(fieldData);
 
             if ((assetIds == null || assetIds.Count == 0) && (publicLinks == null || publicLinks.Count == 0))
             {
