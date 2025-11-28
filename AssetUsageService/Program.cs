@@ -45,6 +45,9 @@ builder.Services.AddSingleton<PublishedItemMapper>();
 builder.Services.AddSingleton<IContentHubConnectionService, ContentHubConnectionService>();
 builder.Services.AddSingleton<MessageHandler>();
 builder.Services.AddSingleton<AssetItemController>();
+builder.Services.AddSingleton<TestQueueService>();
+builder.Services.AddSingleton<ServiceBusQueueService>();
+
 
 var app = builder.Build();
 
