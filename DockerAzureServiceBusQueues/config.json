@@ -2,27 +2,15 @@
   "UserConfig": {
     "Namespaces": [
       {
-        "Name": "contenthub-local",
+        "Name": "sbemulatorns",
         "Queues": [
           {
-            "Name": "contenthub-publiclinks-requests",
-            "Properties": {
-              "DeadLetteringOnMessageExpiration": true,
-              "DefaultMessageTimeToLive": "P1D",
-              "DuplicateDetectionHistoryTimeWindow": "PT10M",
-              "ForwardDeadLetteredMessagesTo": "",
-              "ForwardTo": "",
-              "LockDuration": "PT5M",
-              "MaxDeliveryCount": 5,
-              "RequiresDuplicateDetection": true,
-              "RequiresSession": false,
-              "EnableBatchedOperations": true,
-              "MaxSizeInMegabytes": 1024,
-              "Status": "Active"
-            }
+            "Name": "contenthub-publiclinks-requests"
+          },
+          {
+            "Name": "delta-calculation-requests"
           }
-        ],
-        "Topics": []
+        ]
       }
     ],
     "Logging": {

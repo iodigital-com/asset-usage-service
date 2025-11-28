@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace AssetUsageService.Domain.Models;
 
@@ -9,7 +10,7 @@ public class PublishedItem
     public string? ItemName { get; private set; }
     public int? Version { get; private set; }
     public string? ItemPath { get; private set; }
-    public List<int> AssetIds { get; private set; }
+    public List<int> AssetIds { get; set; }
     public List<string>? PublicLinks { get; private set; }
 
     private PublishedItem(Guid itemId, string? language, string? itemName, int? version, string? itemPath, List<int> assetIds, List<string>? publicLinks)
@@ -21,6 +22,11 @@ public class PublishedItem
         ItemPath = itemPath;
         AssetIds = assetIds;
         PublicLinks = publicLinks;
+    }
+
+    [JsonConstructor]
+    public PublishedItem()
+    {
     }
 
     public static PublishedItem Create(Guid itemId, string? language = null, string? itemName = null, int? version = null, string? itemPath = null, List<int>? assetIds = null, List<string>? publicLinks = null)

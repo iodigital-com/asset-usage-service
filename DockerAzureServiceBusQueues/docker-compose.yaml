@@ -1,25 +1,48 @@
+version: '3.8'
+
 services:
-  servicebus-emulator:
-    container_name: "contenthub-servicebus-emulator"
+  sqlserver:
+    container_name: sqlserver
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Your_Strong_SA_Password_Here1
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    networks:
+      - sb-emulator
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Your_Strong_SA_Password_Here1 -Q 'SELECT 1' -C || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  servicebus:
+    container_name: servicebus-emulator
     image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
     restart: unless-stopped
-    volumes:
-      - "${CONFIG_PATH}:/ServiceBus_Emulator/ConfigFiles/Config.json"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
     ports:
-      - "5672:5672"   # AMQP
-      - "5671:5671"   # AMQP with TLS
+      - "5672:5672"
     environment:
-      ACCEPT_EULA: "Y"
-      SERVICEBUS_ACCEPT_EULA: "Y"
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Your_Strong_SA_Password_Here1
+      - SQL_SERVER=sqlserver
+    volumes:
+      - ./Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
     networks:
-      - contenthub-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5672"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      - sb-emulator
+
+volumes:
+  sqldata:
+    driver: local
 
 networks:
-  contenthub-network:
+  sb-emulator:
     driver: bridge
