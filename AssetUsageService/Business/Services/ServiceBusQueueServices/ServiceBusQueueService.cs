@@ -2,28 +2,25 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace AssetUsageService.Business.Services;
-
-public interface IServiceBusQueueService
-{
-    Task SendMessageAsync<T>(string queueName, T message, CancellationToken cancellationToken = default) where T : class;
-}
+namespace AssetUsageService.Business.Services.ServiceBusQueueServices;
 
 public class ServiceBusQueueService : IServiceBusQueueService, IAsyncDisposable
 {
     private readonly ServiceBusClient _client;
     private readonly ILogger<ServiceBusQueueService> _logger;
 
-    public ServiceBusQueueService(IConfiguration configuration, ILogger<ServiceBusQueueService> logger)
-    {
-        var connectionString = configuration["ServiceBusQueue:ConnectionString"]
-            ?? throw new InvalidOperationException("ServiceBusQueue:ConnectionString configuration is missing");
-
-        _client = new ServiceBusClient(connectionString);
+    public ServiceBusQueueService(ServiceBusConfigService configuration, ILogger<ServiceBusQueueService> logger)
+    {            
+        _client = configuration.GetServiceBusClient();
         _logger = logger;
     }
-
+    public async Task<ServiceBusSender> CreateSender(string queueName)
+    {
+        await using var sender = _client.CreateSender(queueName);
+        return sender;
+    }
     public async Task SendMessageAsync<T>(string queueName, T message, CancellationToken cancellationToken = default) where T : class
     {
         ArgumentNullException.ThrowIfNull(message);

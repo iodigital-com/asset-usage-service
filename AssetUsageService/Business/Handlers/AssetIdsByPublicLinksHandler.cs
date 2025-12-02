@@ -1,7 +1,9 @@
 ﻿using AssetUsageService.Business.Events;
 using AssetUsageService.Business.Handlers.interfaces;
+using AssetUsageService.Domain.Models;
 using AssetUsageService.Integration;
 using Microsoft.Extensions.Logging;
+using Polly.Caching;
 using Stylelabs.M.Base.Querying;
 using Stylelabs.M.Base.Querying.Filters;
 using Stylelabs.M.Framework.Essentials.LoadConfigurations;
@@ -48,6 +50,15 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
     private async Task<List<int>> GetAssetIdsByPublicLinksAsync(IReadOnlyList<string> publicLinks, CancellationToken cancellationToken)
     {
         var assetIds = new List<int>(publicLinks.Count);
+
+        var isReachable = await _contentHubConnection.IsReachableAsync(cancellationToken);
+        if (!isReachable)
+        {
+            _logger.LogError("ContentHub is not reachable. Cannot process public links.");
+            throw new InvalidOperationException(
+                "ContentHub is not reachable. Please verify ContentHub:Endpoint configuration and network connectivity.");
+        }
+
         var contentHubClient = _contentHubConnection.CreateClient();
 
         var tasks = publicLinks
@@ -145,23 +156,31 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 
     private async Task<long?> GetAssetIdFromPublicLinkAsync(IWebMClient contentHubClient, long publicLinkId, CancellationToken cancellationToken)
     {
-        var publicLink = await contentHubClient.Entities.GetAsync(
-            publicLinkId,
-            new EntityLoadConfiguration(
-                CultureLoadOption.Default,
-                PropertyLoadOption.All,
-                new RelationLoadOption(AssetToPublicLinkRelation))
-            );
-
-        var assetToPublicLinkRelation = publicLink.GetRelation<IChildToManyParentsRelation>(AssetToPublicLinkRelation);
-        var assetId = assetToPublicLinkRelation?.GetIds().FirstOrDefault();
-
-        if (!assetId.HasValue)
+        try
         {
-            _logger.LogWarning("No asset found for public link ID: {PublicLinkId}", publicLinkId);
-        }
+            var publicLink = await contentHubClient.Entities.GetAsync(
+               publicLinkId,
+               new EntityLoadConfiguration(
+                   CultureLoadOption.Default,
+                   PropertyLoadOption.All,
+                   new RelationLoadOption(AssetToPublicLinkRelation))
+               );
 
-        return assetId;
+            var assetToPublicLinkRelation = publicLink.GetRelation<IChildToManyParentsRelation>(AssetToPublicLinkRelation);
+            var assetId = assetToPublicLinkRelation?.GetIds().FirstOrDefault();
+
+            if (!assetId.HasValue)
+            {
+                _logger.LogWarning("No asset found for public link ID: {PublicLinkId}", publicLinkId);
+            }
+
+            return assetId;
+
+        } catch(Exception ex)
+        {
+            _logger.LogError(ex, "Error GetAssetIdFromPublicLinkAsync");
+            throw;
+        }   
     }
 }
 
