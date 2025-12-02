@@ -1,7 +1,6 @@
 ﻿using iO.Sitecore.Publishing.Events;
 using iO.Sitecore.Publishing.Interfaces.Services;
 using iO.Sitecore.Publishing.Models;
-using Sitecore.Analytics.Aggregation.Data.Model.Dimensions;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Fields;
