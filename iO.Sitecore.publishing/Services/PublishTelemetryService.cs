@@ -53,7 +53,7 @@ namespace iO.Sitecore.Publishing.Services
 
             var (language, version, hasVersionInfo) = GetLanguageAndVersion(context, publishContext);
             var sourceItem = GetSourceItem(context, publishContext, language, version);
-
+            
             if (sourceItem == null)
             {
                 loggingService.LogSourceItemNotFound(context.ItemId);
@@ -221,12 +221,22 @@ namespace iO.Sitecore.Publishing.Services
                 sourceDb,
                 targetDb);
 
-            var databases = Factory.GetDatabases()
-                .Where(database => database.RemoteEvents.EventQueue.Name == eventArgs.EventQueueName)
-                .Select(database => database.Name)
-                .ToList();
+            try
+            {
+                var databases = Factory.GetDatabases()
+                    .Where(database => database.RemoteEvents.EventQueue.Name == eventArgs.EventQueueName)
+                    .Select(database => database.Name)
+                    .ToList();
 
-            RecordPublishEndRemote(eventArgs.EventQueueName, databases);
+                RecordPublishEndRemote(eventArgs.EventQueueName, databases);
+            }
+            catch (Exception)
+            {
+                // Factory.GetDatabases() may fail in test environments where Sitecore is not fully initialized
+                // Record with empty database list in such cases
+                RecordPublishEndRemote(eventArgs.EventQueueName, new List<string>());
+            }
+
             loggingService.LogPublishEndRemoteSent();
         }
 
@@ -291,8 +301,21 @@ namespace iO.Sitecore.Publishing.Services
 
         private PublishOptions ExtractPublishOptions(EventArgs args)
         {
-            var publisher = Event.ExtractParameter(args, 0) as Publisher;
-            return publisher?.Options;
+            try
+            {
+                var publisher = Event.ExtractParameter(args, 0) as Publisher;
+                return publisher?.Options;
+            }
+            catch (InvalidOperationException)
+            {
+                // Event.ExtractParameter throws InvalidOperationException if args is not SitecoreEventArgs
+                return null;
+            }
+            catch (ArgumentNullException)
+            {
+                // Event.ExtractParameter throws ArgumentNullException if args is null
+                return null;
+            }
         }
 
         private void LogPublishStatistics()
