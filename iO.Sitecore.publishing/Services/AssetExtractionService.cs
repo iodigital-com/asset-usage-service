@@ -76,7 +76,6 @@ namespace iO.Sitecore.Publishing.Services
             }
         }
 
-        // Tuple-based rich text processing.
         private void ProcessPublicLinkFieldForRichTextFromData((string TypeKey, string Value, string InheritedValue, string Name) field, HashSet<string> extractedPublicLinks)
         {
             var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();

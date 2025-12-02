@@ -1,6 +1,7 @@
 ﻿using iO.Sitecore.Publishing.Events;
 using iO.Sitecore.Publishing.Interfaces.Services;
 using iO.Sitecore.Publishing.Models;
+using Sitecore.Analytics.Aggregation.Data.Model.Dimensions;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Fields;
@@ -25,7 +26,7 @@ namespace iO.Sitecore.Publishing.Services
         public InitialItemAssetLinkService()
         {
             _webDatabase = Factory.GetDatabase("web");
-
+            
             if (_webDatabase == null)
             {
                 throw new InvalidOperationException("Web database not found. Check Sitecore configuration.");
@@ -48,7 +49,7 @@ namespace iO.Sitecore.Publishing.Services
             try
             {
                 var rootItem = _webDatabase.GetRootItem();
-
+                
                 if (rootItem == null)
                 {
                     MigrationProgressTracker.ErrorMessage = "Root item not found in web database.";
