@@ -365,12 +365,6 @@ namespace iO.Sitecore.publishing.Tests.Unit
             return new ItemProcessedEventArgs(context);
         }
 
-        private static ItemProcessedEventArgs CreateItemProcessedEventArgsWithoutTargetItem()
-        {
-            var context = CreateMockPublishItemContext(CreateMockPublishOptions());
-            return new ItemProcessedEventArgs(context);
-        }
-
         private static EventArgs CreateValidPublishEndEventArgs()
         {
             return new EventArgs();
@@ -516,12 +510,14 @@ namespace iO.Sitecore.publishing.Tests.Unit
                 nameField.SetValue(language, "en");
             }
 
-            var options = new PublishOptions(
-                sourceDb.Object,
-                targetDb.Object,
-                PublishMode.Full,
-                language,
-                DateTime.Now);
+            var publishOptionsType = typeof(PublishOptions);
+            var options = (PublishOptions)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(publishOptionsType);
+
+            SetPrivateField(options, "m_sourceDatabase", sourceDb.Object);
+            SetPrivateField(options, "m_targetDatabase", targetDb.Object);
+            SetPrivateField(options, "m_mode", PublishMode.Full);
+            SetPrivateField(options, "m_language", language);
+            SetPrivateField(options, "m_publishDate", DateTime.Now);
 
             return options;
         }
