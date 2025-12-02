@@ -21,8 +21,4 @@
     <PackageReference Include="MongoDB.Driver" Version="3.5.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Infrastructure\ServiceBusQueues\" />
-  </ItemGroup>
-
 </Project>

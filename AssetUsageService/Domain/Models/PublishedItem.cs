@@ -5,13 +5,13 @@ namespace AssetUsageService.Domain.Models;
 
 public class PublishedItem
 {
-    public Guid ItemId { get; private set; }
-    public string? Language { get; private set; }
-    public string? ItemName { get; private set; }
-    public int? Version { get; private set; }
-    public string? ItemPath { get; private set; }
+    public Guid ItemId { get; set; }
+    public string? Language { get; set; }
+    public string? ItemName { get; set; }
+    public int? Version { get; set; }
+    public string? ItemPath { get; set; }
     public List<int> AssetIds { get; set; }
-    public List<string>? PublicLinks { get; private set; }
+    public List<string>? PublicLinks { get; set; }
 
     private PublishedItem(Guid itemId, string? language, string? itemName, int? version, string? itemPath, List<int> assetIds, List<string>? publicLinks)
     {
@@ -27,6 +27,7 @@ public class PublishedItem
     [JsonConstructor]
     public PublishedItem()
     {
+        AssetIds = new List<int>();
     }
 
     public static PublishedItem Create(Guid itemId, string? language = null, string? itemName = null, int? version = null, string? itemPath = null, List<int>? assetIds = null, List<string>? publicLinks = null)
