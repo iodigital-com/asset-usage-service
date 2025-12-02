@@ -232,8 +232,6 @@ namespace iO.Sitecore.Publishing.Services
             }
             catch (Exception)
             {
-                // Factory.GetDatabases() may fail in test environments where Sitecore is not fully initialized
-                // Record with empty database list in such cases
                 RecordPublishEndRemote(eventArgs.EventQueueName, new List<string>());
             }
 
@@ -308,12 +306,10 @@ namespace iO.Sitecore.Publishing.Services
             }
             catch (InvalidOperationException)
             {
-                // Event.ExtractParameter throws InvalidOperationException if args is not SitecoreEventArgs
                 return null;
             }
             catch (ArgumentNullException)
             {
-                // Event.ExtractParameter throws ArgumentNullException if args is null
                 return null;
             }
         }
