@@ -47,7 +47,7 @@ builder.Services.AddSingleton<IContentHubConnectionService, ContentHubConnection
 builder.Services.AddSingleton<MessageHandler>();
 builder.Services.AddSingleton<AssetItemController>();
 builder.Services.AddSingleton<IServiceBusQueueService, ServiceBusQueueService>();
-builder.Services.AddSingleton<ServiceBusConfigService>();
+builder.Services.AddSingleton<IServiceBusConfigService, ServiceBusConfigService>();
 
 
 var app = builder.Build();

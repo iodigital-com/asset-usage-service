@@ -1,8 +1,6 @@
 ﻿using Azure.Messaging.ServiceBus;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace AssetUsageService.Business.Services.ServiceBusQueueServices;
 
@@ -11,7 +9,7 @@ public class ServiceBusQueueService : IServiceBusQueueService, IAsyncDisposable
     private readonly ServiceBusClient _client;
     private readonly ILogger<ServiceBusQueueService> _logger;
 
-    public ServiceBusQueueService(ServiceBusConfigService configuration, ILogger<ServiceBusQueueService> logger)
+    public ServiceBusQueueService(IServiceBusConfigService configuration, ILogger<ServiceBusQueueService> logger)
     {            
         _client = configuration.GetServiceBusClient();
         _logger = logger;
