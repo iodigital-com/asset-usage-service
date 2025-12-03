@@ -15,14 +15,9 @@ namespace iO.Sitecore.publishing.Tests.Unit
 
         private const string TestAuditLogPath = "TestAuditLog.json";
         private const string ValidItemId = "110D559F-DEA5-42EA-9C1C-8A5DF7E70EF9";
-        private const string ValidItemPath = "/sitecore/content/home";
-        private const string ValidItemName = "Home";
-        private const string ValidTemplateName = "Page";
         private const string ValidLanguage = "en";
-        private const int ValidVersion = 1;
         private const string ValidTargetDatabase = "web";
         private const string ValidSourceDatabase = "master";
-        private const string ValidRevisionId = "550e8400-e29b-41d4-a716-446655440000";
         private const string ValidEventQueueName = "web";
 
         #endregion
