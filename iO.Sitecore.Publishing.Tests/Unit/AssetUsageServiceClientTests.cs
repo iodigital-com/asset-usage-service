@@ -8,7 +8,6 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         #region Test Constants
 
         private const string TestEndpointUrl = "http://localhost:7183/api/SitecorePublishAPI";
-        private const string ApiEndpointSettingName = "AssetUsageService.ApiEndpoint";
 
         private const string ValidItemId = "110D559F-DEA5-42EA-9C1C-8A5DF7E70EF9";
         private const string ValidItemPath = "/sitecore/content/home";
@@ -25,95 +24,84 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 
         #endregion
 
-        public AssetUsageServiceClientTests()
+        #region Test Data Providers
+
+        public static IEnumerable<object[]> AssetIdSetsData => new List<object[]>
         {
-        }
+            new object[] { new List<string> { ValidAssetId, SecondValidAssetId }, 2 },
+            new object[] { new List<string>(), 0 }
+        };
+
+        public static IEnumerable<object[]> PublicLinkSetsData => new List<object[]>
+        {
+            new object[] { new List<string> { ValidPublicLink, SecondValidPublicLink }, 2 },
+            new object[] { new List<string>(), 0 }
+        };
+
+        #endregion
 
         #region SendAsync - Happy Path Tests
 
         [Fact]
-        public async Task SendAsync_ValidPayload_SendsSuccessfully()
+        public async Task SendAsync_ValidPayload_CompletesSuccessfully()
         {
+            //Arrange
+            var sut = CreateSut();
             var payload = CreateValidPayload();
 
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload);
-            }
+            //Act
+            await sut.SendAsync(payload);
 
-            Assert.True(true);
+            //Assert
+            Assert.NotNull(payload.AssetIds);
         }
 
         #endregion
 
         #region SendAsync - Edge Cases Tests
 
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public async Task SendAsync_PayloadWithNullOrEmptyItemId_DoesNotThrow(string itemId)
+        {
+            //Arrange
+            var sut = CreateSut();
+            var payload = CreateValidPayload(itemIdOverride: itemId);
+
+            //Act
+            await sut.SendAsync(payload);
+
+            //Assert
+            Assert.True(true);
+        }
+
         [Fact]
         public async Task SendAsync_NullPayload_DoesNotThrow()
         {
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(null);
-            }
+            //Arrange
+            var sut = CreateSut();
 
+            //Act
+            await sut.SendAsync(null);
+
+            //Assert
             Assert.True(true);
         }
 
         [Fact]
-        public async Task SendAsync_PayloadWithNullItemId_DoesNotThrow()
+        public async Task SendAsync_WithCancellationTokenCanceled_DoesNotThrow()
         {
-            var payload = CreatePayloadWithNullItemId();
-
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload);
-            }
-
-            Assert.True(true);
-        }
-
-        [Fact]
-        public async Task SendAsync_PayloadWithEmptyItemId_DoesNotThrow()
-        {
-            var payload = CreatePayloadWithEmptyItemId();
-
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload);
-            }
-
-            Assert.True(true);
-        }
-
-        #endregion
-
-        #region SendAsync - Error Scenarios Tests
-
-        [Fact]
-        public async Task SendAsync_WithValidPayload_DoesNotThrowOnHttpError()
-        {
-            var payload = CreateValidPayload();
-
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload);
-            }
-
-            Assert.True(true);
-        }
-
-        [Fact]
-        public async Task SendAsync_WithCancellationToken_DoesNotThrowOnCancellation()
-        {
+            //Arrange
+            var sut = CreateSut();
             var payload = CreateValidPayload();
             var cts = new CancellationTokenSource();
             cts.Cancel();
 
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload, cts.Token);
-            }
+            //Act
+            await sut.SendAsync(payload, cts.Token);
 
+            //Assert
             Assert.True(true);
         }
 
@@ -121,60 +109,49 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 
         #region SendAsync - Branch Coverage Tests
 
-        [Fact]
-        public async Task SendAsync_ValidPayloadWithAssetIds_SendsSuccessfully()
+        [Theory]
+        [MemberData(nameof(AssetIdSetsData))]
+        public async Task SendAsync_PayloadWithAssetIds_PreservesCount(List<string> assetIds, int expectedCount)
         {
-            var payload = CreateValidPayload();
+            //Arrange
+            var sut = CreateSut();
+            var payload = CreateValidPayload(assetIdsOverride: assetIds);
 
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload);
-            }
+            //Act
+            await sut.SendAsync(payload);
 
-            Assert.NotNull(payload.AssetIds);
-            Assert.Equal(2, payload.AssetIds.Count);
+            //Assert
+            Assert.Equal(expectedCount, payload.AssetIds?.Count ?? 0);
+        }
+
+        [Theory]
+        [MemberData(nameof(PublicLinkSetsData))]
+        public async Task SendAsync_PayloadWithPublicLinks_PreservesCount(List<string> publicLinks, int expectedCount)
+        {
+            //Arrange
+            var sut = CreateSut();
+            var payload = CreateValidPayload(publicLinksOverride: publicLinks);
+
+            //Act
+            await sut.SendAsync(payload);
+
+            //Assert
+            Assert.Equal(expectedCount, payload.PublicLinks?.Count ?? 0);
         }
 
         [Fact]
-        public async Task SendAsync_ValidPayloadWithPublicLinks_SendsSuccessfully()
+        public async Task SendAsync_MultipleCallsWithSameClient_Completes()
         {
-            var payload = CreateValidPayload();
-
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload);
-            }
-
-            Assert.NotNull(payload.PublicLinks);
-            Assert.Equal(2, payload.PublicLinks.Count);
-        }
-
-        [Fact]
-        public async Task SendAsync_ValidPayloadWithEmptyLists_SendsSuccessfully()
-        {
-            var payload = CreatePayloadWithEmptyLists();
-
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload);
-            }
-
-            Assert.NotNull(payload.AssetIds);
-            Assert.Empty(payload.AssetIds);
-        }
-
-        [Fact]
-        public async Task SendAsync_MultipleCallsWithSameClient_SendsSuccessfully()
-        {
+            //Arrange
+            var sut = CreateSut();
             var payload1 = CreateValidPayload();
             var payload2 = CreateValidPayload();
 
-            using (var sut = new AssetUsageServiceClient(TestEndpointUrl))
-            {
-                await sut.SendAsync(payload1);
-                await sut.SendAsync(payload2);
-            }
+            //Act
+            await sut.SendAsync(payload1);
+            await sut.SendAsync(payload2);
 
+            //Assert
             Assert.True(true);
         }
 
@@ -182,11 +159,16 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 
         #region Helper Methods - Test Data Creation
 
-        private static AssetUsageEvent CreateValidPayload()
+        private static AssetUsageServiceClient CreateSut() => new AssetUsageServiceClient(TestEndpointUrl);
+
+        private static AssetUsageEvent CreateValidPayload(
+            string itemIdOverride = ValidItemId,
+            List<string> assetIdsOverride = null,
+            List<string> publicLinksOverride = null)
         {
             return new AssetUsageEvent
             {
-                ItemId = ValidItemId,
+                ItemId = itemIdOverride,
                 ItemPath = ValidItemPath,
                 ItemName = ValidItemName,
                 TemplateName = ValidTemplateName,
@@ -194,66 +176,15 @@ namespace iO.Sitecore.Publishing.Tests.Unit
                 Version = ValidVersion,
                 PublishedAtUtc = DateTime.UtcNow,
                 TargetDatabase = ValidTargetDatabase,
-                AssetIds = new List<string> { ValidAssetId, SecondValidAssetId },
-                PublicLinks = new List<string> { ValidPublicLink, SecondValidPublicLink }
+                AssetIds = assetIdsOverride ?? new List<string> { ValidAssetId, SecondValidAssetId },
+                PublicLinks = publicLinksOverride ?? new List<string> { ValidPublicLink, SecondValidPublicLink }
             };
         }
 
-        private static AssetUsageEvent CreatePayloadWithNullItemId()
-        {
-            return new AssetUsageEvent
-            {
-                ItemId = null,
-                ItemPath = ValidItemPath,
-                ItemName = ValidItemName,
-                TemplateName = ValidTemplateName,
-                Language = ValidLanguage,
-                Version = ValidVersion,
-                PublishedAtUtc = DateTime.UtcNow,
-                TargetDatabase = ValidTargetDatabase,
-                AssetIds = new List<string> { ValidAssetId },
-                PublicLinks = new List<string> { ValidPublicLink }
-            };
-        }
-
-        private static AssetUsageEvent CreatePayloadWithEmptyItemId()
-        {
-            return new AssetUsageEvent
-            {
-                ItemId = string.Empty,
-                ItemPath = ValidItemPath,
-                ItemName = ValidItemName,
-                TemplateName = ValidTemplateName,
-                Language = ValidLanguage,
-                Version = ValidVersion,
-                PublishedAtUtc = DateTime.UtcNow,
-                TargetDatabase = ValidTargetDatabase,
-                AssetIds = new List<string> { ValidAssetId },
-                PublicLinks = new List<string> { ValidPublicLink }
-            };
-        }
-
-        private static AssetUsageEvent CreatePayloadWithEmptyLists()
-        {
-            return new AssetUsageEvent
-            {
-                ItemId = ValidItemId,
-                ItemPath = ValidItemPath,
-                ItemName = ValidItemName,
-                TemplateName = ValidTemplateName,
-                Language = ValidLanguage,
-                Version = ValidVersion,
-                PublishedAtUtc = DateTime.UtcNow,
-                TargetDatabase = ValidTargetDatabase,
-                AssetIds = new List<string>(),
-                PublicLinks = new List<string>()
-            };
-        }
+        #endregion
 
         public void Dispose()
         {
         }
-
-        #endregion
     }
 }
