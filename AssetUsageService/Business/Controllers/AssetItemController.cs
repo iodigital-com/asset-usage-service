@@ -13,9 +13,9 @@ public class AssetItemController
     private readonly PublishPushToDamEventsService _publishPushToDamEventsService;
     private readonly ILogger<AssetItemController> _logger;
     private readonly IServiceBusQueueService _serviceBusQueueService;
-    private readonly ServiceBusConfigService _serviceBusConfigService;
+    private readonly IServiceBusConfigService _serviceBusConfigService;
 
-    public AssetItemController(PublishAssetIdsByPublicLinksEventService publishGetAssetIdsByPublicLinksEventService, DeltaCalculationService deltaCalculationService, PublishPushToDamEventsService publishPushToDamEventsService, ILogger<AssetItemController> logger, IServiceBusQueueService serviceBusQueueService, IConfiguration configuration, ServiceBusConfigService serviceBusConfigService)
+    public AssetItemController(PublishAssetIdsByPublicLinksEventService publishGetAssetIdsByPublicLinksEventService, DeltaCalculationService deltaCalculationService, PublishPushToDamEventsService publishPushToDamEventsService, ILogger<AssetItemController> logger, IServiceBusQueueService serviceBusQueueService, IConfiguration configuration, IServiceBusConfigService serviceBusConfigService)
     {
         _publishGetAssetIdsByPublicLinksEventService = publishGetAssetIdsByPublicLinksEventService;
         _deltaCalculationService = deltaCalculationService;
@@ -28,12 +28,10 @@ public class AssetItemController
     public async Task ProcessPublishedItemAsync(PublishedItem publishedItem, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publishedItem);
-
         if (publishedItem.PublicLinks?.Count == 0)
         {
             _logger.LogInformation("Item {ItemId} has no public links, skipping to delta calculation", publishedItem.ItemId);
             await EnqueueDeltaCalculationAsync(publishedItem, cancellationToken);
-            return;
         }
         else
         {
@@ -43,22 +41,24 @@ public class AssetItemController
     public async Task EnqueuePublicLinkProcessingAsync(PublishedItem publishedItem, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publishedItem);
+
         try
         {
-            if (!_serviceBusConfigService.IsPublicLinkQueueEnabled)
+            var queueName = _serviceBusConfigService.PublicLinkQueueName;
+            if (!await QueueExist(queueName))
             {
+                _logger.LogWarning("Public link queue is not enabled. Skipping enqueue for item {ItemId}", publishedItem.ItemId);
                 var assetIdsFromPublicLinks = await GetAssetIdsFromPublicLinkAsync(publishedItem, cancellationToken);
                 var publishedItemWithIdsFromLinks = await AddPublicLinkAssetIdsToPublishedItem(publishedItem, assetIdsFromPublicLinks, cancellationToken);
                 await EnqueueDeltaCalculationAsync(publishedItemWithIdsFromLinks, cancellationToken);
-                _logger.LogWarning("Public link queue is not enabled. Skipping enqueue for item {ItemId}", publishedItem.ItemId);
-                return;
+            } else
+            {
+                await _serviceBusQueueService.SendMessageAsync(queueName!, publishedItem, cancellationToken);
             } 
-            var queueName = _serviceBusConfigService.PublicLinkQueueName;
-            await _serviceBusQueueService.SendMessageAsync(queueName!, publishedItem, cancellationToken);
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to enqueue public link processing for item {ItemId}", publishedItem.ItemId);
+            _logger.LogError(exception, "Failed to proccess public links for item {ItemId}", publishedItem.ItemId);
             throw;
         }
     }
@@ -68,17 +68,17 @@ public class AssetItemController
 
         try
         {
-            if(!_serviceBusConfigService.IsDeltaCalculationQueueEnabled)
+            var queueName = _serviceBusConfigService.DeltaCalculationQueueName;
+            if (!await QueueExist(queueName))
             {
+                _logger.LogWarning("Delta calculation queue is not enabled. Skipping enqueue for item {ItemId}", publishedItem.ItemId);
                 var itemAssetChanges = await _deltaCalculationService.CalculateDeltaAsync(publishedItem, publishedItem.AssetIds, cancellationToken);
                 await _publishPushToDamEventsService.PublishPushToDamEventsAsync(itemAssetChanges, cancellationToken);
-                _logger.LogWarning("Delta calculation queue is not enabled. Skipping enqueue for item {ItemId}", publishedItem.ItemId);
-                return;
             }
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to enqueue delta calculation for item {ItemId}", publishedItem.ItemId);
+            _logger.LogError(exception, "Failed proccess delta calculation for item {ItemId}", publishedItem.ItemId);
             throw;
         }
     }
@@ -110,5 +110,11 @@ public class AssetItemController
             _logger.LogError(exception, "Failed to retrieve total asset IDs for item {ItemId}", publishedItem.ItemId);
             throw;
         }
+    }
+    private async Task<bool> QueueExist(string queueName)
+    {
+        return await _serviceBusConfigService.IsConnectionValidAsync() 
+            && await _serviceBusConfigService.DoesQueueExistAsync(queueName) 
+            && !string.IsNullOrEmpty(queueName);
     }
 }

@@ -9,6 +9,12 @@
           },
           {
             "Name": "delta-calculation-requests"
+          },
+          {
+            "Name": "push-to-contenthub-requests"
+          },
+          {
+            "Name": "test-queue"
           }
         ]
       }
