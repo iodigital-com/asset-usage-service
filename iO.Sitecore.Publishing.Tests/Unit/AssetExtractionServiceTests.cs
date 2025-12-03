@@ -30,117 +30,84 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 
         #region ExtractAssetIds Tests
 
-        [Fact]
-        public void ExtractAssetIds_ImageFieldWithGatewayUrl_ReturnsGatewayId()
+        public static IEnumerable<object[]> MultipleGatewayUrlsData => new List<object[]>
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var fields = CreateFieldDataWithImageField(ValidGatewayUrl);
+            new object[]
+            {
+                new[] { ValidGatewayUrl, SecondValidGatewayUrl, ThirdValidGatewayUrl },
+                new[] { ValidGatewayId, SecondValidGatewayId, ThirdValidGatewayId }
+            }
+        };
 
+        [Theory]
+        [InlineData(ValidGatewayUrl, ValidGatewayId)]
+        public void ExtractAssetIds_ImageFieldWithGatewayUrl_ReturnsGatewayId(string url, string expectedId)
+        {
+            //Arrange
+            var sut = CreateSut();
+            var fields = CreateFieldDataWithImageField(url);
+
+            //Act
             var result = sut.ExtractAssetIdsFromFieldData(fields);
 
+            //Assert
             Assert.Single(result);
+            Assert.Contains(expectedId, result);
         }
 
-        [Fact]
-        public void ExtractAssetIds_ImageFieldWithGatewayUrl_ReturnsCorrectGatewayId()
+        [Theory]
+        [InlineData("")]
+        [InlineData(NonGatewayUrl)]
+        public void ExtractAssetIds_ImageFieldInvalidOrNonGateway_ReturnsEmpty(string url)
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var fields = CreateFieldDataWithImageField(ValidGatewayUrl);
+            //Arrange
+            var sut = CreateSut();
+            var fields = CreateFieldDataWithImageField(url);
 
+            //Act
             var result = sut.ExtractAssetIdsFromFieldData(fields);
 
-            Assert.Contains(ValidGatewayId, result);
-        }
-
-        [Fact]
-        public void ExtractAssetIds_MultipleImageFieldsWithDifferentGatewayUrls_ReturnsAllGatewayIds()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var urls = new[] { ValidGatewayUrl, SecondValidGatewayUrl, ThirdValidGatewayUrl };
-            var fields = CreateFieldDataWithMultipleImageFields(urls);
-
-            var result = sut.ExtractAssetIdsFromFieldData(fields);
-
-            Assert.Equal(3, result.Count);
-        }
-
-        [Fact]
-        public void ExtractAssetIds_MultipleImageFieldsWithDifferentGatewayUrls_ReturnsCorrectGatewayIds()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var urls = new[] { ValidGatewayUrl, SecondValidGatewayUrl, ThirdValidGatewayUrl };
-            var fields = CreateFieldDataWithMultipleImageFields(urls);
-
-            var result = sut.ExtractAssetIdsFromFieldData(fields);
-
-            Assert.All(new[] { ValidGatewayId, SecondValidGatewayId, ThirdValidGatewayId },
-                id => Assert.Contains(id, result));
-        }
-
-        [Fact]
-        public void ExtractAssetIds_EmptyImageField_ReturnsEmptyCollection()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var fields = CreateFieldDataWithImageField(string.Empty);
-
-            var result = sut.ExtractAssetIdsFromFieldData(fields);
-
+            //Assert
             Assert.Empty(result);
         }
 
-        [Fact]
-        public void ExtractAssetIds_ImageFieldWithoutGatewayPattern_ReturnsEmptyCollection()
+        [Theory]
+        [MemberData(nameof(MultipleGatewayUrlsData))]
+        public void ExtractAssetIds_MultipleImageFieldsWithDifferentGatewayUrls_ReturnsAllGatewayIds(string[] urls, string[] expectedIds)
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var fields = CreateFieldDataWithImageField(NonGatewayUrl);
+            //Arrange
+            var sut = CreateSut();
+            var fields = CreateFieldDataWithMultipleImageFields(urls);
 
+            //Act
             var result = sut.ExtractAssetIdsFromFieldData(fields);
 
-            Assert.Empty(result);
+            //Assert
+            Assert.Equal(expectedIds.Length, result.Count);
+            foreach (var id in expectedIds) Assert.Contains(id, result);
         }
 
         [Fact]
         public void ExtractAssetIds_DuplicateGatewayIds_ReturnsUniqueGatewayIds()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             var urls = new[] { ValidGatewayUrl, ValidGatewayUrl };
             var fields = CreateFieldDataWithMultipleImageFields(urls);
 
+            //Act
             var result = sut.ExtractAssetIdsFromFieldData(fields);
 
+            //Assert
             Assert.Single(result);
-        }
-
-        [Fact]
-        public void ExtractAssetIds_ItemFieldsThrowException_ReturnsEmptyCollection()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> ThrowingFields()
-            {
-                throw new InvalidOperationException();
-#pragma warning disable 162
-                yield break;
-#pragma warning restore 162
-            }
-
-            var result = sut.ExtractAssetIdsFromFieldData(ThrowingFields());
-
-            Assert.Empty(result);
+            Assert.Contains(ValidGatewayId, result);
         }
 
         [Fact]
         public void ExtractAssetIds_ItemFieldsThrowException_DoesNotThrow_AndReturnsEmpty()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> ThrowingFields()
             {
                 throw new InvalidOperationException();
@@ -149,8 +116,10 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 #pragma warning restore 162
             }
 
+            //Act
             var result = sut.ExtractAssetIdsFromFieldData(ThrowingFields());
 
+            //Assert
             Assert.Empty(result);
         }
 
@@ -159,80 +128,43 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         #region ExtractPublicLinks Tests
 
         [Fact]
-        public void ExtractPublicLinks_RichTextFieldWithImageTags_ReturnsImageUrls()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var richTextContent = CreateRichTextWithImages(new[] { ValidImageUrl, SecondValidImageUrl });
-            var fields = CreateFieldDataWithRichTextField(richTextContent);
-
-            var result = sut.ExtractPublicLinksFromFieldData(fields);
-
-            Assert.Equal(2, result.Count);
-        }
-
-        [Fact]
         public void ExtractPublicLinks_RichTextFieldWithImageTags_ReturnsCorrectImageUrls()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             var richTextContent = CreateRichTextWithImages(new[] { ValidImageUrl, SecondValidImageUrl });
             var fields = CreateFieldDataWithRichTextField(richTextContent);
 
+            //Act
             var result = sut.ExtractPublicLinksFromFieldData(fields);
 
-            Assert.All(new[] { ValidImageUrl, SecondValidImageUrl },
-                url => Assert.Contains(url, result));
+            //Assert
+            Assert.Equal(2, result.Count);
+            Assert.Contains(ValidImageUrl, result);
+            Assert.Contains(SecondValidImageUrl, result);
         }
 
-        [Fact]
-        public void ExtractPublicLinks_RichTextFieldWithoutImages_ReturnsEmptyCollection()
+        [Theory]
+        [InlineData("<p>Just plain text without images</p>")]
+        [InlineData("")]
+        public void ExtractPublicLinks_RichTextFieldWithoutImagesOrEmpty_ReturnsEmptyCollection(string richText)
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var richTextContent = "<p>Just plain text without images</p>";
-            var fields = CreateFieldDataWithRichTextField(richTextContent);
+            //Arrange
+            var sut = CreateSut();
+            var fields = CreateFieldDataWithRichTextField(richText);
 
+            //Act
             var result = sut.ExtractPublicLinksFromFieldData(fields);
 
-            Assert.Empty(result);
-        }
-
-        [Fact]
-        public void ExtractPublicLinks_EmptyRichTextField_ReturnsEmptyCollection()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var fields = CreateFieldDataWithRichTextField(string.Empty);
-
-            var result = sut.ExtractPublicLinksFromFieldData(fields);
-
-            Assert.Empty(result);
-        }
-
-        [Fact]
-        public void ExtractPublicLinks_ItemFieldsThrowException_ReturnsEmptyCollection()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> ThrowingFields()
-            {
-                throw new InvalidOperationException();
-#pragma warning disable 162
-                yield break;
-#pragma warning restore 162
-            }
-
-            var result = sut.ExtractPublicLinksFromFieldData(ThrowingFields());
-
+            //Assert
             Assert.Empty(result);
         }
 
         [Fact]
         public void ExtractPublicLinks_ItemFieldsThrowException_DoesNotThrow_AndReturnsEmpty()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> ThrowingFields()
             {
                 throw new InvalidOperationException();
@@ -241,8 +173,10 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 #pragma warning restore 162
             }
 
+            //Act
             var result = sut.ExtractPublicLinksFromFieldData(ThrowingFields());
 
+            //Assert
             Assert.Empty(result);
         }
 
@@ -251,132 +185,90 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         #region ExtractPublicLinksFromAnyField Tests
 
         [Fact]
-        public void ExtractPublicLinksFromAnyField_ImageField_ReturnsThumbnailUrl()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var fields = CreateFieldDataWithImageField(ValidGatewayUrl);
-
-            var result = sut.ExtractPublicLinksFromAnyFieldData(fields);
-
-            Assert.Single(result);
-        }
-
-        [Fact]
         public void ExtractPublicLinksFromAnyField_ImageField_ReturnsCorrectThumbnailUrl()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             var fields = CreateFieldDataWithImageField(ValidGatewayUrl);
 
+            //Act
             var result = sut.ExtractPublicLinksFromAnyFieldData(fields);
 
+            //Assert
+            Assert.Single(result);
             Assert.Contains(ValidGatewayUrl, result);
         }
 
         [Fact]
-        public void ExtractPublicLinksFromAnyField_RichTextField_ReturnsImageUrls()
+        public void ExtractPublicLinksFromAnyField_RichTextField_ReturnsImageUrl()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             var richTextContent = CreateRichTextWithImages(new[] { ValidImageUrl });
             var fields = CreateFieldDataWithRichTextField(richTextContent);
 
+            //Act
             var result = sut.ExtractPublicLinksFromAnyFieldData(fields);
 
+            //Assert
             Assert.Contains(ValidImageUrl, result);
         }
 
-        [Fact]
-        public void ExtractPublicLinksFromAnyField_TextFieldWithHttpsUrl_ReturnsUrl()
+        [Theory]
+        [InlineData(ValidHttpsUrl)]
+        [InlineData(ValidHttpUrl)]
+        public void ExtractPublicLinksFromAnyField_TextFieldWithUrl_ReturnsUrl(string url)
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var fields = CreateFieldDataWithTextField(ValidHttpsUrl);
+            //Arrange
+            var sut = CreateSut();
+            var fields = CreateFieldDataWithTextField(url);
 
+            //Act
             var result = sut.ExtractPublicLinksFromAnyFieldData(fields);
 
-            Assert.Contains(ValidHttpsUrl, result);
-        }
-
-        [Fact]
-        public void ExtractPublicLinksFromAnyField_TextFieldWithHttpUrl_ReturnsUrl()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var fields = CreateFieldDataWithTextField(ValidHttpUrl);
-
-            var result = sut.ExtractPublicLinksFromAnyFieldData(fields);
-
-            Assert.Contains(ValidHttpUrl, result);
+            //Assert
+            Assert.Contains(url, result);
         }
 
         [Fact]
         public void ExtractPublicLinksFromAnyField_TextFieldWithNonUrl_ReturnsEmptyCollection()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             var fields = CreateFieldDataWithTextField(InvalidTextValue);
 
+            //Act
             var result = sut.ExtractPublicLinksFromAnyFieldData(fields);
 
+            //Assert
             Assert.Empty(result);
         }
 
         [Fact]
         public void ExtractPublicLinksFromAnyField_MixedFieldTypes_ReturnsAllUrls()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             var mixedFields = CreateFieldDataWithMixedFields(
                 ValidGatewayUrl,
                 CreateRichTextWithImages(new[] { ValidImageUrl }),
                 ValidHttpsUrl);
 
+            //Act
             var result = sut.ExtractPublicLinksFromAnyFieldData(mixedFields);
 
+            //Assert
             Assert.Equal(3, result.Count);
-        }
-
-        [Fact]
-        public void ExtractPublicLinksFromAnyField_MixedFieldTypes_ReturnsCorrectUrls()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            var mixedFields = CreateFieldDataWithMixedFields(
-                ValidGatewayUrl,
-                CreateRichTextWithImages(new[] { ValidImageUrl }),
-                ValidHttpsUrl);
-
-            var result = sut.ExtractPublicLinksFromAnyFieldData(mixedFields);
-
-            Assert.All(new[] { ValidGatewayUrl, ValidImageUrl, ValidHttpsUrl },
-                url => Assert.Contains(url, result));
-        }
-
-        [Fact]
-        public void ExtractPublicLinksFromAnyField_ItemFieldsThrowException_ReturnsEmptyCollection()
-        {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
-            IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> ThrowingFields()
-            {
-                throw new InvalidOperationException();
-#pragma warning disable 162
-                yield break;
-#pragma warning restore 162
-            }
-
-            var result = sut.ExtractPublicLinksFromAnyFieldData(ThrowingFields());
-
-            Assert.Empty(result);
+            Assert.Contains(ValidGatewayUrl, result);
+            Assert.Contains(ValidImageUrl, result);
+            Assert.Contains(ValidHttpsUrl, result);
         }
 
         [Fact]
         public void ExtractPublicLinksFromAnyField_ItemFieldsThrowException_DoesNotThrow_AndReturnsEmpty()
         {
-            var loggingService = CreateLoggingService();
-            var sut = new AssetExtractionService(loggingService);
+            //Arrange
+            var sut = CreateSut();
             IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> ThrowingFields()
             {
                 throw new InvalidOperationException();
@@ -385,8 +277,10 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 #pragma warning restore 162
             }
 
+            //Act
             var result = sut.ExtractPublicLinksFromAnyFieldData(ThrowingFields());
 
+            //Assert
             Assert.Empty(result);
         }
 
@@ -394,17 +288,15 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 
         #region Helper Methods - Test Data Creation
 
-        private static PublishLoggingService CreateLoggingService()
-        {
-            return new PublishLoggingService(new object());
-        }
+        private static AssetExtractionService CreateSut() => new AssetExtractionService(CreateLoggingService());
+
+        private static PublishLoggingService CreateLoggingService() => new PublishLoggingService(new object());
 
         private static IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> CreateFieldDataWithImageField(string thumbnailUrl)
         {
             var runtimeValue = string.IsNullOrEmpty(thumbnailUrl)
                 ? string.Empty
                 : $"<image {ThumbnailSrcAttribute}=\"{thumbnailUrl}\" />";
-
             return new[] { (ImageFieldType, runtimeValue, runtimeValue, "ImageField") };
         }
 
@@ -430,7 +322,6 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         private static IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> CreateFieldDataWithMixedFields(string imageUrl, string richTextContent, string plainUrl)
         {
             var imageFieldValue = string.IsNullOrEmpty(imageUrl) ? string.Empty : $"<image {ThumbnailSrcAttribute}=\"{imageUrl}\" />";
-
             return new List<(string, string, string, string)>
             {
                 (ImageFieldType, imageFieldValue, imageFieldValue, "ImageField"),
