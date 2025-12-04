@@ -1,6 +1,6 @@
 using Azure.Messaging.ServiceBus;
 
-namespace AssetUsageService.Business.Services.ServiceBusQueueServices;
+namespace AssetUsageService.Business.Services.ServiceBusQueueServices.Interfaces;
 
 public interface IServiceBusConfigService
 {

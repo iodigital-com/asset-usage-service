@@ -1,4 +1,5 @@
 using AssetUsageService.Business.Services.ServiceBusQueueServices;
+using AssetUsageService.Business.Services.ServiceBusQueueServices.Interfaces;
 using AssetUsageService.Domain.Models;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Configuration;

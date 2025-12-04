@@ -14,18 +14,16 @@ public class DeadLetterQueueMonitor
     }
 
     [Function(nameof(MonitorPublicLinkDeadLetterQueue))]
-    public async Task MonitorPublicLinkDeadLetterQueue(
+    public void MonitorPublicLinkDeadLetterQueue(
         [ServiceBusTrigger("%ServiceBusQueue:PublicLinkQueueName%/$deadletterqueue", Connection = "ServiceBusQueue:ConnectionString")]
-        ServiceBusReceivedMessage message,
-        ServiceBusMessageActions messageActions)
+        ServiceBusReceivedMessage message)
     {
-        await ProcessDeadLetterAsync("PublicLink", message, messageActions);
+        ProcessDeadLetterAsync("PublicLink", message);
     }
 
-    private async Task ProcessDeadLetterAsync(
+    private void ProcessDeadLetterAsync(
         string queueType,
-        ServiceBusReceivedMessage message,
-        ServiceBusMessageActions messageActions)
+        ServiceBusReceivedMessage message)
     {
         try
         {
@@ -49,9 +47,9 @@ public class DeadLetterQueueMonitor
                 message.DeliveryCount,
                 message.Body.ToString());
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Failed to process dead letter message {MessageId}", message.MessageId);
+            _logger.LogError(exception, "Failed to process dead letter message {MessageId}", message.MessageId);
         }
     }
 }
