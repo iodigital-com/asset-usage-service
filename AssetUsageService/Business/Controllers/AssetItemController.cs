@@ -43,6 +43,7 @@ public class AssetItemController
             await EnqueuePublicLinkProcessingAsync(publishedItem, cancellationToken);
         }
     }
+
     public async Task EnqueuePublicLinkProcessingAsync(PublishedItem publishedItem, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publishedItem);
@@ -67,6 +68,7 @@ public class AssetItemController
             throw;
         }
     }
+
     public async Task EnqueueDeltaCalculationAsync(PublishedItem publishedItem, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publishedItem);
@@ -80,6 +82,10 @@ public class AssetItemController
                 var itemAssetChanges = await _deltaCalculationService.CalculateDeltaAsync(publishedItem, publishedItem.AssetIds, cancellationToken);
                 await _publishPushToDamEventsService.PublishPushToDamEventsAsync(itemAssetChanges, cancellationToken);
             }
+            else
+            {
+                await _serviceBusQueueService.SendMessageAsync(queueName!, publishedItem, cancellationToken);
+            }
         }
         catch (Exception exception)
         {
@@ -87,6 +93,7 @@ public class AssetItemController
             throw;
         }
     }
+
     public async Task<List<int>> GetAssetIdsFromPublicLinkAsync(PublishedItem publishedItem, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publishedItem);
@@ -119,7 +126,8 @@ public class AssetItemController
 
     private async Task<bool> QueueExistAsync(string queueName)
     {
-        return await _serviceBusConfigService.IsConnectionValidAsync()
-            && await _serviceBusConfigService.DoesQueueExistAsync(queueName);
+        var isConnectionValid = await _serviceBusConfigService.IsConnectionValidAsync();
+        var doesQueueExist = await _serviceBusConfigService.DoesQueueExistAsync(queueName);
+        return isConnectionValid && doesQueueExist;
     }
 }
