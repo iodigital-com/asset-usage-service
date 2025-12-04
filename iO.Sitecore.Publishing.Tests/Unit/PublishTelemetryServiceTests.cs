@@ -21,7 +21,6 @@ namespace iO.Sitecore.publishing.Tests.Unit
         private const string ValidLanguage = "en";
         private const string ValidTargetDatabase = "web";
         private const string ValidSourceDatabase = "master";
-        private const string ValidEventQueueName = "web";
         private const string TestEndpointUrl = "http://localhost:7183/api/SitecorePublishAPI";
 
         #endregion
