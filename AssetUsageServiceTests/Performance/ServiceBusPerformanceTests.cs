@@ -85,7 +85,7 @@ public class ServiceBusPerformanceTests : IAsyncLifetime
         var publishedItem = CreateTestPublishedItem(assetCount: 1000);
         var stopwatch = Stopwatch.StartNew();
 
-        // Act - Via IServiceBusQueueService
+        // Act 
         await _queueService.SendMessageAsync(TestQueueName, publishedItem, CancellationToken.None);
 
         // Assert

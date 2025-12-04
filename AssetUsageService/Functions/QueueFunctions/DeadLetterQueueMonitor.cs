@@ -48,8 +48,6 @@ public class DeadLetterQueueMonitor
                 message.DeadLetterErrorDescription ?? "N/A",
                 message.DeliveryCount,
                 message.Body.ToString());
-
-            await messageActions.CompleteMessageAsync(message);
         }
         catch (Exception ex)
         {
