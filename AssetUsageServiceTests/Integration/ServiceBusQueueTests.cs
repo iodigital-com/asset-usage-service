@@ -13,7 +13,8 @@ namespace AssetUsageServiceTests.Integration;
 public class ServiceBusQueueTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private readonly Mock<ILogger<ServiceBusQueueService>> _mockLogger;
+    private readonly Mock<ILogger<ServiceBusQueueService>> _mockQueueLogger;
+    private readonly Mock<ILogger<ServiceBusConfigService>> _mockConfigLogger;
     private readonly ServiceBusConfigService _configService;
     private readonly IConfiguration _configuration;
     private ServiceBusQueueService _queueService;
@@ -23,14 +24,15 @@ public class ServiceBusQueueTests : IAsyncLifetime
     public ServiceBusQueueTests(ITestOutputHelper output)
     {
         _output = output;
-        _mockLogger = new Mock<ILogger<ServiceBusQueueService>>();
+        _mockQueueLogger = new Mock<ILogger<ServiceBusQueueService>>();
+        _mockConfigLogger = new Mock<ILogger<ServiceBusConfigService>>();
 
         _configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.Test.json", optional: true, reloadOnChange: false)
             .AddEnvironmentVariables("SERVICEBUS_")
             .Build();
 
-        _configService = new ServiceBusConfigService(_configuration);
+        _configService = new ServiceBusConfigService(_configuration, _mockConfigLogger.Object);
     }
 
     public async Task InitializeAsync()
@@ -41,7 +43,7 @@ public class ServiceBusQueueTests : IAsyncLifetime
             return;
         }
 
-        _queueService = new ServiceBusQueueService(_configService, _mockLogger.Object);
+        _queueService = new ServiceBusQueueService(_configService, _mockQueueLogger.Object);
         _testClient = _configService.GetServiceBusClient();
 
         await CreateTestQueueIfNotExists();
@@ -72,7 +74,7 @@ public class ServiceBusQueueTests : IAsyncLifetime
         await _queueService.SendMessageAsync(TestQueueName, publishedItem, CancellationToken.None);
 
         // Assert
-        _mockLogger.Verify(
+        _mockQueueLogger.Verify(
             x => x.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
@@ -119,7 +121,7 @@ public class ServiceBusQueueTests : IAsyncLifetime
         await Assert.ThrowsAsync<ServiceBusException>(
             async () => await _queueService.SendMessageAsync(invalidQueueName, publishedItem, CancellationToken.None));
 
-        _mockLogger.Verify(
+        _mockQueueLogger.Verify(
             x => x.Log(
                 LogLevel.Error,
                 It.IsAny<EventId>(),
