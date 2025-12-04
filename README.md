@@ -790,7 +790,20 @@ To run the serviceBus tests create a file named `appsettings.Test.json` in the A
   }
 }
 ```
+Open `\AssetUsageServiceTests\AssetUsageServiceTests.csproj` file and within the project tags
+```xml
+ <Project Sdk="Microsoft.NET.Sdk"> 
 
+ </Project>
+ ```  
+Add the following code:
+```xml 
+<ItemGroup>
+  <None Update="appsettings.Test.json">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
+```
 
 ## Data Model
 
