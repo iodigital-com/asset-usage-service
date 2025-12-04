@@ -46,11 +46,11 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         public async Task SendAsync_ValidPayload_CompletesSuccessfully()
         {
             //Arrange
-            var sut = CreateSut();
+            var client = CreateClient();
             var payload = CreateValidPayload();
 
             //Act
-            await sut.SendAsync(payload);
+            await client.SendAsync(payload);
 
             //Assert
             Assert.NotNull(payload.AssetIds);
@@ -66,11 +66,11 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         public async Task SendAsync_PayloadWithNullOrEmptyItemId_DoesNotThrow(string itemId)
         {
             //Arrange
-            var sut = CreateSut();
+            var client = CreateClient();
             var payload = CreateValidPayload(itemIdOverride: itemId);
 
             //Act
-            await sut.SendAsync(payload);
+            await client.SendAsync(payload);
 
             //Assert
             Assert.True(true);
@@ -80,10 +80,10 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         public async Task SendAsync_NullPayload_DoesNotThrow()
         {
             //Arrange
-            var sut = CreateSut();
+            var client = CreateClient();
 
             //Act
-            await sut.SendAsync(null);
+            await client.SendAsync(null);
 
             //Assert
             Assert.True(true);
@@ -93,13 +93,13 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         public async Task SendAsync_WithCancellationTokenCanceled_DoesNotThrow()
         {
             //Arrange
-            var sut = CreateSut();
+            var client = CreateClient();
             var payload = CreateValidPayload();
             var cts = new CancellationTokenSource();
             cts.Cancel();
 
             //Act
-            await sut.SendAsync(payload, cts.Token);
+            await client.SendAsync(payload, cts.Token);
 
             //Assert
             Assert.True(true);
@@ -114,11 +114,11 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         public async Task SendAsync_PayloadWithAssetIds_PreservesCount(List<string> assetIds, int expectedCount)
         {
             //Arrange
-            var sut = CreateSut();
+            var client = CreateClient();
             var payload = CreateValidPayload(assetIdsOverride: assetIds);
 
             //Act
-            await sut.SendAsync(payload);
+            await client.SendAsync(payload);
 
             //Assert
             Assert.Equal(expectedCount, payload.AssetIds?.Count ?? 0);
@@ -129,11 +129,11 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         public async Task SendAsync_PayloadWithPublicLinks_PreservesCount(List<string> publicLinks, int expectedCount)
         {
             //Arrange
-            var sut = CreateSut();
+            var client = CreateClient();
             var payload = CreateValidPayload(publicLinksOverride: publicLinks);
 
             //Act
-            await sut.SendAsync(payload);
+            await client.SendAsync(payload);
 
             //Assert
             Assert.Equal(expectedCount, payload.PublicLinks?.Count ?? 0);
@@ -143,13 +143,13 @@ namespace iO.Sitecore.Publishing.Tests.Unit
         public async Task SendAsync_MultipleCallsWithSameClient_Completes()
         {
             //Arrange
-            var sut = CreateSut();
+            var client = CreateClient();
             var payload1 = CreateValidPayload();
             var payload2 = CreateValidPayload();
 
             //Act
-            await sut.SendAsync(payload1);
-            await sut.SendAsync(payload2);
+            await client.SendAsync(payload1);
+            await client.SendAsync(payload2);
 
             //Assert
             Assert.True(true);
@@ -159,7 +159,7 @@ namespace iO.Sitecore.Publishing.Tests.Unit
 
         #region Helper Methods - Test Data Creation
 
-        private static AssetUsageServiceClient CreateSut() => new AssetUsageServiceClient(TestEndpointUrl);
+        private static AssetUsageServiceClient CreateClient() => new AssetUsageServiceClient(TestEndpointUrl);
 
         private static AssetUsageEvent CreateValidPayload(
             string itemIdOverride = ValidItemId,
