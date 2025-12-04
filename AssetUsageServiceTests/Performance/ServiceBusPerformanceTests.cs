@@ -24,7 +24,8 @@ public class ServiceBusPerformanceTests : IAsyncLifetime
     private const int MaxMemoryIncreaseMb = 50;
     
     private readonly ITestOutputHelper _output;
-    private readonly Mock<ILogger<ServiceBusQueueService>> _mockLogger;
+    private readonly Mock<ILogger<ServiceBusQueueService>> _mockQueueLogger;
+    private readonly Mock<ILogger<ServiceBusConfigService>> _mockConfigLogger;
     private readonly IServiceBusConfigService _configService;
     private readonly IConfiguration _configuration;
     private IServiceBusQueueService _queueService;
@@ -33,14 +34,15 @@ public class ServiceBusPerformanceTests : IAsyncLifetime
     public ServiceBusPerformanceTests(ITestOutputHelper output)
     {
         _output = output;
-        _mockLogger = new Mock<ILogger<ServiceBusQueueService>>();
+        _mockQueueLogger = new Mock<ILogger<ServiceBusQueueService>>();
+        _mockConfigLogger = new Mock<ILogger<ServiceBusConfigService>>();
 
         _configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.Test.json", optional: true, reloadOnChange: false)
             .AddEnvironmentVariables("SERVICEBUS_")
             .Build();
 
-        _configService = new ServiceBusConfigService(_configuration);
+        _configService = new ServiceBusConfigService(_configuration, _mockConfigLogger.Object);
     }
 
     public async Task InitializeAsync()
@@ -51,7 +53,7 @@ public class ServiceBusPerformanceTests : IAsyncLifetime
             return;
         }
 
-        _queueService = new ServiceBusQueueService(_configService, _mockLogger.Object);
+        _queueService = new ServiceBusQueueService(_configService, _mockQueueLogger.Object);
 
         _testClient = _configService.GetServiceBusClient();
 
