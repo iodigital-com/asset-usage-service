@@ -5,6 +5,7 @@ using AssetUsageService.Business.Handlers;
 using AssetUsageService.Business.Handlers.interfaces;
 using AssetUsageService.Business.Services;
 using AssetUsageService.Business.Services.ServiceBusQueueServices;
+using AssetUsageService.Business.Services.ServiceBusQueueServices.Interfaces;
 using AssetUsageService.Domain.Data;
 using AssetUsageService.Infrastructure;
 using AssetUsageService.Integration;

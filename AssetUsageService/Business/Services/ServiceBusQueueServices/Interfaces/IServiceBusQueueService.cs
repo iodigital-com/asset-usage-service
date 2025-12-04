@@ -1,4 +1,4 @@
-﻿namespace AssetUsageService.Business.Services.ServiceBusQueueServices;
+﻿namespace AssetUsageService.Business.Services.ServiceBusQueueServices.Interfaces;
 
 public interface IServiceBusQueueService
 {

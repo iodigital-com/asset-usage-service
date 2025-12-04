@@ -1,14 +1,9 @@
 using AssetUsageService.Business.Controllers;
 using AssetUsageService.Domain.Models;
-using AssetUsageService.Integration.Mappers;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Text.Json;
-using System.Threading.Tasks;
-
 
 namespace AssetUsageService.Functions.QueueFunctions;
 
@@ -45,7 +40,7 @@ public class PublicLinkQueueFunction
             }
 
             var allAssetIds = await _assetItemController.GetAssetIdsFromPublicLinkAsync(publishedItemMessage, cancellationToken);
-            var publishedItem = await _assetItemController.AddPublicLinkAssetIdsToPublishedItem(publishedItemMessage, allAssetIds, cancellationToken);
+            var publishedItem = _assetItemController.AddPublicLinkAssetIdsToPublishedItem(publishedItemMessage, allAssetIds, cancellationToken);
 
             _logger.LogInformation("Successfully processed message with all asset IDs {ids}", publishedItem.AssetIds);
             await _assetItemController.EnqueueDeltaCalculationAsync(publishedItem, cancellationToken);
@@ -57,9 +52,9 @@ public class PublicLinkQueueFunction
             _logger.LogWarning("Operation was cancelled for message {MessageId}", message.MessageId);
             throw;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Error processing message {MessageId}. DeliveryCount: {DeliveryCount}", message.MessageId, message.DeliveryCount);
+            _logger.LogError(exception, "Error processing message {MessageId}. DeliveryCount: {DeliveryCount}", message.MessageId, message.DeliveryCount);
             throw;
         }
     }
