@@ -777,7 +777,7 @@ Wait for it to say:
 
 Check your `local.settings.json` if you have the correct queue names and the queue functions are Disabled are false of the queues you want to use
 
-### Azure ServiceBus tets 
+### Azure ServiceBus test 
 To run the serviceBus tests create a file named `appsettings.Test.json` in the AssetUsageServiceTests directory and paste this in for the local queue:
 ```json
 {
