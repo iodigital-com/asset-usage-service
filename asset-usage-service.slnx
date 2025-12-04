@@ -5,5 +5,6 @@
     <Build />
     <Deploy />
   </Project>
+  <Project Path="iO.Sitecore.Publishing.Tests/iO.Sitecore.publishing.Tests.csproj" />
   <Project Path="iO.Sitecore.publishing/iO.Sitecore.publishing.csproj" Id="3bb11310-6839-4845-b173-527480223523" />
 </Solution>

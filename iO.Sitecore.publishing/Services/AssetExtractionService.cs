@@ -1,5 +1,4 @@
-﻿using Sitecore.Data.Fields;
-using Sitecore.Data.Items;
+﻿using iO.Sitecore.Publishing.Interfaces.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,32 +23,34 @@ namespace iO.Sitecore.Publishing.Services
             _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
         }
 
-        public List<string> ExtractAssetIds(Item item)
+        public List<string> ExtractAssetIdsFromFieldData(IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> fields)
         {
-            return ExtractFromFields(item, ProcessAssetIdField, exception => _loggingService.LogExtractAssetIdsError(item.Paths.FullPath, exception));
+            return ExtractFromFieldData(fields, ProcessAssetIdFieldFromData, exception => _loggingService.LogExtractAssetIdsError("FieldData", exception));
         }
 
-        public List<string> ExtractPublicLinksFromAnyField(Item item)
+        public List<string> ExtractPublicLinksFromAnyFieldData(IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> fields)
         {
-            return ExtractFromFields(item, ExtractPublicLinkFromAnyField, exception => _loggingService.LogExtractPublicLinkError(item.Paths.FullPath, exception));
+            return ExtractFromFieldData(fields, ExtractPublicLinkFromAnyFieldFromData, exception => _loggingService.LogExtractPublicLinkError("FieldData", exception));
         }
 
-        public List<string> ExtractPublicLinks(Item item)
+        public List<string> ExtractPublicLinksFromFieldData(IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> fields)
         {
-            return ExtractFromFields(item, ProcessPublicLinkFieldForRichText, exception => _loggingService.LogExtractPublicLinkError(item.Paths.FullPath, exception));
+            return ExtractFromFieldData(fields, ProcessPublicLinkFieldForRichTextFromData, exception => _loggingService.LogExtractPublicLinkError("FieldData", exception));
         }
 
-        private List<string> ExtractFromFields(Item item, Action<Field, HashSet<string>> fieldProcessor, Action<Exception> errorLogger)
+        private List<string> ExtractFromFieldData(IEnumerable<(string TypeKey, string Value, string InheritedValue, string Name)> fields,
+            Action<(string TypeKey, string Value, string InheritedValue, string Name), HashSet<string>> fieldProcessor,
+            Action<Exception> errorLogger)
         {
             var extractedValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             try
             {
-                item.Fields.ReadAll();
+                if (fields == null) return extractedValues.ToList();
 
-                foreach (Field field in item.Fields)
+                foreach (var field in fields)
                 {
-                    if (string.IsNullOrEmpty(field?.Value))
+                    if (string.IsNullOrEmpty(field.Value))
                         continue;
 
                     fieldProcessor(field, extractedValues);
@@ -63,43 +64,44 @@ namespace iO.Sitecore.Publishing.Services
             return extractedValues.ToList();
         }
 
-        private void ProcessAssetIdField(Field field, HashSet<string> extractedAssetIds)
+        private void ProcessAssetIdFieldFromData((string TypeKey, string Value, string InheritedValue, string Name) field, HashSet<string> extractedAssetIds)
         {
             var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
 
             if (fieldTypeKey == ImageFieldType)
             {
-                var imageField = (ImageField)field;
-                var thumbnailSourceUrl = imageField.GetAttribute(ThumbnailSourceAttribute);
+                var thumbnailSourceUrl = GetAttributeValueFromMarkup(field.Value, ThumbnailSourceAttribute);
 
                 ExtractGatewayIdsFromUrl(extractedAssetIds, thumbnailSourceUrl);
             }
         }
 
-        private void ProcessPublicLinkFieldForRichText(Field field, HashSet<string> extractedPublicLinks)
+        private void ProcessPublicLinkFieldForRichTextFromData((string TypeKey, string Value, string InheritedValue, string Name) field, HashSet<string> extractedPublicLinks)
         {
             var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
 
             if (fieldTypeKey == RichTextFieldType)
             {
-                ExtractPublicLinkFromAnyField(field, extractedPublicLinks);
+                var richTextContent = field.InheritedValue ?? field.Value;
+
+                if (!string.IsNullOrWhiteSpace(richTextContent))
+                {
+                    ExtractImageUrlsFromHtmlContent(extractedPublicLinks, richTextContent);
+                }
             }
         }
 
-        private void ExtractPublicLinkFromAnyField(Field field, HashSet<string> extractedPublicLinks)
+        private void ExtractPublicLinkFromAnyFieldFromData((string TypeKey, string Value, string InheritedValue, string Name) field, HashSet<string> extractedPublicLinks)
         {
-            if (field == null || string.IsNullOrWhiteSpace(field.Value))
+            if (string.IsNullOrWhiteSpace(field.Value))
                 return;
 
             var fieldTypeKey = (field.TypeKey ?? string.Empty).ToLowerInvariant();
 
             if (fieldTypeKey == ImageFieldType)
             {
-                var imageField = (ImageField)field;
-                var thumbnailSourceUrl = imageField.GetAttribute(ThumbnailSourceAttribute);
-
+                var thumbnailSourceUrl = GetAttributeValueFromMarkup(field.Value, ThumbnailSourceAttribute);
                 AddValueIfNotEmpty(extractedPublicLinks, thumbnailSourceUrl);
-                // _loggingService.LogAssetIdExtractedFromUrl(thumbnailSourceUrl, $"Image field: {field.Name}");
                 return;
             }
 
@@ -125,7 +127,7 @@ namespace iO.Sitecore.Publishing.Services
 
         private void ExtractImageUrlsFromHtmlContent(HashSet<string> extractedUrls, string htmlContent)
         {
-            var imageSourceMatches = ImageSourceRegex.Matches(htmlContent);
+            var imageSourceMatches = ImageSourceRegex.Matches(htmlContent ?? string.Empty);
 
             foreach (Match imageMatch in imageSourceMatches)
             {
@@ -166,8 +168,18 @@ namespace iO.Sitecore.Publishing.Services
 
         private bool IsValidUrl(string value)
         {
-            return value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                   value.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            return !string.IsNullOrEmpty(value) &&
+                   (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    value.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string GetAttributeValueFromMarkup(string markup, string attributeName)
+        {
+            if (string.IsNullOrWhiteSpace(markup))
+                return null;
+
+            var m = Regex.Match(markup, attributeName + "\\s*=\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase);
+            return m.Success && m.Groups.Count > 1 ? m.Groups[1].Value : null;
         }
     }
 }
