@@ -31,10 +31,10 @@ public class SitecorePublishFunction
 
             return new AcceptedResult();
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Error processing request");
-            return new BadRequestObjectResult(new { error = ex.Message });
+            _logger.LogError(exception, "Error processing request");
+            return new BadRequestObjectResult(new { error = exception.Message });
         }
     }
 }

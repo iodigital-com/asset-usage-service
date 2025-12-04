@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace AssetUsageService.Business.Services;
 
 public class DeltaCalculationService
-{
+{ 
     private readonly IAssetItemLinkRepository _assetItemLinkRepository;
     private readonly ILogger<DeltaCalculationService> _logger;
 

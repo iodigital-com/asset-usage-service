@@ -38,9 +38,9 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
                 assetIds.Count, @event.PublicLinks.Count);
             @event.AssetIds = assetIds;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Failed to retrieve asset IDs from public links");
+            _logger.LogError(exception, "Failed to retrieve asset IDs from public links");
             throw;
         }
     }
@@ -48,6 +48,15 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
     private async Task<List<int>> GetAssetIdsByPublicLinksAsync(IReadOnlyList<string> publicLinks, CancellationToken cancellationToken)
     {
         var assetIds = new List<int>(publicLinks.Count);
+
+        var isReachable = await _contentHubConnection.IsReachableAsync(cancellationToken);
+        if (!isReachable)
+        {
+            _logger.LogError("ContentHub is not reachable. Cannot process public links.");
+            throw new InvalidOperationException(
+                "ContentHub is not reachable. Please verify ContentHub:Endpoint configuration and network connectivity.");
+        }
+
         var contentHubClient = _contentHubConnection.CreateClient();
 
         var tasks = publicLinks
@@ -81,9 +90,9 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 
             return assetId;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Error processing public link: {Url}", url);
+            _logger.LogError(exception, "Error processing public link: {Url}", url);
             return null;
         }
     }
@@ -136,32 +145,40 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 
             return result.Items.First().Id.Value;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Error retrieving public link ID for relative URL: {RelativeUrl}", relativeUrl);
+            _logger.LogError(exception, "Error retrieving public link ID for relative URL: {RelativeUrl}", relativeUrl);
             throw;
         }
     }
 
     private async Task<long?> GetAssetIdFromPublicLinkAsync(IWebMClient contentHubClient, long publicLinkId, CancellationToken cancellationToken)
     {
-        var publicLink = await contentHubClient.Entities.GetAsync(
-            publicLinkId,
-            new EntityLoadConfiguration(
-                CultureLoadOption.Default,
-                PropertyLoadOption.All,
-                new RelationLoadOption(AssetToPublicLinkRelation))
-            );
-
-        var assetToPublicLinkRelation = publicLink.GetRelation<IChildToManyParentsRelation>(AssetToPublicLinkRelation);
-        var assetId = assetToPublicLinkRelation?.GetIds().FirstOrDefault();
-
-        if (!assetId.HasValue)
+        try
         {
-            _logger.LogWarning("No asset found for public link ID: {PublicLinkId}", publicLinkId);
-        }
+            var publicLink = await contentHubClient.Entities.GetAsync(
+               publicLinkId,
+               new EntityLoadConfiguration(
+                   CultureLoadOption.Default,
+                   PropertyLoadOption.All,
+                   new RelationLoadOption(AssetToPublicLinkRelation))
+               );
 
-        return assetId;
+            var assetToPublicLinkRelation = publicLink.GetRelation<IChildToManyParentsRelation>(AssetToPublicLinkRelation);
+            var assetId = assetToPublicLinkRelation?.GetIds().FirstOrDefault();
+
+            if (!assetId.HasValue)
+            {
+                _logger.LogWarning("No asset found for public link ID: {PublicLinkId}", publicLinkId);
+            }
+
+            return assetId;
+
+        } catch(Exception exception)
+        {
+            _logger.LogError(exception, "Error GetAssetIdFromPublicLinkAsync");
+            throw;
+        }   
     }
 }
 
