@@ -15,7 +15,12 @@ public class AssetItemController
     private readonly IServiceBusQueueService _serviceBusQueueService;
     private readonly IServiceBusConfigService _serviceBusConfigService;
 
-    public AssetItemController(PublishAssetIdsByPublicLinksEventService publishGetAssetIdsByPublicLinksEventService, DeltaCalculationService deltaCalculationService, PublishPushToDamEventsService publishPushToDamEventsService, ILogger<AssetItemController> logger, IServiceBusQueueService serviceBusQueueService, IServiceBusConfigService serviceBusConfigService)
+    public AssetItemController(
+        PublishAssetIdsByPublicLinksEventService publishGetAssetIdsByPublicLinksEventService,
+        DeltaCalculationService deltaCalculationService, PublishPushToDamEventsService publishPushToDamEventsService, 
+        ILogger<AssetItemController> logger, 
+        IServiceBusQueueService serviceBusQueueService,
+        IServiceBusConfigService serviceBusConfigService)
     {
         _publishGetAssetIdsByPublicLinksEventService = publishGetAssetIdsByPublicLinksEventService;
         _deltaCalculationService = deltaCalculationService;
