@@ -767,7 +767,7 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 - **AzureWebJobs.PublicLinkQueueFunction.Disabled**: The name of the Push To DAM QueueName (For local it is the filled in string)
 
 ## Local azure ServiceBus Queues 
-Install [Docker desktop](https://docs.docker.com/desktop/setup/install/windows-install/)
+Install [Docker desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running 
 
 Switch to Linux container (right click docker icon in menubar and click `Switch to linux containers...` if you see `Switch to windows containers...` you are already on linux containers) 
 
