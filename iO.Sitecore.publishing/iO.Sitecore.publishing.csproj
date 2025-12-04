@@ -215,13 +215,13 @@
     <Reference Include="Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.Configuration, Version=6.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\EnterpriseLibrary.TransientFaultHandling.Configuration.6.0.1304.0\lib\NET45\Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.Configuration.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.Data, Version=6.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+    <Reference Include="Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.Data, Version=6.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\EnterpriseLibrary.TransientFaultHandling.Data.6.0.1304.1\lib\NET45\Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.Data.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.ServiceBus, Version=6.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+    <Reference Include="Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.ServiceBus, Version=6.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\EnterpriseLibrary.TransientFaultHandling.ServiceBus.6.0.1304.0\lib\NET45\Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.ServiceBus.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.WindowsAzure.Storage, Version=6.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+    <Reference Include="Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.WindowsAzure.Storage, Version=6.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\EnterpriseLibrary.TransientFaultHandling.WindowsAzure.Storage.6.0.1304.0\lib\NET45\Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.WindowsAzure.Storage.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Spatial, Version=7.9.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
@@ -243,10 +243,10 @@
     <Reference Include="Perfolizer, Version=0.6.0.0, Culture=neutral, PublicKeyToken=e864f2ec9c0b6d4c, processorArchitecture=MSIL">
       <HintPath>..\packages\Perfolizer.0.6.0\lib\netstandard2.0\Perfolizer.dll</HintPath>
     </Reference>
-    <Reference Include="Polly, Version=6.0.0.0, Culture=neutral, PublicKeyToken=c8a3ffc3f8f825cc, processorArchitecture=MSIL">
+    <Reference Include="Polly, Version=6.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Polly.6.1.2\lib\netstandard2.0\Polly.dll</HintPath>
     </Reference>
-    <Reference Include="Pragmastat, Version=3.1.33.0, Culture=neutral, PublicKeyToken=e864f2ec9c0b6d4c, processorArchitecture=MSIL">
+    <Reference Include="Pragmastat, Version=3.1.33.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Pragmastat.3.1.33\lib\netstandard2.0\Pragmastat.dll</HintPath>
     </Reference>
     <Reference Include="protobuf-net, Version=2.4.0.0, Culture=neutral, PublicKeyToken=257b51d87d2e4d67, processorArchitecture=MSIL">
@@ -307,7 +307,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="Sitecore.Cloud.Nexus, Version=5.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Cloud.Nexus.10.4.1\lib\net48\Sitecore.Cloud.Nexus.dll</HintPath>
+      <HintPath>..\packages\Sitecore.Cloud.Nexus.10.4.1\lib\netstandard2.0\Sitecore.Cloud.Nexus.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Sitecore.ContentSearch, Version=11.0.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -391,7 +391,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="Sitecore.Marketing.Operations.Xdb.ReferenceData.Model, Version=20.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Marketing.Operations.Xdb.ReferenceData.Model.10.4.1\lib\net48\Sitecore.Marketing.Operations.Xdb.ReferenceData.Model.dll</HintPath>
+      <HintPath>..\packages\Sitecore.Marketing.Operations.Xdb.ReferenceData.Model.10.4.1\lib\netstandard2.0\Sitecore.Marketing.Operations.Xdb.ReferenceData.Model.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Sitecore.Marketing.Search, Version=20.0.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -410,69 +410,11 @@
       <HintPath>..\packages\Sitecore.Marketing.xMgmt.ReferenceData.10.4.1\lib\net48\Sitecore.Marketing.xMgmt.ReferenceData.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Sitecore.Mvc, Version=10.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Mvc.10.4.1\lib\net48\Sitecore.Mvc.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.Nexus.Consumption, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9de34fe2109de40c, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Nexus.Consumption.1.6.0\lib\netstandard2.0\Sitecore.Nexus.Consumption.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.Nexus.Licensing, Version=2.0.0.0, Culture=neutral, PublicKeyToken=9de34fe2109de40c, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Nexus.Licensing.2.0.6\lib\netstandard2.0\Sitecore.Nexus.Licensing.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.Screenshots, Version=19.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Screenshots.10.4.1\lib\netstandard2.0\Sitecore.Screenshots.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.Services.Core, Version=10.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Services.Core.10.4.1\lib\net48\Sitecore.Services.Core.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.Services.Infrastructure, Version=10.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Services.Infrastructure.10.4.1\lib\net48\Sitecore.Services.Infrastructure.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.Web, Version=10.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.Web.10.4.1\lib\net48\Sitecore.Web.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.XConnect, Version=9.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.XConnect.10.4.1\lib\netstandard2.0\Sitecore.XConnect.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.XConnect.Client, Version=9.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.XConnect.Client.10.4.1\lib\netstandard2.0\Sitecore.XConnect.Client.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.XConnect.Client.Configuration, Version=9.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.XConnect.Client.Configuration.10.4.1\lib\net48\Sitecore.XConnect.Client.Configuration.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.XConnect.Collection.Model, Version=9.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.XConnect.Collection.Model.10.4.1\lib\netstandard2.0\Sitecore.XConnect.Collection.Model.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.XConnect.Core, Version=6.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.XConnect.Core.10.4.1\lib\netstandard2.0\Sitecore.XConnect.Core.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.XConnect.Diagnostics, Version=5.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.XConnect.Diagnostics.10.4.1\lib\netstandard2.0\Sitecore.XConnect.Diagnostics.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sitecore.XConnect.Search, Version=5.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sitecore.XConnect.Search.10.4.1\lib\netstandard2.0\Sitecore.XConnect.Search.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Sitecore.Xdb.Common.HttpTransientFaultHandling, Version=7.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Sitecore.Xdb.Common.HttpTransientFaultHandling.10.4.1\lib\netstandard2.0\Sitecore.Xdb.Common.HttpTransientFaultHandling.dll</HintPath>
-      <Private>False</Private>
     </Reference>
     <Reference Include="Sitecore.Xdb.Common.Web, Version=7.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Sitecore.Xdb.Common.Web.10.4.1\lib\netstandard2.0\Sitecore.Xdb.Common.Web.dll</HintPath>
-      <Private>False</Private>
     </Reference>
     <Reference Include="Sitecore.Xdb.Common.Web.Xmgmt, Version=7.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Sitecore.Xdb.Common.Web.Xmgmt.10.4.1\lib\net48\Sitecore.Xdb.Common.Web.Xmgmt.dll</HintPath>
@@ -668,6 +610,7 @@
     </Reference>
     <Reference Include="System.Web.Mvc, Version=5.2.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.AspNet.Mvc.5.2.4\lib\net45\System.Web.Mvc.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="System.Web.Razor, Version=3.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.AspNet.Razor.3.2.4\lib\net45\System.Web.Razor.dll</HintPath>
