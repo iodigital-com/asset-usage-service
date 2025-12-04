@@ -10,6 +10,7 @@ A microservice for tracking and managing relationships between items and digital
 - [Technology Stack](#technology-stack)
 - [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
+- [Local servicebus queue config](#local-azure-servicebus-queues)
 - [Data Model](#data-model)
 - [API Endpoints](#api-endpoints)
 - [Integration Points](#integration-points)
@@ -724,8 +725,16 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
     "ContentHub:Endpoint": "https://your-instance.stylelabs.cloud",
     "ContentHub:ClientId": "your-client-id",
     "ContentHub:ClientSecret": "your-client-secret",
-    
-    "APPLICATIONINSIGHTS_CONNECTION_STRING": "your-app-insights-connection-string"
+
+    "ServiceBusQueue:ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+    "ServiceBusQueue:PublicLinkQueueName": "contenthub-publiclinks-requests",
+    "ServiceBusQueue:DeltaCalculationQueueName": "delta-calculation-requests",
+    "ServiceBusQueu:PushToDAMQueueName": "push-to-contenthub-requests",
+
+    "AzureWebJobs.PublicLinkQueueFunction.Disabled": "false",
+    "AzureWebJobs.DeltaCalculationQueueFunction.Disabled": "true",
+    "AzureWebJobs.PushToDAMQueueFunction.Disabled": "true",
+    "AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled": "false"
   }
 }
 ```
@@ -747,6 +756,37 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 - **Endpoint**: ContentHub instance URL
 - **ClientId**: OAuth2 client ID
 - **ClientSecret**: OAuth2 client secret
+
+#### ServiceBus Queue Settings
+
+- **ServiceBusQueue:ConnectionString**: ServiceBus Queue connection string (For local it is the filled in string)
+- **ServiceBusQueue:PublicLinkQueueName**: The name of the Public Link Queue (For local it is the filled in string)
+- **ServiceBusQueue:DeltaCalculationQueueName**: The name of the Delta Calculation Queue (For local it is the filled in string)
+- **ServiceBusQueue:PushToDAMQueueName**: The name of the Push To DAM QueueName (For local it is the filled in string)
+
+- **AzureWebJobs.PublicLinkQueueFunction.Disabled**: The name of the Push To DAM QueueName (For local it is the filled in string)
+
+## Local azure ServiceBus Queues 
+To run the azure servicebus Queue local go to the folder **DockerAzureServiceBusQueues** in your terminal and run:
+```zsh
+ docker-compose up -d
+ ```
+Wait for it to say:
+- Container sqlserver:            `Healthy`
+- Container servicebus-emulator:  `Started`
+
+Check your `local.settings.json` if you have the correct queue names and the queue functions are Disabled are false of the queues you want to use
+
+### Azure ServiceBus tets 
+To run the serviceBus tests create a file named `appsettings.Test.json` in the AssetUsageServiceTests directory and paste this in for the local queue:
+```json
+{
+  "ServiceBusQueue": {
+    "ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+  }
+}
+```
+
 
 ## Data Model
 
