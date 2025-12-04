@@ -1,5 +1,5 @@
 using AssetUsageService.Business.Services;
-using AssetUsageService.Business.Services.ServiceBusQueueServices;
+using AssetUsageService.Business.Services.ServiceBusQueueServices.Interfaces;
 using AssetUsageService.Domain.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,7 @@ public class AssetItemController
     private readonly IServiceBusQueueService _serviceBusQueueService;
     private readonly IServiceBusConfigService _serviceBusConfigService;
 
-    public AssetItemController(PublishAssetIdsByPublicLinksEventService publishGetAssetIdsByPublicLinksEventService, DeltaCalculationService deltaCalculationService, PublishPushToDamEventsService publishPushToDamEventsService, ILogger<AssetItemController> logger, IServiceBusQueueService serviceBusQueueService, IConfiguration configuration, IServiceBusConfigService serviceBusConfigService)
+    public AssetItemController(PublishAssetIdsByPublicLinksEventService publishGetAssetIdsByPublicLinksEventService, DeltaCalculationService deltaCalculationService, PublishPushToDamEventsService publishPushToDamEventsService, ILogger<AssetItemController> logger, IServiceBusQueueService serviceBusQueueService, IServiceBusConfigService serviceBusConfigService)
     {
         _publishGetAssetIdsByPublicLinksEventService = publishGetAssetIdsByPublicLinksEventService;
         _deltaCalculationService = deltaCalculationService;
@@ -45,11 +45,11 @@ public class AssetItemController
         try
         {
             var queueName = _serviceBusConfigService.PublicLinkQueueName;
-            if (!await QueueExist(queueName))
+            if (!await QueueExistAsync(queueName))
             {
                 _logger.LogWarning("Public link queue is not enabled. Skipping enqueue for item {ItemId}", publishedItem.ItemId);
                 var assetIdsFromPublicLinks = await GetAssetIdsFromPublicLinkAsync(publishedItem, cancellationToken);
-                var publishedItemWithIdsFromLinks = await AddPublicLinkAssetIdsToPublishedItem(publishedItem, assetIdsFromPublicLinks, cancellationToken);
+                var publishedItemWithIdsFromLinks = AddPublicLinkAssetIdsToPublishedItem(publishedItem, assetIdsFromPublicLinks, cancellationToken);
                 await EnqueueDeltaCalculationAsync(publishedItemWithIdsFromLinks, cancellationToken);
             } else
             {
@@ -69,7 +69,7 @@ public class AssetItemController
         try
         {
             var queueName = _serviceBusConfigService.DeltaCalculationQueueName;
-            if (!await QueueExist(queueName))
+            if (!await QueueExistAsync(queueName))
             {
                 _logger.LogWarning("Delta calculation queue is not enabled. Skipping enqueue for item {ItemId}", publishedItem.ItemId);
                 var itemAssetChanges = await _deltaCalculationService.CalculateDeltaAsync(publishedItem, publishedItem.AssetIds, cancellationToken);
@@ -78,7 +78,7 @@ public class AssetItemController
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed proccess delta calculation for item {ItemId}", publishedItem.ItemId);
+            _logger.LogError(exception, "Failed process delta calculation for item {ItemId}", publishedItem.ItemId);
             throw;
         }
     }
@@ -96,12 +96,12 @@ public class AssetItemController
             throw;
         }
     }
-    public async Task<PublishedItem> AddPublicLinkAssetIdsToPublishedItem(PublishedItem publishedItem, List<int> AssetIdsFromPublicLinks, CancellationToken cancellationToken)
+    public PublishedItem AddPublicLinkAssetIdsToPublishedItem(PublishedItem publishedItem, List<int> assetIdsFromPublicLinks, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publishedItem);
         try
         {
-            var allAssetIds = publishedItem.AssetIds.Concat(AssetIdsFromPublicLinks).Distinct().ToList();
+            var allAssetIds = publishedItem.AssetIds.Concat(assetIdsFromPublicLinks).Distinct().ToList();
             publishedItem.AssetIds = allAssetIds;
             return publishedItem;
         }
@@ -111,10 +111,10 @@ public class AssetItemController
             throw;
         }
     }
-    private async Task<bool> QueueExist(string queueName)
+
+    private async Task<bool> QueueExistAsync(string queueName)
     {
-        return await _serviceBusConfigService.IsConnectionValidAsync() 
-            && await _serviceBusConfigService.DoesQueueExistAsync(queueName) 
-            && !string.IsNullOrEmpty(queueName);
+        return await _serviceBusConfigService.IsConnectionValidAsync()
+            && await _serviceBusConfigService.DoesQueueExistAsync(queueName);
     }
 }

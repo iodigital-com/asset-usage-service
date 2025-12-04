@@ -1,4 +1,5 @@
-﻿using Azure.Messaging.ServiceBus;
+﻿using AssetUsageService.Business.Services.ServiceBusQueueServices.Interfaces;
+using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -13,11 +14,6 @@ public class ServiceBusQueueService : IServiceBusQueueService, IAsyncDisposable
     {            
         _client = configuration.GetServiceBusClient();
         _logger = logger;
-    }
-    public async Task<ServiceBusSender> CreateSender(string queueName)
-    {
-        await using var sender = _client.CreateSender(queueName);
-        return sender;
     }
     public async Task SendMessageAsync<T>(string queueName, T message, CancellationToken cancellationToken = default) where T : class
     {
@@ -40,9 +36,9 @@ public class ServiceBusQueueService : IServiceBusQueueService, IAsyncDisposable
             _logger.LogInformation("Message sent to queue {QueueName} with MessageId {MessageId}",
                 queueName, serviceBusMessage.MessageId);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Failed to send message to queue {QueueName}", queueName);
+            _logger.LogError(exception, "Failed to send message to queue {QueueName}", queueName);
             throw;
         }
     }

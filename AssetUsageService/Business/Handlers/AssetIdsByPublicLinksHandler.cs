@@ -1,9 +1,7 @@
 ﻿using AssetUsageService.Business.Events;
 using AssetUsageService.Business.Handlers.interfaces;
-using AssetUsageService.Domain.Models;
 using AssetUsageService.Integration;
 using Microsoft.Extensions.Logging;
-using Polly.Caching;
 using Stylelabs.M.Base.Querying;
 using Stylelabs.M.Base.Querying.Filters;
 using Stylelabs.M.Framework.Essentials.LoadConfigurations;
@@ -40,9 +38,9 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
                 assetIds.Count, @event.PublicLinks.Count);
             @event.AssetIds = assetIds;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Failed to retrieve asset IDs from public links");
+            _logger.LogError(exception, "Failed to retrieve asset IDs from public links");
             throw;
         }
     }
@@ -92,9 +90,9 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 
             return assetId;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Error processing public link: {Url}", url);
+            _logger.LogError(exception, "Error processing public link: {Url}", url);
             return null;
         }
     }
@@ -147,9 +145,9 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 
             return result.Items.First().Id.Value;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Error retrieving public link ID for relative URL: {RelativeUrl}", relativeUrl);
+            _logger.LogError(exception, "Error retrieving public link ID for relative URL: {RelativeUrl}", relativeUrl);
             throw;
         }
     }
@@ -176,9 +174,9 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 
             return assetId;
 
-        } catch(Exception ex)
+        } catch(Exception exception)
         {
-            _logger.LogError(ex, "Error GetAssetIdFromPublicLinkAsync");
+            _logger.LogError(exception, "Error GetAssetIdFromPublicLinkAsync");
             throw;
         }   
     }
