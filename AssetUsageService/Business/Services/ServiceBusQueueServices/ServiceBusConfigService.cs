@@ -2,6 +2,7 @@
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System;
 
 namespace AssetUsageService.Business.Services.ServiceBusQueueServices;
 
@@ -28,20 +29,15 @@ public class ServiceBusConfigService : IServiceBusConfigService
         _logger = logger;
     }
 
-    public bool IsPublicLinkQueueEnabled =>
-        !string.IsNullOrEmpty(_configuration[PublicLinkQueueNameKey]);
+    public bool IsPublicLinkQueueEnabled => !string.IsNullOrEmpty(_configuration[PublicLinkQueueNameKey]);
 
-    public bool IsDeltaCalculationQueueEnabled =>
-        !string.IsNullOrEmpty(_configuration[DeltaCalculationQueueNameKey]);
+    public bool IsDeltaCalculationQueueEnabled => !string.IsNullOrEmpty(_configuration[DeltaCalculationQueueNameKey]);
 
-    public string? ConnectionString =>
-        _configuration[ServiceBusConnectionStringKey];
+    public string? ConnectionString => _configuration[ServiceBusConnectionStringKey];
 
-    public string? DeltaCalculationQueueName =>
-        _configuration[DeltaCalculationQueueNameKey];
+    public string? DeltaCalculationQueueName => _configuration[DeltaCalculationQueueNameKey];
 
-    public string? PublicLinkQueueName =>
-        _configuration[PublicLinkQueueNameKey];
+    public string? PublicLinkQueueName => _configuration[PublicLinkQueueNameKey];
 
     public async Task<bool> IsConnectionValidAsync()
     {
@@ -65,18 +61,18 @@ public class ServiceBusConfigService : IServiceBusConfigService
 
     public async Task<bool> DoesQueueExistAsync(string queueName)
     {
-        ArgumentException.ThrowIfNullOrEmpty(queueName);
-
-        if (string.IsNullOrEmpty(ConnectionString))
+        if (string.IsNullOrEmpty(queueName))
         {
-            _logger.LogWarning("Cannot check queue existence: Service Bus connection string is not configured");
+            _logger.LogWarning("Queue name is null or empty");
             return false;
         }
 
         try
         {
-            await using var client = GetServiceBusClient();
-            await using var sender = client.CreateSender(queueName);
+            await using var client = new ServiceBusClient(ConnectionString);
+            await using var receiver = client.CreateReceiver(queueName);
+            await receiver.PeekMessageAsync();
+
             return true;
         }
         catch (ServiceBusException exception) when (exception.Reason == ServiceBusFailureReason.MessagingEntityNotFound)
@@ -86,21 +82,23 @@ public class ServiceBusConfigService : IServiceBusConfigService
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to check if queue {QueueName} exists", queueName);
+            _logger.LogWarning(exception, "Failed to check if queue {QueueName} exists", queueName);
             return false;
         }
     }
 
     public ServiceBusClient GetServiceBusClient()
     {
-        if (string.IsNullOrEmpty(ConnectionString))
+        try
         {
-            _logger.LogError("Cannot create Service Bus client: connection string is not configured");
-            throw new InvalidOperationException("Service Bus connection string is not configured or is empty");
+            var clientOptions = CreateClientOptions();
+            return new ServiceBusClient(ConnectionString, clientOptions);
         }
-
-        var clientOptions = CreateClientOptions();
-        return new ServiceBusClient(ConnectionString, clientOptions);
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Cannot create Service Bus client");
+            throw;
+        }
     }
 
     private static ServiceBusClientOptions CreateClientOptions()
