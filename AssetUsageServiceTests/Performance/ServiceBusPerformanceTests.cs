@@ -107,7 +107,7 @@ public class ServiceBusPerformanceTests : IAsyncLifetime
     #region High Volume Performance Tests
 
     [Fact]
-    public async Task SendMessageAsync_10000MessagesSequential_ShouldMeetPerformance()
+    public async Task SendMessageAsync_1000MessagesSequential_ShouldMeetPerformance()
     {
         if (string.IsNullOrEmpty(_configService.ConnectionString))
         {
