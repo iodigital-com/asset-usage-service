@@ -21,6 +21,14 @@ public class DeadLetterQueueMonitor
         ProcessDeadLetterAsync("PublicLink", message);
     }
 
+    [Function(nameof(MonitorPushToDAMDeadLetterQueue))]
+    public void MonitorPushToDAMDeadLetterQueue(
+        [ServiceBusTrigger("%ServiceBusQueue:PushToDAMQueueName%/$deadletterqueue", Connection = "ServiceBusQueue:ConnectionString")]
+        ServiceBusReceivedMessage message)
+    {
+        ProcessDeadLetterAsync("PushToDAM", message);
+    }
+
     private void ProcessDeadLetterAsync(
         string queueType,
         ServiceBusReceivedMessage message)
