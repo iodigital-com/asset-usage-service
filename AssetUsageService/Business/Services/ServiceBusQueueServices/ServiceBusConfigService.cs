@@ -11,6 +11,7 @@ public class ServiceBusConfigService : IServiceBusConfigService
     private const string ServiceBusConnectionStringKey = "ServiceBusQueue:ConnectionString";
     private const string PublicLinkQueueNameKey = "ServiceBusQueue:PublicLinkQueueName";
     private const string DeltaCalculationQueueNameKey = "ServiceBusQueue:DeltaCalculationQueueName";
+    private const string PushToDAMQueueNameKey = "ServiceBusQueue:PushToDAMQueueName";
 
     private static readonly TimeSpan DefaultRetryDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromSeconds(30);
@@ -29,15 +30,13 @@ public class ServiceBusConfigService : IServiceBusConfigService
         _logger = logger;
     }
 
-    public bool IsPublicLinkQueueEnabled => !string.IsNullOrEmpty(_configuration[PublicLinkQueueNameKey]);
-
-    public bool IsDeltaCalculationQueueEnabled => !string.IsNullOrEmpty(_configuration[DeltaCalculationQueueNameKey]);
-
     public string? ConnectionString => _configuration[ServiceBusConnectionStringKey];
 
     public string? DeltaCalculationQueueName => _configuration[DeltaCalculationQueueNameKey];
 
     public string? PublicLinkQueueName => _configuration[PublicLinkQueueNameKey];
+
+    public string? PushToDamQueueName => _configuration[PushToDAMQueueNameKey];
 
     public async Task<bool> IsConnectionValidAsync()
     {
