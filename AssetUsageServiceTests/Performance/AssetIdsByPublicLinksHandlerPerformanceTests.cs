@@ -428,7 +428,7 @@ public class AssetIdsByPublicLinksHandlerPerformanceTests : IAsyncLifetime
     private void LogLoadTestHeader(int totalLinks, int batchSize)
     {
         _output.WriteLine("");
-        _output.WriteLine("LOAD TEST - 1,000 PUBLIC LINKS");
+        _output.WriteLine($"LOAD TEST - {totalLinks:N0} PUBLIC LINKS");
         _output.WriteLine("===============================");
         _output.WriteLine($"Total Links: {totalLinks:N0}");
         _output.WriteLine($"Batch Size: {batchSize}");
