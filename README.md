@@ -780,7 +780,7 @@ Wait for it to say:
 - Container sqlserver:            `Healthy`
 - Container servicebus-emulator:  `Started`
 
-Check your `local.settings.json` if you have the correct queue names and the queue functions Disabled are false of the queues you want to use
+Check your `local.settings.json` to ensure you have the correct queue names and that the `Disabled` property of the queue functions you want to use is set to `false`.
 
 ## Data Model
 

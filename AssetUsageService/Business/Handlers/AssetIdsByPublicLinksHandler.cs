@@ -143,7 +143,7 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
         catch (Exception exception)
         {
             _logger.LogError(exception, "Error processing batch of {Count} public links", relativeUrls.Count);
-            throw;
+            return new List<int>();
         }
     }
 
