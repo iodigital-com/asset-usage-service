@@ -40,7 +40,7 @@ public class PushToDAMQueueFunction
 
             await _assetItemController.PushToDamAsync(itemAssetChangesMessage, cancellationToken);
 
-            await messageActions.CompleteMessageAsync(message);
+            await messageActions.CompleteMessageAsync(message, cancellationToken);
 
         }
         catch (OperationCanceledException)
