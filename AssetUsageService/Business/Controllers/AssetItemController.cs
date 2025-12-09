@@ -105,7 +105,7 @@ public class AssetItemController
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed process delta calculation for item {ItemId}", itemAssetChanges.Item.ItemId);
+            _logger.LogError(exception, "Failed to push to DAM queue for item {ItemId}", itemAssetChanges.Item.ItemId);
             throw;
         }
     }
