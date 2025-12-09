@@ -95,8 +95,8 @@ public class AssetItemController
             var queueName = _serviceBusConfigService.PushToDamQueueName;
             if (!await QueueExistAsync(queueName))
             {
-                await PushToDamAsync(itemAssetChanges, cancellationToken);
                 _logger.LogWarning("Push to DAM queue is not enabled. Skipping enqueue for item {ItemId}", itemAssetChanges.Item.ItemId);
+                await PushToDamAsync(itemAssetChanges, cancellationToken);
             }
             else
             {
