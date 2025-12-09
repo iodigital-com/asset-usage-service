@@ -36,7 +36,7 @@ public class ServiceBusConfigService : IServiceBusConfigService
 
     public string? PublicLinkQueueName => _configuration[PublicLinkQueueNameKey];
 
-    public string? PushToDamQueueName => _configuration[PushToDAMQueueNameKey];
+    public string? PushToDAMQueueName => _configuration[PushToDAMQueueNameKey];
 
     public async Task<bool> IsConnectionValidAsync()
     {

@@ -92,7 +92,7 @@ public class AssetItemController
 
         try
         {
-            var queueName = _serviceBusConfigService.PushToDamQueueName;
+            var queueName = _serviceBusConfigService.PushToDAMQueueName;
             if (!await QueueExistAsync(queueName))
             {
                 _logger.LogWarning("Push to DAM queue is not enabled. Skipping enqueue for item {ItemId}", itemAssetChanges.Item.ItemId);
@@ -124,6 +124,7 @@ public class AssetItemController
             throw;
         }
     }
+
     public PublishedItem AddPublicLinkAssetIdsToPublishedItem(PublishedItem publishedItem, List<int> assetIdsFromPublicLinks, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publishedItem);
