@@ -161,5 +161,4 @@ public class AssetItemController
         return isConnectionValid && doesQueueExist;
     }
 
-
 }
