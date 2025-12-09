@@ -9,7 +9,6 @@ public interface IServiceBusConfigService
     string? PublicLinkQueueName { get; }
     string? PushToDamQueueName { get; }
 
-
     Task<bool> IsConnectionValidAsync();
     Task<bool> DoesQueueExistAsync(string queueName);
     ServiceBusClient GetServiceBusClient();
