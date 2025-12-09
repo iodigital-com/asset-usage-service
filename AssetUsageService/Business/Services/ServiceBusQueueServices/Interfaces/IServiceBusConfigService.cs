@@ -7,7 +7,7 @@ public interface IServiceBusConfigService
     string? ConnectionString { get; }
     string? DeltaCalculationQueueName { get; }
     string? PublicLinkQueueName { get; }
-    string? PushToDamQueueName { get; }
+    string? PushToDAMQueueName { get; }
 
     Task<bool> IsConnectionValidAsync();
     Task<bool> DoesQueueExistAsync(string queueName);
