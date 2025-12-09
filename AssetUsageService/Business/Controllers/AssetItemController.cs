@@ -149,7 +149,7 @@ public class AssetItemController
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to retrieve total asset IDs for item {ItemId}", itemAssetChanges.Item.ItemId);
+            _logger.LogError(exception, "Failed to push to DAM for item {ItemId}", itemAssetChanges.Item.ItemId);
             throw;
         }
     }
