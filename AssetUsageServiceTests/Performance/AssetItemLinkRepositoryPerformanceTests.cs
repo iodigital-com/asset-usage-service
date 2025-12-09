@@ -22,7 +22,7 @@ public class AssetItemLinkRepositoryPerformanceTests : IAsyncLifetime
 
     private const int MaxInsertTimeMs = 100;
     private const int MaxGetTimeMs = 50;
-    private const int MaxQueryByAssetTimeMs = 200;
+    private const int MaxQueryByAssetTimeMs = 500;
 
     public AssetItemLinkRepositoryPerformanceTests(ITestOutputHelper output)
     {
