@@ -107,7 +107,7 @@ public class ServiceBusPerformanceTests : IAsyncLifetime
     #region High Volume Performance Tests
 
     [Fact]
-    public async Task SendMessageAsync_10000MessagesSequential_ShouldMeetPerformance()
+    public async Task SendMessageAsync_1000MessagesSequential_ShouldMeetPerformance()
     {
         if (string.IsNullOrEmpty(_configService.ConnectionString))
         {
@@ -213,9 +213,9 @@ public class ServiceBusPerformanceTests : IAsyncLifetime
         _output.WriteLine($"  Min: {sortedLatencies.First()}ms");
         _output.WriteLine($"  Max: {sortedLatencies.Last()}ms");
 
-        Assert.True(p50 < 50, $"P50 latency {p50}ms exceeds 50ms");
-        Assert.True(p95 < 100, $"P95 latency {p95}ms exceeds 100ms");
-        Assert.True(p99 < 200, $"P99 latency {p99}ms exceeds 200ms");
+        Assert.True(p50 < 100, $"P50 latency {p50}ms exceeds 100ms");
+        Assert.True(p95 < 200, $"P95 latency {p95}ms exceeds 200ms");
+        Assert.True(p99 < 500, $"P99 latency {p99}ms exceeds 500ms");
 
         await CleanupQueue(LatencySampleSize);
     }

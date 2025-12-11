@@ -69,6 +69,10 @@ public class ContentHubConnectionService : IContentHubConnectionService
 
             return isReachable;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
             _logger.LogWarning(exception, "ContentHub endpoint is not reachable");
