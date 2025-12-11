@@ -716,26 +716,38 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 {
   "IsEncrypted": false,
   "Values": {
+
+    // Azure Functions Settings
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-    
+
+    // Microservice Database Settings
     "MongoDB:ConnectionString": "mongodb://localhost:27017",
     "MongoDB:DatabaseName": "AssetUsageDb",
     "MongoDB:SeedData": "false",
-    
+
+    // Content Hub OAuth connection settings
     "ContentHub:Endpoint": "https://your-instance.stylelabs.cloud",
     "ContentHub:ClientId": "your-client-id",
     "ContentHub:ClientSecret": "your-client-secret",
 
+    // Service Bus Connection String
     "ServiceBusQueue:ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
-    "ServiceBusQueue:PublicLinkQueueName": "contenthub-publiclinks-requests",
-    "ServiceBusQueue:DeltaCalculationQueueName": "delta-calculation-requests",
-    "ServiceBusQueu:PushToDAMQueueName": "push-to-contenthub-requests",
 
+    // Public Link Queue
+    "ServiceBusQueue:PublicLinkQueueName": "contenthub-publiclinks-requests",
     "AzureWebJobs.PublicLinkQueueFunction.Disabled": "false",
+    "AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled": "false",
+
+    // Delta Calculation Queue
+    "ServiceBusQueue:DeltaCalculationQueueName": "contenthub-delta-calculation-requests",
     "AzureWebJobs.DeltaCalculationQueueFunction.Disabled": "true",
-    "AzureWebJobs.PushToDAMQueueFunction.Disabled": "true",
-    "AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled": "false"
+    "AzureWebJobs.MonitorPushToDAMDeadLetterQueue.Disabled": "true",
+
+    // Push to DAM Queue
+    "ServiceBusQueue:PushToDAMQueueName": "push-to-contenthub-requests",
+    "AzureWebJobs.PushToDAMQueueFunction.Disabled": "false",
+    "AzureWebJobs.MonitorPushToDAMDeadLetterQueue.Disabled": "false"
   }
 }
 ```
@@ -761,11 +773,16 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 #### ServiceBus Queue Settings
 
 - **ServiceBusQueue:ConnectionString**: ServiceBus Queue connection string (For local it is the filled in string)
+
 - **ServiceBusQueue:PublicLinkQueueName**: The name of the Public Link Queue (For local it is the filled in string)
+- **AzureWebJobs.PublicLinkQueueFunction.Disabled**: If you use the queue set it to false else set it to true
+- **AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled**:  If you use the queue set it to false else set it to true
+
+
 - **ServiceBusQueue:DeltaCalculationQueueName**: The name of the Delta Calculation Queue (For local it is the filled in string)
+
 - **ServiceBusQueue:PushToDAMQueueName**: The name of the Push To DAM QueueName (For local it is the filled in string)
 
-- **AzureWebJobs.PublicLinkQueueFunction.Disabled**: The name of the Push To DAM QueueName (For local it is the filled in string)
 
 ## Local azure ServiceBus Queues 
 Install [Docker desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running 

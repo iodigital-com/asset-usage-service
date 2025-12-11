@@ -75,21 +75,37 @@ public class AssetItemController
 
         try
         {
-            var queueName = _serviceBusConfigService.DeltaCalculationQueueName;
-            if (!await QueueExistAsync(queueName))
-            {
-                _logger.LogWarning("Delta calculation queue is not enabled. Skipping enqueue for item {ItemId}", publishedItem.ItemId);
-                var itemAssetChanges = await _deltaCalculationService.CalculateDeltaAsync(publishedItem, publishedItem.AssetIds, cancellationToken);
-                await _publishPushToDamEventsService.PublishPushToDamEventsAsync(itemAssetChanges, cancellationToken);
-            }
-            else
-            {
-                await _serviceBusQueueService.SendMessageAsync(queueName!, publishedItem, cancellationToken);
-            }
+            _logger.LogWarning("Delta calculation queue is not enabled. Skipping enqueue for item {ItemId}", publishedItem.ItemId);
+            var itemAssetChanges = await _deltaCalculationService.CalculateDeltaAsync(publishedItem, publishedItem.AssetIds, cancellationToken);
+            await EnqueuePushToDAMAsync(itemAssetChanges, cancellationToken);
         }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Failed process delta calculation for item {ItemId}", publishedItem.ItemId);
+            throw;
+        }
+    }
+
+    public async Task EnqueuePushToDAMAsync(ItemAssetChanges itemAssetChanges, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(itemAssetChanges);
+
+        try
+        {
+            var queueName = _serviceBusConfigService.PushToDAMQueueName;
+            if (!await QueueExistAsync(queueName))
+            {
+                _logger.LogWarning("Push to DAM queue is not enabled. Skipping enqueue for item {ItemId}", itemAssetChanges.Item.ItemId);
+                await PushToDamAsync(itemAssetChanges, cancellationToken);
+            }
+            else
+            {
+                await _serviceBusQueueService.SendMessageAsync(queueName!, itemAssetChanges, cancellationToken);
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to push to DAM queue for item {ItemId}", itemAssetChanges.Item.ItemId);
             throw;
         }
     }
@@ -108,6 +124,7 @@ public class AssetItemController
             throw;
         }
     }
+
     public PublishedItem AddPublicLinkAssetIdsToPublishedItem(PublishedItem publishedItem, List<int> assetIdsFromPublicLinks, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(publishedItem);
@@ -124,10 +141,25 @@ public class AssetItemController
         }
     }
 
+    public async Task PushToDamAsync(ItemAssetChanges itemAssetChanges, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(itemAssetChanges);
+        try
+        {
+            await _publishPushToDamEventsService.PublishPushToDamEventsAsync(itemAssetChanges, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to push to DAM for item {ItemId}", itemAssetChanges.Item.ItemId);
+            throw;
+        }
+    }
+
     private async Task<bool> QueueExistAsync(string queueName)
     {
         var isConnectionValid = await _serviceBusConfigService.IsConnectionValidAsync();
         var doesQueueExist = await _serviceBusConfigService.DoesQueueExistAsync(queueName);
         return isConnectionValid && doesQueueExist;
     }
+
 }
