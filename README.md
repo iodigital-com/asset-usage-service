@@ -2326,7 +2326,7 @@ Add the following code:
 
 ```json
 {
-"ServiceBusQueue": {
+  "ServiceBusQueue": {
     "ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
   },
   "ContentHub": {
