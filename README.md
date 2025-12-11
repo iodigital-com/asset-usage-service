@@ -2333,7 +2333,7 @@ Add the following code:
     "IntegrationTestsEnabled": "true",
     "Endpoint": "https://your-instance.sitecoresandbox.cloud",
   "ClientId": "your-oauth-client-id",
-    "ClientSecret": "your-oauth-client-secret",
+  "ClientSecret": "your-oauth-client-secret",
   "TestPublicLink": "https://your-instance.sitecoresandbox.cloud/api/public/content/xxxxx",
   "TestPublicLinks": [
       "https://your-instance.sitecoresandbox.cloud/api/public/content/xxxxx",
