@@ -106,7 +106,7 @@ function ArchiveAssetButtonComponent({client, entityId, entity, closeModal, cult
             
         } catch (error) {
             console.error('ERROR:', error);
-            alert('Failed to archive. Check console.');
+            alert('Failed to archive the asset. Please try again, and contact support if the problem persists.');
             setIsArchiving(false);
         }
     };
