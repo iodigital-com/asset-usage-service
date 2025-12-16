@@ -34,7 +34,7 @@ const MESSAGES = {
     WARNING_PREFIX: 'The asset is used in',
     WARNING_SUFFIX: 'CMS items. And if you delete it the CMS items will have a broken asset!',
     NO_USAGE: 'Delete item permanently? This cannot be undone.',
-    CONFIRM_LABEL: 'I am sure i want to delete this asset.',
+    CONFIRM_LABEL: 'I am sure I want to delete this asset.',
 } as const;
 
 const LABELS = {
