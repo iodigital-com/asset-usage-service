@@ -148,7 +148,7 @@ function ArchiveAssetButtonComponent({client, entityId, entity, closeModal, cult
                     }}
                     colors={{
                         primary: '#6E3FFF',
-                        primaryHover: '#6E3FFF'
+                        primaryHover: '#5932cc'
                     }}
                 />
             </div>
