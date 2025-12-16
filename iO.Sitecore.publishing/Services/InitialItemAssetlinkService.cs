@@ -6,6 +6,7 @@ using Sitecore.Data;
 using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
+using Sitecore.Pipelines.InsertRenderings.Processors;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,10 +25,16 @@ namespace iO.Sitecore.Publishing.Services
 
         public InitialItemAssetLinkService()
         {
-            _webDatabase = Factory.GetDatabase("web");
-            
+            _webDatabase = Factory.GetDatabase("TestMaster");
+          
             if (_webDatabase == null)
             {
+                Log.Info("[InitialItemAssetLinkService] Web database not found", this);
+                foreach (var db in Factory.GetDatabases())
+                {
+                    Log.Info($"[InitialItemAssetLinkService] Available database: {db.Name}", this);
+                }
+
                 throw new InvalidOperationException("Web database not found. Check Sitecore configuration.");
             }
 
@@ -47,8 +54,8 @@ namespace iO.Sitecore.Publishing.Services
 
             try
             {
-                var rootItem = _webDatabase.GetRootItem();
-                
+                var rootItem = _webDatabase.GetItem(new ID("{0DE95AE4-41AB-4D01-9EB0-67441B7C2450}"));
+
                 if (rootItem == null)
                 {
                     MigrationProgressTracker.ErrorMessage = "Root item not found in web database.";
@@ -93,7 +100,7 @@ namespace iO.Sitecore.Publishing.Services
         {
             if (rootItem == null)
             {
-                return 0;
+                return 0;           
             }
 
             int count = 0;
@@ -167,14 +174,29 @@ namespace iO.Sitecore.Publishing.Services
                 return;
             }
 
-            if (item.Paths == null || string.IsNullOrWhiteSpace(item.Paths.FullPath))
+            // Check if Paths is null FIRST
+            if (item.Paths == null)
             {
-                Log.Warn("[InitialItemAssetLinkService] Item has invalid path, skipping", this);
+                Log.Warn($"[ProcessSingleItemAsync] ✗ Item.Paths is NULL for item {item.ID} ({item.Name})", this);
                 MigrationProgressTracker.ProcessedItems++;
                 return;
             }
 
-            MigrationProgressTracker.CurrentItem = item.Paths.FullPath;
+            // Then safely access FullPath with try-catch
+            string fullPath;
+            try
+            {
+                fullPath = item.Paths.FullPath;
+                Log.Debug($"  Item Path: {fullPath ?? "NULL"}", this);
+            }
+            catch (Exception pathEx)
+            {
+                Log.Error($"[ProcessSingleItemAsync] ✗✗✗ Exception getting FullPath for item {item.ID}:", this);
+                MigrationProgressTracker.ProcessedItems++;
+                return;
+            }
+
+            MigrationProgressTracker.CurrentItem = fullPath;
 
             try
             {
