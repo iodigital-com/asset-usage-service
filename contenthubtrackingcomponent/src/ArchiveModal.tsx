@@ -105,7 +105,7 @@ function ArchiveAssetButtonComponent({client, entityId, entity, closeModal, cult
             setTimeout(() => redirectAfterArchive(culture), 300);
             
         } catch (error) {
-            console.error('ERROR:', error);
+            console.error(`Error archiving asset (entityId: ${entityId}):`, error);
             alert('Failed to archive. Check console.');
             setIsArchiving(false);
         }
