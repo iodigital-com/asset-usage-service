@@ -1768,6 +1768,7 @@ You have:
 This section describes how to add the usage insights and the custom delete Modal component to the asset details page:
 1. Asset Usage Tracker (shows which Sitecore CMS items use the asset)
 2. Custom Delete Modal (replaces the default delete action and performs usage checks)
+3. Custom Archive Modal (replaces the default Archive action and performs usage checks)
 
 ---
 
@@ -1826,17 +1827,17 @@ The component loads without errors and displays usage information on the asset d
 ```bash
 npm run build:deleteModal
 ```
-Result: `dist/DeleteAssetButton.js`.
+Result: `dist/DeleteModal.js`.
 
 #### Upload to Content Hub
 1. Log in.
-2. Manage → Portal assets → Upload `dist/DeleteAssetButton.js`.
+2. Manage → Portal assets → Upload `dist/DeleteModal.js`.
 3. Profile picture → Background processes → wait for Success.
 
 #### Configure on Asset Details Page
 1. Manage → Pages → Asset details.
 2. Locate component: Entity operations → click the user icon.
-3. Click on the Etity operations
+3. Click on the Entity operations
 3. Add operation → External component action.
 4. Remove the existing native Delete operation:
    - Click the X next to the current Delete.
@@ -1844,16 +1845,16 @@ Result: `dist/DeleteAssetButton.js`.
 5. Drag the new external operation to Secondary operations.
 6. Click it to configure.
 
-#### Display Settings
+##### Display Settings
 1. Choose a trash/bin icon.
 2. Set Label: `Delete`.
 3. Save component.
 
-#### Operation Settings
-1. Source: From asset (or From entity if named that way in your environment).
-2. JS bundle: + → select `DeleteAssetButton.js` → Save.
+##### Operation Settings
+1. Source: From entity
+2. Source: + → select `DeleteModal.js` → Save.
 
-#### Permissions
+##### Permissions
 1. Add permission: `Delete`.
 2. Save the page (top-right).
 
@@ -1866,7 +1867,75 @@ Result: `dist/DeleteAssetButton.js`.
 
 If both appear, the external delete component is working.
 
+### Custom Archive Modal 
+
+#### Requirements
+- Access to project: `asset-usage-service/contenthubtrackingcomponent`
+- Node.js + npm installed
+- Manage permissions in Content Hub
 ---
+
+#### Build
+```bash
+npm run build:archiveModal
+```
+Result: `dist/ArchiveModal.js`.
+
+#### Upload to Content Hub
+1. Log in.
+2. Manage → Portal assets → Upload `dist/ArchiveModal.js`.
+3. Profile picture → Background processes → wait for Success.
+
+#### Remove the existing native Archive
+1. Manage → Pages → Asset details.
+2. Click on the Entity operations
+3. Remove the existing native Archive operation:
+   - Click the X next to the current Archive.
+   - Confirm Remove.
+
+#### Add Archive component on Asset Details Page
+1. Manage → Pages → Asset details.
+2. Within the *Header zone (right)* click `+ Component`
+3. Search for and select `Entity operations` And click Add
+4. Click on the Entity operations you just added
+5. Click Add operation → External component action.
+6. Click it to configure.
+
+##### Display Settings
+1. Choose a Archive icon.
+2. Set Label: `Archive`.
+3. Set Button style `Secondary`.
+
+##### Operation Settings
+1. Source: From entity
+2. Source: + → select `ArchiveModal.js` → Save.
+
+##### Permissions
+1. Add permission: `Archive`.
+2. Save the page (top-right).
+
+#### Visibility settings
+1. Go back to: Manage → Pages → Asset details.
+2. Drag your Entity operations by the 10 dots to your preferred location (Recommended is above the other Entity operations).
+3. Click on the 3 dots and click settings
+4. Select the `Conditions` tab and select `Member condition`
+5. On the Member input search for and select `Archived By`
+6. Select is missing next to the Archived By input And click Save
+
+#### Verification
+
+##### Modal Verification
+1. Open an asset that is referenced/used in the CMS.
+2. Click on the Archive button.
+3. Modal should appear showing:
+   - A confirmation checkbox.
+   - A message indicating the asset is used in X items.
+
+##### Visibility Verification
+1. Archive an asset
+2. go to: Manage -> Archived assets
+3. Click on a Archived asset
+4. Verify that the Archive button is not showing here
 
 ### Common Issues
 
@@ -1874,6 +1943,7 @@ If both appear, the external delete component is working.
 |-------|-------|-----|
 | JS bundle not listed | Upload not processed yet | Wait for Success in Background processes |
 | Delete action not visible | Missing permission | Ensure your role has Delete for the asset type |
+| Archive action not visible | Missing permission | Ensure your role has Archive for the asset type |
 
 ---
 
@@ -1884,9 +1954,10 @@ If both appear, the external delete component is working.
 | Build usage tracking component | `npm run build:usageTracking` |
 | Build delete modal component | `npm run build:deleteModal` |
 | Usage bundle path | `dist/AssetUsageTracker.js` |
-| Delete bundle path | `dist/DeleteAssetButton.js` |
+| Archive bundle path | `dist/ArchiveModal.js` |
+| Delete bundle path | `dist/DeleteModal.js` |
 | Upload location | Manage → Portal assets |
-| Attach bundle | Component / Operation → JS bundle → From asset |
+| Attach bundle | Component / Operation → JS bundle / Source → From asset / From entity |
 
 ---
 

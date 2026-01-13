@@ -9,9 +9,9 @@ export default defineConfig({
     build: {
         target: 'es2020',
         lib: {
-            entry: './src/DeleteModal.tsx',
+            entry: './src/ArchiveModal.tsx',
             formats: ['es'],
-            fileName: 'DeleteModal'
+            fileName: 'ArchiveModal'
         },
         rollupOptions: {
             output: {
