@@ -1820,7 +1820,7 @@ Result: `dist/DeleteModal.js`.
 #### Configure on Asset Details Page
 1. Manage → Pages → Asset details.
 2. Locate component: Entity operations → click the user icon.
-3. Click on the Etity operations
+3. Click on the Entity operations
 3. Add operation → External component action.
 4. Remove the existing native Delete operation:
    - Click the X next to the current Delete.
@@ -1871,7 +1871,7 @@ Result: `dist/ArchiveModal.js`.
 
 #### Remove the existing native Archive
 1. Manage → Pages → Asset details.
-2. Click on the Etity operations
+2. Click on the Entity operations
 3. Remove the existing native Archive operation:
    - Click the X next to the current Archive.
    - Confirm Remove.
@@ -1880,7 +1880,7 @@ Result: `dist/ArchiveModal.js`.
 1. Manage → Pages → Asset details.
 2. Within the *Header zone (right)* click `+ Component`
 3. Search for and select `Entity operations` And click Add
-4. Click on the Etity operations you just added
+4. Click on the Entity operations you just added
 5. Click Add operation → External component action.
 6. Click it to configure.
 
@@ -1899,10 +1899,10 @@ Result: `dist/ArchiveModal.js`.
 
 #### Visibility settings
 1. Go back to: Manage → Pages → Asset details.
-2. Drag your Entity operations by the 10 dots to your prefered location (Recomended is above the other Entity operations).
+2. Drag your Entity operations by the 10 dots to your preferred location (Recommended is above the other Entity operations).
 3. Click on the 3 dots and click settings
 4. Select the `Conditions` tab and select `Member condition`
-5. On the Memeber input search for and select `Archived By`
+5. On the Member input search for and select `Archived By`
 6. Select is missing next to the Archived By input And click Save
 
 #### Verification
@@ -1937,7 +1937,7 @@ Result: `dist/ArchiveModal.js`.
 | Build usage tracking component | `npm run build:usageTracking` |
 | Build delete modal component | `npm run build:deleteModal` |
 | Usage bundle path | `dist/AssetUsageTracker.js` |
-| Delete bundle path | `dist/DeleteModal.js` |
+| Archive bundle path | `dist/ArchiveModal.js` |
 | Delete bundle path | `dist/DeleteModal.js` |
 | Upload location | Manage → Portal assets |
 | Attach bundle | Component / Operation → JS bundle / Source → From asset / From entity |
