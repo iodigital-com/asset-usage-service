@@ -233,10 +233,15 @@ namespace iO.Sitecore.Publishing.Services
 
         private async Task SendAllPayloadsAsync(List<AssetUsageEvent> payloads)
         {
-            const int maxConcurrent = 20;
+            int maxConcurrent = GetOptimalConcurrency();
+            Log.Info($"{LogPrefix} Sending with concurrency: {maxConcurrent}, ConnectionLimit: {System.Net.ServicePointManager.DefaultConnectionLimit}", this);
+
             var semaphore = new SemaphoreSlim(maxConcurrent);
             var tasks = new List<Task>();
             int completed = 0;
+            int successCount = 0;
+            int failureCount = 0;
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             foreach (var payload in payloads)
             {
@@ -247,19 +252,27 @@ namespace iO.Sitecore.Publishing.Services
                     try
                     {
                         await _client.SendAsync(payload);
-                        System.Threading.Interlocked.Increment(ref completed);
-                        MigrationProgressTracker.SuccessCount++;
+                        Interlocked.Increment(ref successCount);
                     }
                     catch (Exception ex)
                     {
                         Log.Error($"{LogPrefix} Send failed for {payload.ItemId}: {ex.Message}", this);
-                        System.Threading.Interlocked.Increment(ref completed);
-                        MigrationProgressTracker.FailureCount++;
+                        Interlocked.Increment(ref failureCount);
                     }
                     finally
                     {
-                        MigrationProgressTracker.ProcessedItems = completed;
+                        var done = Interlocked.Increment(ref completed);
+                        MigrationProgressTracker.ProcessedItems = done;
+                        MigrationProgressTracker.SuccessCount = successCount;
+                        MigrationProgressTracker.FailureCount = failureCount;
                         MigrationProgressTracker.CurrentItem = payload.ItemPath;
+
+                        if (done % 500 == 0)
+                        {
+                            var rate = done / stopwatch.Elapsed.TotalSeconds;
+                            Log.Info($"{LogPrefix} Progress: {done}/{payloads.Count}, rate: {rate:F1}/sec", this);
+                        }
+
                         semaphore.Release();
                     }
                 });
@@ -268,6 +281,19 @@ namespace iO.Sitecore.Publishing.Services
             }
 
             await Task.WhenAll(tasks);
+
+            var finalRate = payloads.Count / stopwatch.Elapsed.TotalSeconds;
+            Log.Info($"{LogPrefix} Completed sending. Final rate: {finalRate:F1}/sec", this);
+        }
+
+        private int GetOptimalConcurrency()
+        {
+            var setting = Settings.GetSetting("AssetUsageService.MaxConcurrency", "50");
+            if (int.TryParse(setting, out int value) && value > 0 && value <= 200)
+            {
+                return value;
+            }
+            return 50;
         }
 
         private bool HasContentHubLinks(List<string> publicLinks)
