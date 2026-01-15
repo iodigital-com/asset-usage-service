@@ -58,11 +58,7 @@ namespace iO.Sitecore.Publishing.Events
                 {
                     httpResponse = await SharedHttpClient.PostAsync(endpointUrl, httpContent, cancellationToken).ConfigureAwait(false);
 
-                    if (httpResponse.IsSuccessStatusCode)
-                    {
-                        Log.Info($"[AssetUsageServiceClient] Successfully sent data for ItemId={payload.ItemId}", typeof(AssetUsageServiceClient));
-                    }
-                    else
+                    if (!httpResponse.IsSuccessStatusCode)
                     {
                         await HandleHttpError(httpResponse, payload.ItemId).ConfigureAwait(false);
                     }
@@ -92,9 +88,9 @@ namespace iO.Sitecore.Publishing.Events
 
         private static HttpClient CreateHttpClient()
         {
+            System.Net.ServicePointManager.DefaultConnectionLimit = 200;
             var client = new HttpClient();
             client.Timeout = TimeSpan.FromSeconds(30);
-
             return client;
         }
 
