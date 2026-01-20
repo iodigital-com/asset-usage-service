@@ -943,13 +943,13 @@ Add the following configuration to `App_Config\Include\AssetUsageService.Config`
 
           <!-- Initial Migration Script Configuration -->
           <setting name="AssetUsageService.RootItemId" value="{THE ROOT ITEM ID FROM SITECORE/CONTENT FROM THE SELECTED DATABASE}" />
-          <setting name="AssetUsageService.MaxConcurrency" value="100" />
+          <setting name="AssetUsageService.MaxConcurrency" value="10" />
           <setting name="AssetUsageService.DatabaseName" value="DBNAME" />
 
 | Setting | Description |
 |---------|-------------|
 | `AssetUsageService.RootItemId` | Sitecore item ID to start the migration from |
-| `AssetUsageService.MaxConcurrency` | Maximum concurrent requests during migration (The recommended concurrency in general is between 100 and 200) |
+| `AssetUsageService.MaxConcurrency` | Maximum concurrent requests during migration (The recommended concurrency is 10) |
 | `AssetUsageService.DatabaseName` | Sitecore database to scan (e.g., `master`, `web`) |
 
 ### Admin Files
