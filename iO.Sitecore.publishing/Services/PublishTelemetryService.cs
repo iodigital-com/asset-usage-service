@@ -1,8 +1,10 @@
 ﻿using iO.Sitecore.Publishing.Events;
+using iO.Sitecore.Publishing.Interfaces.Services;
 using iO.Sitecore.Publishing.Models;
 using Sitecore.Configuration;
 using Sitecore.Data;
 using Sitecore.Data.Events;
+using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
 using Sitecore.Events;
 using Sitecore.Globalization;
@@ -51,7 +53,7 @@ namespace iO.Sitecore.Publishing.Services
 
             var (language, version, hasVersionInfo) = GetLanguageAndVersion(context, publishContext);
             var sourceItem = GetSourceItem(context, publishContext, language, version);
-
+            
             if (sourceItem == null)
             {
                 loggingService.LogSourceItemNotFound(context.ItemId);
@@ -219,12 +221,20 @@ namespace iO.Sitecore.Publishing.Services
                 sourceDb,
                 targetDb);
 
-            var databases = Factory.GetDatabases()
-                .Where(database => database.RemoteEvents.EventQueue.Name == eventArgs.EventQueueName)
-                .Select(database => database.Name)
-                .ToList();
+            try
+            {
+                var databases = Factory.GetDatabases()
+                    .Where(database => database.RemoteEvents.EventQueue.Name == eventArgs.EventQueueName)
+                    .Select(database => database.Name)
+                    .ToList();
 
-            RecordPublishEndRemote(eventArgs.EventQueueName, databases);
+                RecordPublishEndRemote(eventArgs.EventQueueName, databases);
+            }
+            catch (Exception)
+            {
+                RecordPublishEndRemote(eventArgs.EventQueueName, new List<string>());
+            }
+
             loggingService.LogPublishEndRemoteSent();
         }
 
@@ -289,8 +299,19 @@ namespace iO.Sitecore.Publishing.Services
 
         private PublishOptions ExtractPublishOptions(EventArgs args)
         {
-            var publisher = Event.ExtractParameter(args, 0) as Publisher;
-            return publisher?.Options;
+            try
+            {
+                var publisher = Event.ExtractParameter(args, 0) as Publisher;
+                return publisher?.Options;
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
+            catch (ArgumentNullException)
+            {
+                return null;
+            }
         }
 
         private void LogPublishStatistics()
@@ -396,10 +417,22 @@ namespace iO.Sitecore.Publishing.Services
             loggingService.LogRecordItemStart();
             loggingService.LogItemDetails(item, sourceDatabaseName, options.TargetDatabase?.Name ?? "N/A");
 
-            var assetIds = assetExtractionService.ExtractAssetIds(item);
-            loggingService.LogAssetIdsExtracted(assetIds);
+            item.Fields.ReadAll();
 
-            var publicLinks = assetExtractionService.ExtractPublicLinks(item);
+            var fieldData = item.Fields
+                .Cast<Field>()
+                .Select(f => (
+                    TypeKey: f.TypeKey ?? string.Empty,
+                    Value: f.Value ?? string.Empty,
+                    InheritedValue: f.InheritedValue ?? string.Empty,
+                    Name: f.Name ?? string.Empty
+                ))
+                .ToList();
+
+            var assetIds = assetExtractionService.ExtractAssetIdsFromFieldData(fieldData);
+            var publicLinks = assetExtractionService.ExtractPublicLinksFromFieldData(fieldData);
+
+            loggingService.LogAssetIdsExtracted(assetIds);
             loggingService.LogPublicLinksExtracted(publicLinks);
 
             var payload = new AssetUsageEvent

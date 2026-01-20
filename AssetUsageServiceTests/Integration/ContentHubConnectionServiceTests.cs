@@ -194,11 +194,8 @@ public class ContentHubConnectionServiceTests
 
         var service = new ContentHubConnectionService(_mockLogger.Object, _mockConfiguration.Object, _mockHttpClientFactory.Object);
 
-        // Act
-        var result = await service.IsReachableAsync(cts.Token);
-
-        // Assert
-        Assert.False(result);
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.IsReachableAsync(cts.Token));
     }
 
     #endregion

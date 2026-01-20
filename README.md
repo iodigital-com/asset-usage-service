@@ -10,11 +10,14 @@ A microservice for tracking and managing relationships between items and digital
 - [Technology Stack](#technology-stack)
 - [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
+- [Local servicebus queue config](#local-azure-servicebus-queues)
 - [Data Model](#data-model)
 - [API Endpoints](#api-endpoints)
 - [Integration Points](#integration-points)
-- [React Component Setup](#setting-up-the-react-component)
+- [ContentHub settings](#content-hub-settings)
+- [Contenthub React Component Setup](#content-hub-react-components-setup)
 - [Development Setup](#development-setup)
+- [Initial Migration Tool](#initial-migration-tool)
 - [Deployment](#deployment)
 - [Testing](#testing)
 
@@ -713,18 +716,38 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 {
   "IsEncrypted": false,
   "Values": {
+
+    // Azure Functions Settings
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-    
+
+    // Microservice Database Settings
     "MongoDB:ConnectionString": "mongodb://localhost:27017",
     "MongoDB:DatabaseName": "AssetUsageDb",
     "MongoDB:SeedData": "false",
-    
+
+    // Content Hub OAuth connection settings
     "ContentHub:Endpoint": "https://your-instance.stylelabs.cloud",
     "ContentHub:ClientId": "your-client-id",
     "ContentHub:ClientSecret": "your-client-secret",
-    
-    "APPLICATIONINSIGHTS_CONNECTION_STRING": "your-app-insights-connection-string"
+
+    // Service Bus Connection String
+    "ServiceBusQueue:ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+
+    // Public Link Queue
+    "ServiceBusQueue:PublicLinkQueueName": "contenthub-publiclinks-requests",
+    "AzureWebJobs.PublicLinkQueueFunction.Disabled": "false",
+    "AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled": "false",
+
+    // Delta Calculation Queue
+    "ServiceBusQueue:DeltaCalculationQueueName": "contenthub-delta-calculation-requests",
+    "AzureWebJobs.DeltaCalculationQueueFunction.Disabled": "true",
+    "AzureWebJobs.MonitorPushToDAMDeadLetterQueue.Disabled": "true",
+
+    // Push to DAM Queue
+    "ServiceBusQueue:PushToDAMQueueName": "push-to-contenthub-requests",
+    "AzureWebJobs.PushToDAMQueueFunction.Disabled": "false",
+    "AzureWebJobs.MonitorPushToDAMDeadLetterQueue.Disabled": "false"
   }
 }
 ```
@@ -746,6 +769,35 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 - **Endpoint**: ContentHub instance URL
 - **ClientId**: OAuth2 client ID
 - **ClientSecret**: OAuth2 client secret
+
+#### ServiceBus Queue Settings
+
+- **ServiceBusQueue:ConnectionString**: ServiceBus Queue connection string (For local it is the filled in string)
+
+- **ServiceBusQueue:PublicLinkQueueName**: The name of the Public Link Queue (For local it is the filled in string)
+- **AzureWebJobs.PublicLinkQueueFunction.Disabled**: If you use the queue set it to false else set it to true
+- **AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled**:  If you use the queue set it to false else set it to true
+
+
+- **ServiceBusQueue:DeltaCalculationQueueName**: The name of the Delta Calculation Queue (For local it is the filled in string)
+
+- **ServiceBusQueue:PushToDAMQueueName**: The name of the Push To DAM QueueName (For local it is the filled in string)
+
+
+## Local azure ServiceBus Queues 
+Install [Docker desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running 
+
+Switch to Linux container (right click docker icon in menubar and click `Switch to linux containers...` if you see `Switch to windows containers...` you are already on linux containers) 
+
+To run the azure servicebus Queue local go to the folder **DockerAzureServiceBusQueues** in your terminal and run:
+```zsh
+ docker-compose up -d
+ ```
+Wait for it to say:
+- Container sqlserver:            `Healthy`
+- Container servicebus-emulator:  `Started`
+
+Check your `local.settings.json` to ensure you have the correct queue names and that the `Disabled` property of the queue functions you want to use is set to `false`.
 
 ## Data Model
 
@@ -769,12 +821,6 @@ Document structure in MongoDB:
 - **createdAt**: Timestamp when the relationship was first created (UTC)
 - **updatedAt**: Timestamp of the last update to asset relationships (UTC)
 
-#### Indexes
-
-```javascript
-db.AssetItemLinks.createIndex({ "assetIds": 1 })
-db.AssetItemLinks.createIndex({ "updatedAt": -1, "createdAt": -1 })
-```
 
 ## API Endpoints
 
@@ -881,9 +927,1046 @@ public interface IAssetItemLinkRepository
 The `ContentHubConnectionService` manages authentication and connectivity:
 
 ```csharp
-var client = await apiGateway.GetContentHubClientAsync();
-var isReachable = await apiGateway.IsContentHubReachableAsync();
+var client = await contentHubConnectionService.GetContentHubClientAsync();
+var isReachable = await contentHubConnectionService.IsContentHubReachableAsync();
 ```
+
+## Initial Migration Tool
+
+For existing Sitecore instances with Content Hub assets already in use, you need to perform an initial migration to populate the AssetUsageService database.
+
+### Prerequisites
+
+- Asset Usage Service deployed and running
+- iO.Sitecore.Publishing module installed
+- AssetUsageService.config properly configured
+
+### Installation Steps
+
+#### 1. Add Migration Files
+
+Place the following files in your Sitecore instance:
+
+<details>
+<summary><strong>MigrateAssets.html</strong> - Click to expand code</summary>
+
+**Location**: `C:\inetpub\wwwroot\[YOUR_SITECORE_INSTANCE]\sitecore\admin\MigrateAssets.html`
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Asset Link Migration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: #007acc;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 4px;
+        }
+
+        .btn:hover {
+            background: #005a9e;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #007acc;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .info-box p {
+            margin: 0 0 10px 0;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #007acc;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007acc;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .current-item {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #007acc;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .duration-info {
+            margin-top: 15px;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Initial Asset Link Migration</h1>
+    
+    <div class="info-box">
+        <p><strong>What does this migration do?</strong></p>
+        <p>This script scans all items in the Web database to identify those that contain Content Hub asset links. Only items with Content Hub references will be sent to the Asset Usage Service for tracking.</p>
+        <p><strong>Note:</strong> The "Items Scanned" count shows all items scanned, while "Sent Successfully" indicates items that actually contained Content Hub assets and were transmitted to the service.</p>
+    </div>
+    
+    <button id="btnStart" class="btn" onclick="startMigration()">Start Migration</button>
+    
+    <div id="progressContainer" class="progress-container">
+        <div class="progress-bar-bg">
+            <div id="progressBar" class="progress-bar" style="width: 0%">0%</div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="processedItems">0</div>
+                <div class="stat-label">Items Scanned</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="successCount" style="color: #28a745;">0</div>
+                <div class="stat-label">Sent Successfully</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="failureCount" style="color: #dc3545;">0</div>
+                <div class="stat-label">Failed</div>
+            </div>
+        </div>
+        
+        <div class="current-item">
+            <strong>Current Item:</strong><br>
+            <span id="currentItem">-</span>
+        </div>
+        
+        <div class="duration-info">
+            <strong>Duration:</strong> <span id="duration">0s</span>
+        </div>
+    </div>
+    
+    <div id="errorMessage" class="error" style="display: none;"></div>
+    <div id="warningMessage" class="warning" style="display: none;"></div>
+    <div id="successMessage" class="success" style="display: none;"></div>
+    
+    <script>
+        let pollInterval;
+        let pollCount = 0;
+        const MAX_POLLS = 5;
+        
+        function startMigration() {
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('warningMessage').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+            
+            pollCount = 0;
+            
+            fetch('/sitecore/admin/MigrationHandler.ashx?action=start', { 
+                method: 'POST' 
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Migration started:', data);
+                startPolling();
+            })
+            .catch(error => {
+                document.getElementById('errorMessage').textContent = 'Failed to start migration: ' + error.message;
+                document.getElementById('errorMessage').style.display = 'block';
+                document.getElementById('btnStart').disabled = false;
+            });
+        }
+        
+        function startPolling() {
+            pollInterval = setInterval(checkStatus, 1000);
+        }
+        
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+        
+        function checkStatus() {
+            pollCount++;
+            
+            fetch('/sitecore/admin/MigrationHandler.ashx?action=status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Status check #' + pollCount + ':', data);
+                    updateUI(data);
+                    
+                    if (!data.isRunning) {
+                        if (pollCount > MAX_POLLS) {
+                            stopPolling();
+                            
+                            if (data.totalItems === 0) {
+                                if (data.errorMessage) {
+                                    document.getElementById('warningMessage').textContent = 
+                                        'Migration completed but no items were processed: ' + data.errorMessage;
+                                    document.getElementById('warningMessage').style.display = 'block';
+                                } else {
+                                    document.getElementById('warningMessage').textContent = 
+                                        'No items with Content Hub links found. Check Sitecore logs for details.';
+                                    document.getElementById('warningMessage').style.display = 'block';
+                                }
+                                document.getElementById('btnStart').disabled = false;
+                            } else if (data.processedItems > 0) {
+                                showCompletion(data);
+                            }
+                        }
+                    } else {
+                        pollCount = 0;
+                    }
+                })
+                .catch(error => {
+                    console.error('Status check failed:', error);
+                    stopPolling();
+                    document.getElementById('errorMessage').textContent = 'Status check failed: ' + error.message;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    document.getElementById('btnStart').disabled = false;
+                });
+        }
+        
+        function updateUI(data) {
+            document.getElementById('progressBar').style.width = data.progressPercentage + '%';
+            document.getElementById('progressBar').textContent = data.progressPercentage + '%';
+            document.getElementById('processedItems').textContent = data.processedItems + ' / ' + data.totalItems;
+            document.getElementById('successCount').textContent = data.successCount;
+            document.getElementById('failureCount').textContent = data.failureCount;
+            document.getElementById('currentItem').textContent = data.currentItem || '-';
+            document.getElementById('duration').textContent = data.durationSeconds + 's';
+            
+            if (data.errorMessage && data.totalItems > 0) {
+                document.getElementById('errorMessage').textContent = 'Error: ' + data.errorMessage;
+                document.getElementById('errorMessage').style.display = 'block';
+            }
+        }
+        
+        function showCompletion(data) {
+            document.getElementById('btnStart').disabled = false;
+            
+            if (data.errorMessage) {
+                document.getElementById('errorMessage').textContent = 'Migration completed with errors. Check logs for details.';
+                document.getElementById('errorMessage').style.display = 'block';
+            } else {
+                var message = 'Migration completed successfully! Scanned ' + data.totalItems + ' items in ' + data.durationSeconds + 's. ';
+                message += 'Found and sent ' + data.successCount + ' item(s) with Content Hub assets';
+                if (data.failureCount > 0) {
+                    message += ' (' + data.failureCount + ' failed)';
+                }
+                message += '.';
+                
+                document.getElementById('successMessage').textContent = message;
+                document.getElementById('successMessage').style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
+```
+
+</details>
+
+<details>
+<summary><strong>MigrationHandler.ashx</strong> - Click to expand code</summary>
+
+**Location**: `C:\inetpub\wwwroot\[YOUR_SITECORE_INSTANCE]\sitecore\admin\MigrationHandler.ashx`
+
+```csharp
+<%@ WebHandler Language="C#" Class="MigrationHandler" %>
+
+using System;
+using System.Web;
+using System.Threading.Tasks;
+using System.Text.Json;
+using iO.Sitecore.Publishing.Services;
+using Sitecore.Diagnostics;
+
+public class MigrationHandler : IHttpHandler
+{
+    public void ProcessRequest(HttpContext context)
+    {
+        context.Response.ContentType = "application/json";
+        
+        var action = context.Request.QueryString["action"];
+        
+        if (action == "start")
+        {
+            StartMigration(context);
+        }
+        else if (action == "status")
+        {
+            GetStatus(context);
+        }
+        else
+        {
+            context.Response.StatusCode = 400;
+            context.Response.Write("{\"error\":\"Invalid action\"}");
+        }
+    }
+    
+    private void StartMigration(HttpContext context)
+    {
+        if (MigrationProgressTracker.IsRunning)
+        {
+            context.Response.StatusCode = 400;
+            context.Response.Write("{\"error\":\"Migration is already running\"}");
+            return;
+        }
+        
+        Log.Info("[MigrationHandler] Starting migration via Task.Run", this);
+        
+        Task.Run(async () =>
+        {
+            try
+            {
+                Log.Info("[MigrationHandler] Inside Task.Run - about to create service", this);
+                
+                var service = new InitialItemAssetLinkService();
+                
+                Log.Info("[MigrationHandler] Service created, calling ExecuteMigrationAsync()", this);
+                
+                await service.ExecuteMigrationAsync();
+                
+                Log.Info("[MigrationHandler] ExecuteMigrationAsync() completed", this);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("[MigrationHandler] EXCEPTION in Task.Run", ex, this);
+                MigrationProgressTracker.ErrorMessage = ex.Message + " | " + ex.StackTrace;
+                MigrationProgressTracker.IsRunning = false;
+                MigrationProgressTracker.EndTime = DateTime.UtcNow;
+            }
+        });
+        
+        Log.Info("[MigrationHandler] Task.Run launched", this);
+        
+        context.Response.Write("{\"message\":\"Migration started\"}");
+    }
+    
+    private void GetStatus(HttpContext context)
+    {
+        var duration = MigrationProgressTracker.StartTime.HasValue
+            ? (MigrationProgressTracker.EndTime ?? DateTime.UtcNow) - MigrationProgressTracker.StartTime.Value
+            : TimeSpan.Zero;
+        
+        var status = new
+        {
+            isRunning = MigrationProgressTracker.IsRunning,
+            totalItems = MigrationProgressTracker.TotalItems,
+            processedItems = MigrationProgressTracker.ProcessedItems,
+            successCount = MigrationProgressTracker.SuccessCount,
+            failureCount = MigrationProgressTracker.FailureCount,
+            progressPercentage = MigrationProgressTracker.ProgressPercentage,
+            currentItem = MigrationProgressTracker.CurrentItem ?? "",
+            errorMessage = MigrationProgressTracker.ErrorMessage ?? "",
+            durationSeconds = (int)duration.TotalSeconds
+        };
+        
+        context.Response.Write(JsonSerializer.Serialize(status));
+    }
+    
+    public bool IsReusable
+    {
+        get { return false; }
+    }
+}
+```
+
+</details>
+
+#### 2. Update AssetUsageService.config
+
+Add the ContentHub endpoint setting to your existing `AssetUsageService.config` (inside C:\inetpub\wwwroot\[YOUR_SITECORE_INSTANCE]\App_Config\Include :
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration xmlns:patch="http://www.sitecore.net/xmlconfig/">
+  <sitecore>
+    <settings>
+      <!-- Existing setting -->
+      <setting name="AssetUsageService.ApiEndpoint" value="http://localhost:7183/api/SitecorePublishAPI" />
+      
+      <!-- NEW: Add this setting -->
+      <setting name="AssetUsageService.ContentHubEndpoint" value="https://your-instance.sitecoresandbox.cloud" />
+    </settings>
+  </sitecore>
+</configuration>
+```
+
+Replace `https://your-instance.sitecoresandbox.cloud` with your actual Content Hub endpoint.
+
+#### 3. Run the Migration
+
+1. Navigate to: `https://[YOUR_SITECORE_INSTANCE]/sitecore/admin/MigrateAssets.html`
+2. Click **Start Migration**
+3. Monitor progress in real-time:
+   - Total items processed
+   - Success/failure counts
+   - Current item being processed
+   - Duration
+
+#### 4. Verify Migration
+
+After completion:
+
+1. **Check MongoDB**: Verify `AssetItemLinks` collection contains records
+2. **Check Content Hub**: Verify asset relations are updated
+3. **Review Sitecore Logs**: Check for any errors or warnings
+
+### Migration Behavior
+
+The migration tool:
+- Scans the entire Sitecore Web database
+- Identifies items with Content Hub asset references
+- Sends each item to the Asset Usage Service
+- Updates progress in real-time via AJAX polling
+- Handles errors gracefully and logs them
+
+### Troubleshooting
+
+**No items found**:
+- Verify items in Sitecore actually have Content Hub asset links
+- Check that `AssetUsageService.ContentHubEndpoint` is correct
+- Review Sitecore logs for detailed error messages
+
+**Migration fails mid-process**:
+- Check Asset Usage Service logs in Application Insights
+- Verify MongoDB connectivity
+- Check Content Hub authentication credentials
+
+**Timeout errors**:
+- For large databases, the migration may take several minutes
+- Monitor Sitecore logs for progress
+- Consider running during off-peak hours
+
+## Development Setup
+
+### Local Development
+
+1. Clone the repository:
+```bash
+git clone https://github.com/weareyou/asset-usage-service.git
+cd asset-usage-service
+```
+
+2. Install dependencies:
+```bash
+dotnet restore
+```
+
+3. Configure local settings:
+```bash
+cp local.settings.json.example local.settings.json
+# Edit local.settings.json with your configuration
+```
+
+4. Start MongoDB:
+```bash
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+```
+
+5. Run the application:
+```bash
+func start
+```
+
+6. Configure Sitecore:
+- Copy `iO.Sitecore.publishing.dll` to your Sitecore instance bin folder
+- Create `iO.Publishing.Events.config` in `App_Config\Include\zzz.iO\`
+- Create `AssetUsageService.config` in `App_Config\Include\`
+- Update `AssetUsageService.ApiEndpoint` to point to your local function
+- Restart Sitecore
+
+ ## Setting up the React Component
+
+This guide will show you how to add the React component to your Content Hub instance.
+
+### Prerequisites
+
+- Access to the asset-usage-service project folder
+- Node.js and npm installed
+- Admin access to your Content Hub instance
+- Your Sitecore XP URL
+
+### Installation Steps
+
+#### 1. Install Dependencies
+
+Open your terminal and navigate to the component directory:
+
+```bash
+cd asset-usage-service/contenthubtrackingcomponent
+npm install
+```
+
+#### 2. Configure the Component
+
+1. Open the file `src/AssetUsageTracker.tsx` in your preferred editor
+2. Replace the constant `CMS_BASE_URL` with your Sitecore XP URL
+3. Save the file
+
+#### 3. Build the Component
+
+Run the build command:
+
+```bash
+npm run build
+```
+
+This will generate an `AssetUsageTracker.js` file in the `dist` folder.
+
+#### 4. Upload to Content Hub
+
+1. Log in to your Content Hub instance
+2. Navigate to **Manage** (settings icon)
+3. Go to the **Portal assets** page
+4. Click **Upload file** and upload the `AssetUsageTracker.js` file from the `dist` folder
+
+#### 5. Wait for Processing
+
+1. Click on your profile picture
+2. Open **Background processes**
+3. Refresh the page and wait until the upload job is processed
+
+#### 6. Add Component to Asset Details Page
+
+1. Go to **Manage** → **Pages**
+2. Select the **Asset details** page
+3. Click **+ Component** where you want to add the component
+4. In the "Add component" popup, search for **External**
+5. Click **Add**
+
+#### 7. Configure the Component
+
+1. Give it a title (e.g., "AssetUsageTracker")
+2. Turn the **Visible** switch **on**
+3. Click on the component you just added
+4. Under **JS bundle**, select **From asset**
+5. Click the **+** icon
+6. Search for the `AssetUsageTracker.js` file
+7. Select it and click **Save**
+8. Click **Save** in the upper right corner of the page
+
+### Verification
+
+The Asset Usage Tracker component should now be visible on your Asset details page and ready to use.
+
+## Development Setup
+
+### Local Development
+
+1. Clone the repository:
+```bash
+git clone https://github.com/weareyou/asset-usage-service.git
+cd asset-usage-service
+```
+
+2. Install dependencies:
+```bash
+dotnet restore
+```
+
+3. Configure local settings:
+```bash
+cp local.settings.json.example local.settings.json
+# Edit local.settings.json with your configuration
+```
+
+4. Start MongoDB:
+```bash
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+```
+
+5. Run the application:
+```bash
+func start
+```
+
+6. Configure Sitecore:
+- Copy `iO.Sitecore.publishing.dll` to your Sitecore instance bin folder
+- Create `iO.Publishing.Events.config` in `App_Config\Include\zzz.iO\`
+- Create `AssetUsageService.config` in `App_Config\Include\`
+- Update `AssetUsageService.ApiEndpoint` to point to your local function
+- Restart Sitecore
+
+
+## Content Hub settings 
+This configuration is required for the Asset Tracking microservice to securely connect to Sitecore Content Hub and update asset usage data.  
+Without this setup, the microservice cannot authenticate safely and modify usage tracking information.
+
+This section explains how to:
+1. Create a minimal-permission service user
+2. Assign permissions via a custom user group
+3. Create an OAuth client (Client Credentials flow)
+4. Extend the M.Asset schema with a secured JSON field
+5. Apply read/write member-level security
+
+---
+
+### 1. Create Service User (Minimal Required Permissions)
+
+#### 1.1 Create the User
+1. Log in to Sitecore Content Hub.
+2. Navigate: Manage > Users.
+3. Click User to open the user list.
+4. Click + User.
+5. Enter a username (example: asset-service-user).
+6. Click Save.
+7. Click Edit profile and add a valid Email.
+8. Open the email inbox and complete verification.
+9. After verifying, use the reset password link to set an initial password.
+
+#### 1.2 Create a User Group
+1. Navigate: Manage > Users > User groups.
+2. Click + Usergroup.
+3. Fill in:
+   - Name: Asset Editors Service (example)
+   - Modules: Media (or required module granting asset access)
+4. Click the User field + button.
+5. Search and add asset-service-user.
+6. Click Save.
+
+#### 1.3 Configure User Group Policy
+1. From the User groups overview, locate the newly created group.
+2. Click Policies on that group.
+3. Click New rule.
+4. Entity Definition: select M.Asset.
+5. Permissions (check only what you need):
+   - Read
+   - Create
+   - Update
+   - AddVersion
+   - ReadPublicLinks
+   - Delete (only if deletion is required; omit if not)
+6. (Optional) Add conditions to restrict scope (e.g., folder, metadata).
+7. Click Save.
+
+#### 1.4 Verify Group Memberships
+1. Go to Manage > Users.
+2. Open asset-service-user.
+3. Go to the User groups tab.
+4. Ensure membership includes:
+   - Everyone (usually automatic)
+   - Asset Editors Service
+5. Click Save.
+
+#### 1.5 Test With Impersonation
+1. Open the user details for asset-service-user.
+2. Click Impersonate.
+3. Verify:
+   - Can view assets.
+   - Can edit or create assets (as per granted permissions).
+   - Does not have access to administrative modules beyond scope.
+4. Click Stop impersonating to return.
+
+---
+
+### 2. Create OAuth Client (Client Credentials Flow)
+
+#### 2.1 Create OAuth Client
+1. Navigate: Manage > OAuth clients.
+2. Click OAuth client.
+3. Fill in:
+   - Name: Asset Service Client
+   - Client ID: asset-service-client
+   - Client Secret: (generate a strong secret; copy it immediately)
+   - Redirect URL: https://localhost/ (placeholder; not used for client credentials)
+   - Type: Client Credentials
+   - User: select asset-service-user
+4. Click Save.
+
+Important:
+- You will not be able to retrieve the Client Secret later. Store it safely.
+
+---
+
+### 3. Extend M.Asset Schema With a Secured JSON Property
+
+Goal: Add a JSON property (UsageTracking) that is readable by all but writable only by a designated group/service user.
+
+#### 3.1 Open Schema
+1. Navigate: Manage > Schema.
+
+#### 3.2 Locate M.Asset
+1. Use search: M.Asset.
+2. Select M.Asset.
+
+#### 3.3 Create a Member Group
+1. Click New group.
+2. Name: UsageTracking (!important to keep it UsageTracking or the react interface wont notice it).
+3. Click Save.
+
+#### 3.4 Add a New Property Member
+1. Inside the group, click New member.
+2. In the New member dialog:
+   - Next to Property click Select.
+   - Choose Data type: JSON.
+3. Click Next and configure:
+   - Name: UsageTracking (!important to keep it UsageTracking or the react interface wont notice it).
+   - Allow Updates: checked
+   - Secured: checked
+4. Click Save.
+
+---
+
+### 4. Member-Level Security: Read Access for Everyone
+
+Goal: All users can view the field; only specific group can modify.
+
+1. Navigate: Manage > Users > User groups.
+2. Open Everyone.
+3. Click Policies.
+4. Go to Member security tab.
+5. Definitions: select M.Asset.
+6. Member groups: select UsageTracking.
+7. Members: find property UsageTracking.
+8. Check only Read.
+9. Click Save.
+
+---
+
+### 5. Member-Level Security: Write Access for Service Group
+
+1. Navigate: Manage > Users > User groups.
+2. Open the Asset Editors Service.
+3. Click Policies.
+4. Go to Member security tab.
+5. Definitions: select M.Asset.
+6. Member groups: select UsageTracking.
+7. Members: select UsageTracking property.
+8. Check Read and Write.
+9. Click Save.
+
+---
+
+### 6. Result Verification
+
+Expected outcome:
+- Everyone: can see UsageTracking (read-only).
+- Asset Editors Service (and impersonated service user): can read and update UsageTracking.
+- The property appears under the UsageTracking member group on M.Asset entities.
+
+---
+
+### 7. Troubleshooting
+
+| Symptom | Cause | Resolution |
+|---------|-------|-----------|
+| Property not visible | Member group security misconfiguration | Re-check Everyone group member security (Read) |
+| Cannot update property as service user | Missing Write at member level | Verify Asset Editors Service policy member security |
+| OAuth calls fail (401) | Wrong client secret or user missing permissions | Recreate secret or adjust user group permissions |
+
+---
+
+### Summary
+
+You have:
+- A scoped service user with only necessary asset permissions.
+- An OAuth client using Client Credentials tied to that user.
+- A secured JSON property on M.Asset with controlled read/write access.
+- A foundation for storing and exposing asset usage metadata safely.
+
+## Content Hub React Components Setup
+
+This section describes how to add the usage insights and the custom delete Modal component to the asset details page:
+1. Asset Usage Tracker (shows which Sitecore CMS items use the asset)
+2. Custom Delete Modal (replaces the default delete action and performs usage checks)
+3. Custom Archive Modal (replaces the default Archive action and performs usage checks)
+
+---
+
+### Asset Usage Tracker
+
+#### Requirements
+- Access to project: `asset-usage-service/contenthubtrackingcomponent`
+- Node.js + npm installed
+- Manage permissions in Content Hub
+- Your Sitecore XP base URL (for `CMS_BASE_URL` constant)
+
+#### Build & Configure
+1. Install dependencies and navigate into the component folder:
+   ```bash
+   cd asset-usage-service/contenthubtrackingcomponent
+   npm install
+   ```
+2. Open `src/AssetUsageTracker.tsx`.
+3. Replace the constant `CMS_BASE_URL` with your Sitecore XP URL.
+4. Save the file.
+5. Build:
+   ```bash
+   npm run build:usageTracking
+   ```
+6. Result: `dist/AssetUsageTracker.js`.
+
+#### Upload to Content Hub
+1. Log in to your contenthub instance.
+2. Go to: Manage → Portal assets.
+3. Upload `dist/AssetUsageTracker.js`.
+4. Click Profile picture → Background processes and wait until the job status is Success.
+
+#### Add to Asset Details Page
+1. Navigate to: Manage → Pages → Asset details.
+2. Click + Component where you want it.
+3. Search for External → Add.
+4. Configure:
+   - Title: `AssetUsageTracker`
+   - Visible: on
+   - JS bundle: From asset → + → select `AssetUsageTracker.js` → Save
+5. Save the page (top-right).
+
+#### Verification
+The component loads without errors and displays usage information on the asset details page.
+
+---
+
+### Custom Delete Modal (External Component Action)
+
+#### Requirements
+- Access to project: `asset-usage-service/contenthubtrackingcomponent`
+- Node.js + npm
+- Manage permissions in Content Hub
+
+#### Build
+```bash
+npm run build:deleteModal
+```
+Result: `dist/DeleteModal.js`.
+
+#### Upload to Content Hub
+1. Log in.
+2. Manage → Portal assets → Upload `dist/DeleteModal.js`.
+3. Profile picture → Background processes → wait for Success.
+
+#### Configure on Asset Details Page
+1. Manage → Pages → Asset details.
+2. Locate component: Entity operations → click the user icon.
+3. Click on the Entity operations
+3. Add operation → External component action.
+4. Remove the existing native Delete operation:
+   - Click the X next to the current Delete.
+   - Confirm Remove.
+5. Drag the new external operation to Secondary operations.
+6. Click it to configure.
+
+##### Display Settings
+1. Choose a trash/bin icon.
+2. Set Label: `Delete`.
+3. Save component.
+
+##### Operation Settings
+1. Source: From entity
+2. Source: + → select `DeleteModal.js` → Save.
+
+##### Permissions
+1. Add permission: `Delete`.
+2. Save the page (top-right).
+
+#### Verification
+1. Open an asset that is referenced/used in the CMS.
+2. Open the context menu (three dots) → Delete.
+3. Modal should appear showing:
+   - A confirmation checkbox.
+   - A message indicating the asset is used in X items.
+
+If both appear, the external delete component is working.
+
+### Custom Archive Modal 
+
+#### Requirements
+- Access to project: `asset-usage-service/contenthubtrackingcomponent`
+- Node.js + npm installed
+- Manage permissions in Content Hub
+---
+
+#### Build
+```bash
+npm run build:archiveModal
+```
+Result: `dist/ArchiveModal.js`.
+
+#### Upload to Content Hub
+1. Log in.
+2. Manage → Portal assets → Upload `dist/ArchiveModal.js`.
+3. Profile picture → Background processes → wait for Success.
+
+#### Remove the existing native Archive
+1. Manage → Pages → Asset details.
+2. Click on the Entity operations
+3. Remove the existing native Archive operation:
+   - Click the X next to the current Archive.
+   - Confirm Remove.
+
+#### Add Archive component on Asset Details Page
+1. Manage → Pages → Asset details.
+2. Within the *Header zone (right)* click `+ Component`
+3. Search for and select `Entity operations` And click Add
+4. Click on the Entity operations you just added
+5. Click Add operation → External component action.
+6. Click it to configure.
+
+##### Display Settings
+1. Choose a Archive icon.
+2. Set Label: `Archive`.
+3. Set Button style `Secondary`.
+
+##### Operation Settings
+1. Source: From entity
+2. Source: + → select `ArchiveModal.js` → Save.
+
+##### Permissions
+1. Add permission: `Archive`.
+2. Save the page (top-right).
+
+#### Visibility settings
+1. Go back to: Manage → Pages → Asset details.
+2. Drag your Entity operations by the 10 dots to your preferred location (Recommended is above the other Entity operations).
+3. Click on the 3 dots and click settings
+4. Select the `Conditions` tab and select `Member condition`
+5. On the Member input search for and select `Archived By`
+6. Select is missing next to the Archived By input And click Save
+
+#### Verification
+
+##### Modal Verification
+1. Open an asset that is referenced/used in the CMS.
+2. Click on the Archive button.
+3. Modal should appear showing:
+   - A confirmation checkbox.
+   - A message indicating the asset is used in X items.
+
+##### Visibility Verification
+1. Archive an asset
+2. go to: Manage -> Archived assets
+3. Click on a Archived asset
+4. Verify that the Archive button is not showing here
+
+### Common Issues
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| JS bundle not listed | Upload not processed yet | Wait for Success in Background processes |
+| Delete action not visible | Missing permission | Ensure your role has Delete for the asset type |
+| Archive action not visible | Missing permission | Ensure your role has Archive for the asset type |
+
+---
+
+### Quick Reference
+
+| Action | Command / Location |
+|--------|--------------------|
+| Build usage tracking component | `npm run build:usageTracking` |
+| Build delete modal component | `npm run build:deleteModal` |
+| Usage bundle path | `dist/AssetUsageTracker.js` |
+| Archive bundle path | `dist/ArchiveModal.js` |
+| Delete bundle path | `dist/DeleteModal.js` |
+| Upload location | Manage → Portal assets |
+| Attach bundle | Component / Operation → JS bundle / Source → From asset / From entity |
+
+---
+
+### Summary
+You now have:
+- An Asset Usage Tracker component that displays Sitecore usage relationships.
+- A Custom Delete Modal that conditionally allows deletion and surfaces usage details.
+
+Both are managed as external JS assets in Content Hub and can be updated independently by rebuilding and re-uploading the corresponding bundle.
 
 ## Deployment
 
@@ -1276,7 +2359,10 @@ dotnet test
 dotnet test --filter "Category=Performance"
 
 # Run integration tests only
-dotnet test --filter "FullyQualifiedName~Integration"
+dotnet test --filter "Category=Integration"
+
+# Run unit tests only
+dotnet test --filter "Category=Unit"
 ```
 
 ### Test Categories
@@ -1298,7 +2384,65 @@ new AssetItemLink
     UpdatedAt = DateTime.UtcNow
 }
 ```
+### Azure ServiceBus test 
+To run the serviceBus tests create a file named `appsettings.Test.json` in the AssetUsageServiceTests directory and paste this in for the local queue:
+```json
+{
+  "ServiceBusQueue": {
+    "ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+  }
+}
+```
+Open `\AssetUsageServiceTests\AssetUsageServiceTests.csproj` file and within the project tags
+```xml
+ <Project Sdk="Microsoft.NET.Sdk"> 
 
+ </Project>
+ ```  
+Add the following code:
+```xml 
+<ItemGroup>
+  <None Update="appsettings.Test.json">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
+```
+## 
+### Setup Steps
+
+1. **Edit `appsettings.Test.json`** with your ContentHub credentials:
+
+```json
+{
+  "ServiceBusQueue": {
+    "ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+  },
+  "ContentHub": {
+    "IntegrationTestsEnabled": "true",
+    "Endpoint": "https://your-instance.sitecoresandbox.cloud",
+    "ClientId": "your-oauth-client-id",
+    "ClientSecret": "your-oauth-client-secret",
+    "TestPublicLink": "https://your-instance.sitecoresandbox.cloud/api/public/content/xxxxx",
+    "TestPublicLinks": [
+        "https://your-instance.sitecoresandbox.cloud/api/public/content/xxxxx",
+        "https://your-instance.sitecoresandbox.cloud/api/public/content/yyyyy"
+    ]
+  }
+}
+```
+
+2. **Set `IntegrationTestsEnabled` to `true`** to enable tests
+
+3. **Provide valid test data**:
+   - `TestPublicLink`: A single valid public link from your ContentHub instance
+   - `TestPublicLinks`: An array of 2+ valid public links for multi-link tests
+
+### Getting Test Public Links
+
+1. Log in to your ContentHub instance
+2. Navigate to an asset that has a public link
+3. Copy the public link URL
+4. Paste it into `appsettings.Test.json`
 ## Monitoring and Logging
 
 ### Application Insights

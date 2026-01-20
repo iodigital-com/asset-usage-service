@@ -4,6 +4,8 @@ using AssetUsageService.Business.Events.interfaces;
 using AssetUsageService.Business.Handlers;
 using AssetUsageService.Business.Handlers.interfaces;
 using AssetUsageService.Business.Services;
+using AssetUsageService.Business.Services.ServiceBusQueueServices;
+using AssetUsageService.Business.Services.ServiceBusQueueServices.Interfaces;
 using AssetUsageService.Domain.Data;
 using AssetUsageService.Infrastructure;
 using AssetUsageService.Integration;
@@ -45,6 +47,9 @@ builder.Services.AddSingleton<PublishedItemMapper>();
 builder.Services.AddSingleton<IContentHubConnectionService, ContentHubConnectionService>();
 builder.Services.AddSingleton<MessageHandler>();
 builder.Services.AddSingleton<AssetItemController>();
+builder.Services.AddSingleton<IServiceBusQueueService, ServiceBusQueueService>();
+builder.Services.AddSingleton<IServiceBusConfigService, ServiceBusConfigService>();
+
 
 var app = builder.Build();
 
