@@ -8,6 +8,7 @@ using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
 using Sitecore.SecurityModel;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -22,19 +23,29 @@ namespace iO.Sitecore.Publishing.Services
         private readonly IAssetExtractionService _assetExtractionService;
         private readonly PublishLoggingService _loggingService;
         private readonly string _contentHubEndpoint;
+        private readonly string _databaseName;
         private const string ContentHubEndpointSetting = "AssetUsageService.ContentHubEndpoint";
+        private const string DatabaseNameSetting = "AssetUsageService.DatabaseName";
         private const string LogPrefix = "[InitialItemAssetLinkService]";
+
+        static InitialItemAssetLinkService()
+        {
+            System.Net.ServicePointManager.DefaultConnectionLimit = 200;
+            System.Net.ServicePointManager.Expect100Continue = false;
+            System.Net.ServicePointManager.UseNagleAlgorithm = false;
+        }
 
         public InitialItemAssetLinkService()
         {
             using (new SecurityDisabler())
             {
-                _webDatabase = Factory.GetDatabase("TestMaster");
+                _databaseName = Settings.GetSetting(DatabaseNameSetting, "master");
+                _webDatabase = Factory.GetDatabase(_databaseName);
             }
 
             if (_webDatabase == null)
             {
-                throw new InvalidOperationException("TestMaster database not found.");
+                throw new InvalidOperationException("Database not found.");
             }
 
             _client = new AssetUsageServiceClient();
@@ -55,31 +66,25 @@ namespace iO.Sitecore.Publishing.Services
             {
                 var rootItemId = "{0DE95AE4-41AB-4D01-9EB0-67441B7C2450}";
 
-                // FASE 1: Count
                 MigrationProgressTracker.CurrentPhase = 1;
                 MigrationProgressTracker.PhaseDescription = "Counting items";
-                Log.Info($"{LogPrefix} Phase 1: Counting items...", this);
 
-                var allItems = CollectAllItems(rootItemId);
-                if (allItems == null || allItems.Count == 0)
+                var allItems = CollectAllItemsFast(rootItemId);
+                if (allItems == null || allItems.Length == 0)
                 {
                     MigrationProgressTracker.ErrorMessage = "No items found.";
                     return;
                 }
-                MigrationProgressTracker.TotalItems = allItems.Count;
-                Log.Info($"{LogPrefix} Phase 1 complete: {allItems.Count} items found", this);
+                MigrationProgressTracker.TotalItems = allItems.Length;
+                MigrationProgressTracker.ProcessedItems = allItems.Length;
 
-                // FASE 2: Extract
                 MigrationProgressTracker.CurrentPhase = 2;
                 MigrationProgressTracker.PhaseDescription = "Extracting assets";
                 MigrationProgressTracker.ProcessedItems = 0;
-                Log.Info($"{LogPrefix} Phase 2: Extracting assets...", this);
 
-                var payloads = ExtractAllPayloads(allItems);
+                var payloads = ExtractAllPayloadsParallel(allItems);
                 MigrationProgressTracker.ExtractedCount = payloads.Count;
-                Log.Info($"{LogPrefix} Phase 2 complete: {payloads.Count} items with assets", this);
 
-                allItems.Clear();
                 allItems = null;
 
                 if (payloads.Count == 0)
@@ -88,15 +93,14 @@ namespace iO.Sitecore.Publishing.Services
                     return;
                 }
 
-                // FASE 3: Send
                 MigrationProgressTracker.CurrentPhase = 3;
                 MigrationProgressTracker.PhaseDescription = "Sending to service";
                 MigrationProgressTracker.ProcessedItems = 0;
                 MigrationProgressTracker.TotalItems = payloads.Count;
-                Log.Info($"{LogPrefix} Phase 3: Sending to service...", this);
 
                 await SendAllPayloadsAsync(payloads);
-                Log.Info($"{LogPrefix} Phase 3 complete: {MigrationProgressTracker.SuccessCount} success, {MigrationProgressTracker.FailureCount} failed", this);
+
+                Log.Info($"{LogPrefix} Migration completed: {MigrationProgressTracker.SuccessCount} success, {MigrationProgressTracker.FailureCount} failed", this);
             }
             catch (Exception ex)
             {
@@ -110,82 +114,51 @@ namespace iO.Sitecore.Publishing.Services
             }
         }
 
-        private List<Item> CollectAllItems(string rootItemId)
+        private Item[] CollectAllItemsFast(string rootItemId)
         {
-            var items = new List<Item>();
-
             using (new SecurityDisabler())
             {
                 var rootItem = _webDatabase.GetItem(new ID(rootItemId));
-                if (rootItem == null)
-                {
-                    Log.Error($"{LogPrefix} Root item {rootItemId} not found", this);
-                    return items;
-                }
+                if (rootItem == null) return Array.Empty<Item>();
 
-                var queue = new Queue<Item>();
-                queue.Enqueue(rootItem);
+                var descendants = rootItem.Axes.GetDescendants();
+                var result = new Item[descendants.Length + 1];
+                result[0] = rootItem;
+                descendants.CopyTo(result, 1);
 
-                while (queue.Count > 0)
-                {
-                    var current = queue.Dequeue();
-                    if (current == null) continue;
-
-                    items.Add(current);
-                    MigrationProgressTracker.ProcessedItems = items.Count;
-                    MigrationProgressTracker.CurrentItem = GetSafeItemPath(current);
-
-                    try
-                    {
-                        foreach (Item child in current.GetChildren())
-                        {
-                            if (child != null) queue.Enqueue(child);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warn($"{LogPrefix} Error getting children for {current.ID}: {ex.Message}", this);
-                    }
-                }
+                return result;
             }
-
-            return items;
         }
 
-        private List<AssetUsageEvent> ExtractAllPayloads(List<Item> items)
+        private List<AssetUsageEvent> ExtractAllPayloadsParallel(Item[] items)
         {
-            var payloads = new List<AssetUsageEvent>();
+            var payloads = new ConcurrentBag<AssetUsageEvent>();
             int processed = 0;
 
-            using (new SecurityDisabler())
-            {
-                foreach (var item in items)
+            Parallel.ForEach(
+                items,
+                new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 2 },
+                item =>
                 {
-                    processed++;
-                    if (processed % 1000 == 0)
-                    {
-                        Log.Info($"{LogPrefix} Extraction progress: {processed}/{items.Count}", this);
-                    }
-
-                    MigrationProgressTracker.ProcessedItems = processed;
-                    MigrationProgressTracker.CurrentItem = GetSafeItemPath(item);
-
                     try
                     {
-                        var payload = ExtractPayload(item);
-                        if (payload != null)
+                        using (new SecurityDisabler())
                         {
-                            payloads.Add(payload);
+                            var payload = ExtractPayload(item);
+                            if (payload != null)
+                            {
+                                payloads.Add(payload);
+                            }
                         }
                     }
-                    catch (Exception ex)
+                    catch { }
+                    finally
                     {
-                        Log.Warn($"{LogPrefix} Extract failed for {item.ID}: {ex.Message}", this);
+                        MigrationProgressTracker.ProcessedItems = Interlocked.Increment(ref processed);
                     }
-                }
-            }
+                });
 
-            return payloads;
+            return payloads.ToList();
         }
 
         private AssetUsageEvent ExtractPayload(Item item)
@@ -234,66 +207,44 @@ namespace iO.Sitecore.Publishing.Services
         private async Task SendAllPayloadsAsync(List<AssetUsageEvent> payloads)
         {
             int maxConcurrent = GetOptimalConcurrency();
-            Log.Info($"{LogPrefix} Sending with concurrency: {maxConcurrent}, ConnectionLimit: {System.Net.ServicePointManager.DefaultConnectionLimit}", this);
-
-            var semaphore = new SemaphoreSlim(maxConcurrent);
-            var tasks = new List<Task>();
             int completed = 0;
             int successCount = 0;
             int failureCount = 0;
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            foreach (var payload in payloads)
+            await Task.Run(() =>
             {
-                await semaphore.WaitAsync();
-
-                var task = Task.Run(async () =>
-                {
-                    try
+                Parallel.ForEach(
+                    payloads,
+                    new ParallelOptions { MaxDegreeOfParallelism = maxConcurrent },
+                    payload =>
                     {
-                        await _client.SendAsync(payload);
-                        Interlocked.Increment(ref successCount);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error($"{LogPrefix} Send failed for {payload.ItemId}: {ex.Message}", this);
-                        Interlocked.Increment(ref failureCount);
-                    }
-                    finally
-                    {
-                        var done = Interlocked.Increment(ref completed);
-                        MigrationProgressTracker.ProcessedItems = done;
-                        MigrationProgressTracker.SuccessCount = successCount;
-                        MigrationProgressTracker.FailureCount = failureCount;
-                        MigrationProgressTracker.CurrentItem = payload.ItemPath;
-
-                        if (done % 500 == 0)
+                        try
                         {
-                            var rate = done / stopwatch.Elapsed.TotalSeconds;
-                            Log.Info($"{LogPrefix} Progress: {done}/{payloads.Count}, rate: {rate:F1}/sec", this);
+                            _client.SendAsync(payload).GetAwaiter().GetResult();
+                            Interlocked.Increment(ref successCount);
                         }
-
-                        semaphore.Release();
-                    }
-                });
-
-                tasks.Add(task);
-            }
-
-            await Task.WhenAll(tasks);
-
-            var finalRate = payloads.Count / stopwatch.Elapsed.TotalSeconds;
-            Log.Info($"{LogPrefix} Completed sending. Final rate: {finalRate:F1}/sec", this);
+                        catch
+                        {
+                            Interlocked.Increment(ref failureCount);
+                        }
+                        finally
+                        {
+                            MigrationProgressTracker.ProcessedItems = Interlocked.Increment(ref completed);
+                            MigrationProgressTracker.SuccessCount = successCount;
+                            MigrationProgressTracker.FailureCount = failureCount;
+                        }
+                    });
+            });
         }
 
         private int GetOptimalConcurrency()
         {
-            var setting = Settings.GetSetting("AssetUsageService.MaxConcurrency", "50");
+            var setting = Settings.GetSetting("AssetUsageService.MaxConcurrency", "100");
             if (int.TryParse(setting, out int value) && value > 0 && value <= 200)
             {
                 return value;
             }
-            return 50;
+            return 100;
         }
 
         private bool HasContentHubLinks(List<string> publicLinks)
