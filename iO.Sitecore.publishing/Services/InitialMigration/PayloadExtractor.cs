@@ -3,6 +3,7 @@ using iO.Sitecore.Publishing.Interfaces.Services;
 using iO.Sitecore.Publishing.Models;
 using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
+using Sitecore.Diagnostics;
 using Sitecore.SecurityModel;
 using System;
 using System.Collections.Concurrent;
@@ -52,9 +53,10 @@ namespace iO.Sitecore.Publishing.Services
                             }
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Skip items that fail extraction
+                        Log.Warn($"[InitialItemAssetLinkService] Failed to extract payload for item {item?.ID}: {ex.Message}", this);
+                        MigrationProgressTracker.IncrementFailureCount();
                     }
                     finally
                     {
