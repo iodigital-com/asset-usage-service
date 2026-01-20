@@ -47,7 +47,7 @@ public class PublishAssetIdsByPublicLinksEventService
         await _mediator.PublishAsync(@event, cancellationToken);
 
         var assetIds = @event.AssetIds ?? new List<int>();
-        
+
         _logger.LogInformation("Retrieved {AssetCount} asset IDs from {LinkCount} ContentHub links for item {ItemId}",
             assetIds.Count, contentHubLinks.Count, publishedItem.ItemId);
 

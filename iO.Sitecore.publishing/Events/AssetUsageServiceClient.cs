@@ -20,9 +20,13 @@ namespace iO.Sitecore.Publishing.Events
         private readonly JsonSerializerOptions jsonOptions;
         private bool disposed = false;
 
-        public AssetUsageServiceClient()
+        public AssetUsageServiceClient() : this(null)
         {
-            endpointUrl = GetAndValidateEndpointUrl();
+        }
+
+        public AssetUsageServiceClient(string endpointUrl)
+        {
+            this.endpointUrl = endpointUrl ?? GetAndValidateEndpointUrl();
             jsonOptions = new JsonSerializerOptions
             {
                 WriteIndented = false

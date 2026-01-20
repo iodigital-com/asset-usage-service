@@ -15,6 +15,7 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 {
     private const string RelativeUrlProperty = "RelativeUrl";
     private const string AssetToPublicLinkRelation = "AssetToPublicLink";
+    private const int BatchSize = 50; 
 
     private readonly IContentHubConnectionService _contentHubConnection;
     private readonly ILogger<AssetIdsByPublicLinksHandler> _logger;
@@ -38,53 +39,111 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
                 assetIds.Count, @event.PublicLinks.Count);
             @event.AssetIds = assetIds;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Failed to retrieve asset IDs from public links");
+            _logger.LogError(exception, "Failed to retrieve asset IDs from public links");
             throw;
         }
     }
 
     private async Task<List<int>> GetAssetIdsByPublicLinksAsync(IReadOnlyList<string> publicLinks, CancellationToken cancellationToken)
     {
-        var assetIds = new List<int>(publicLinks.Count);
+        if (publicLinks.Count == 0)
+        {
+            return new List<int>();
+        }
+
+        var isReachable = await _contentHubConnection.IsReachableAsync(cancellationToken);
+        if (!isReachable)
+        {
+            _logger.LogError("ContentHub is not reachable. Cannot process public links.");
+            throw new InvalidOperationException("ContentHub is not reachable. Please verify ContentHub:Endpoint configuration and network connectivity.");
+        }
+
         var contentHubClient = _contentHubConnection.CreateClient();
 
-        var tasks = publicLinks
-            .Select(url => TryGetAssetIdFromPublicLinkAsync(contentHubClient, url, cancellationToken))
+        var urlMapping = publicLinks
+            .Select(url => new { OriginalUrl = url, RelativeUrl = ExtractRelativeUrl(url) })
+            .Where(x => x.RelativeUrl != null)
+            .DistinctBy(x => x.RelativeUrl)
             .ToList();
 
-        var results = await Task.WhenAll(tasks);
+        if (urlMapping.Count == 0)
+        {
+            return new List<int>();
+        }
 
-        assetIds.AddRange(results.Where(id => id.HasValue).Select(id => (int)id.Value));
+        var assetIds = new List<int>(urlMapping.Count);
+
+        var batches = urlMapping
+            .Select((x, i) => new { x.RelativeUrl, Index = i })
+            .GroupBy(x => x.Index / BatchSize)
+            .Select(g => g.Select(x => x.RelativeUrl!).ToList())
+            .ToList();
+
+        var batchTasks = batches.Select(batch => 
+            ProcessBatchAsync(contentHubClient, batch, cancellationToken));
+
+        var batchResults = await Task.WhenAll(batchTasks);
+
+        foreach (var result in batchResults)
+        {
+            assetIds.AddRange(result);
+        }
+
         return assetIds;
     }
 
-    private async Task<long?> TryGetAssetIdFromPublicLinkAsync(IWebMClient contentHubClient, string url, CancellationToken cancellationToken)
+    private async Task<List<int>> ProcessBatchAsync(IWebMClient contentHubClient, List<string> relativeUrls, CancellationToken cancellationToken)
     {
         try
         {
-            var relativeUrl = ExtractRelativeUrl(url);
-            if (relativeUrl is null)
+            var query = new Query
             {
-                return null;
+                Filter = new PropertyQueryFilter
+                {
+                    Property = RelativeUrlProperty,
+                    Values = relativeUrls,
+                    DataType = FilterDataType.String
+                }
+            };
+
+            var publicLinksResult = await contentHubClient.Querying.QueryAsync(query);
+
+            if (!publicLinksResult.Items.Any())
+            {
+                _logger.LogWarning("No public links found for batch of {Count} URLs", relativeUrls.Count);
+                return new List<int>();
             }
 
-            var publicLinkId = await GetPublicLinkIdByRelativeUrlAsync(contentHubClient, relativeUrl, cancellationToken);
+            var publicLinkIds = publicLinksResult.Items.Select(x => x.Id!.Value).ToList();
 
-            if (!publicLinkId.HasValue)
+            var publicLinkEntities = await contentHubClient.Entities.GetManyAsync(
+                publicLinkIds,
+                new EntityLoadConfiguration(
+                    CultureLoadOption.Default,
+                    PropertyLoadOption.None, 
+                    new RelationLoadOption(AssetToPublicLinkRelation)));
+
+            var assetIds = new List<int>(publicLinkEntities.Count());
+
+            foreach (var publicLink in publicLinkEntities)
             {
-                return null;
+                var assetToPublicLinkRelation = publicLink.GetRelation<IChildToManyParentsRelation>(AssetToPublicLinkRelation);
+                var assetId = assetToPublicLinkRelation?.GetIds().FirstOrDefault();
+
+                if (assetId.HasValue && assetId.Value <= int.MaxValue)
+                {
+                    assetIds.Add((int)assetId.Value);
+                }
             }
 
-            var assetId = await GetAssetIdFromPublicLinkAsync(contentHubClient, publicLinkId.Value, cancellationToken);
-
-            return assetId;
+            return assetIds;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "Error processing public link: {Url}", url);
-            return null;
+            _logger.LogError(exception, "Error processing batch of {Count} public links", relativeUrls.Count);
+            return new List<int>();
         }
     }
 
@@ -111,57 +170,4 @@ public sealed class AssetIdsByPublicLinksHandler : IEventHandler<AssetIdsByPubli
 
         return segment.Split('?')[0];
     }
-
-    private async Task<long?> GetPublicLinkIdByRelativeUrlAsync(IWebMClient contentHubClient, string relativeUrl, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var query = new Query
-            {
-                Filter = new PropertyQueryFilter
-                {
-                    Property = RelativeUrlProperty,
-                    Value = relativeUrl,
-                    DataType = FilterDataType.String
-                }
-            };
-
-            var result = await contentHubClient.Querying.QueryAsync(query);
-
-            if (!result.Items.Any())
-            {
-                _logger.LogWarning("No public link found for relative URL: {RelativeUrl}", relativeUrl);
-                return null;
-            }
-
-            return result.Items.First().Id.Value;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving public link ID for relative URL: {RelativeUrl}", relativeUrl);
-            throw;
-        }
-    }
-
-    private async Task<long?> GetAssetIdFromPublicLinkAsync(IWebMClient contentHubClient, long publicLinkId, CancellationToken cancellationToken)
-    {
-        var publicLink = await contentHubClient.Entities.GetAsync(
-            publicLinkId,
-            new EntityLoadConfiguration(
-                CultureLoadOption.Default,
-                PropertyLoadOption.All,
-                new RelationLoadOption(AssetToPublicLinkRelation))
-            );
-
-        var assetToPublicLinkRelation = publicLink.GetRelation<IChildToManyParentsRelation>(AssetToPublicLinkRelation);
-        var assetId = assetToPublicLinkRelation?.GetIds().FirstOrDefault();
-
-        if (!assetId.HasValue)
-        {
-            _logger.LogWarning("No asset found for public link ID: {PublicLinkId}", publicLinkId);
-        }
-
-        return assetId;
-    }
 }
-
