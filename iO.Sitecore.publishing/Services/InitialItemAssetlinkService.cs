@@ -18,14 +18,16 @@ namespace iO.Sitecore.Publishing.Services
 {
     public class InitialItemAssetLinkService
     {
-        private readonly Database _webDatabase;
+        private readonly Database _database;
         private readonly AssetUsageServiceClient _client;
         private readonly IAssetExtractionService _assetExtractionService;
         private readonly PublishLoggingService _loggingService;
         private readonly string _contentHubEndpoint;
         private readonly string _databaseName;
+        private readonly string _rootItemId;
         private const string ContentHubEndpointSetting = "AssetUsageService.ContentHubEndpoint";
         private const string DatabaseNameSetting = "AssetUsageService.DatabaseName";
+        private const string RootItemIdSetting = "AssetUsageService.RootItemId";
         private const string LogPrefix = "[InitialItemAssetLinkService]";
 
         static InitialItemAssetLinkService()
@@ -40,10 +42,10 @@ namespace iO.Sitecore.Publishing.Services
             using (new SecurityDisabler())
             {
                 _databaseName = Settings.GetSetting(DatabaseNameSetting, "master");
-                _webDatabase = Factory.GetDatabase(_databaseName);
+                _database = Factory.GetDatabase(_databaseName);
             }
 
-            if (_webDatabase == null)
+            if (_database == null)
             {
                 throw new InvalidOperationException("Database not found.");
             }
@@ -52,6 +54,7 @@ namespace iO.Sitecore.Publishing.Services
             _loggingService = new PublishLoggingService(this);
             _assetExtractionService = new AssetExtractionService(_loggingService);
             _contentHubEndpoint = Settings.GetSetting(ContentHubEndpointSetting);
+            _rootItemId = Settings.GetSetting(RootItemIdSetting);
         }
 
         public async Task ExecuteMigrationAsync()
@@ -64,12 +67,12 @@ namespace iO.Sitecore.Publishing.Services
 
             try
             {
-                var rootItemId = "{0DE95AE4-41AB-4D01-9EB0-67441B7C2450}";
+                var rootItemId = _rootItemId;
 
                 MigrationProgressTracker.CurrentPhase = 1;
                 MigrationProgressTracker.PhaseDescription = "Counting items";
 
-                var allItems = CollectAllItemsFast(rootItemId);
+                var allItems = CollectAllItems(rootItemId);
                 if (allItems == null || allItems.Length == 0)
                 {
                     MigrationProgressTracker.ErrorMessage = "No items found.";
@@ -114,11 +117,11 @@ namespace iO.Sitecore.Publishing.Services
             }
         }
 
-        private Item[] CollectAllItemsFast(string rootItemId)
+        private Item[] CollectAllItems(string rootItemId)
         {
             using (new SecurityDisabler())
             {
-                var rootItem = _webDatabase.GetItem(new ID(rootItemId));
+                var rootItem = _database.GetItem(new ID(rootItemId));
                 if (rootItem == null) return Array.Empty<Item>();
 
                 var descendants = rootItem.Axes.GetDescendants();
@@ -206,7 +209,7 @@ namespace iO.Sitecore.Publishing.Services
 
         private async Task SendAllPayloadsAsync(List<AssetUsageEvent> payloads)
         {
-            int maxConcurrent = GetOptimalConcurrency();
+            int maxConcurrent = GetConcurrency();
             int completed = 0;
             int successCount = 0;
             int failureCount = 0;
@@ -237,7 +240,7 @@ namespace iO.Sitecore.Publishing.Services
             });
         }
 
-        private int GetOptimalConcurrency()
+        private int GetConcurrency()
         {
             var setting = Settings.GetSetting("AssetUsageService.MaxConcurrency", "100");
             if (int.TryParse(setting, out int value) && value > 0 && value <= 200)
