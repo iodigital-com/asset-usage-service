@@ -53,10 +53,9 @@ namespace iO.Sitecore.Publishing.Services
                             }
                         }
                     }
-                    catch (Exception ex)
+                    catch(Exception exception)
                     {
-                        Log.Warn($"[InitialItemAssetLinkService] Failed to extract payload for item {item?.ID}: {ex.Message}", this);
-                        MigrationProgressTracker.IncrementFailureCount();
+                        Log.Warn($"[InitialItemAssetLinkService] Failed to extract payload for item {item?.ID}: {exception.Message}", this);
                     }
                     finally
                     {
