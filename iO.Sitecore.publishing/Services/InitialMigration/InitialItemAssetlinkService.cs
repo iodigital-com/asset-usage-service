@@ -1,13 +1,12 @@
-﻿using iO.Sitecore.publishing.Services.Interfaces;
-using iO.Sitecore.publishing.Services.Interfaces.InitialMigrationScript;
+﻿using iO.Sitecore.publishing.Services.Interfaces.InitialMigrationScript;
 using iO.Sitecore.Publishing.Configuration;
 using iO.Sitecore.Publishing.Events;
-using iO.Sitecore.Publishing.Interfaces;
 using iO.Sitecore.Publishing.Interfaces.Services;
 using iO.Sitecore.Publishing.Models;
 using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -135,7 +134,7 @@ namespace iO.Sitecore.Publishing.Services
             return items;
         }
 
-        private System.Collections.Generic.List<AssetUsageEvent> ExecuteExtractionPhase(Item[] items)
+        private List<AssetUsageEvent> ExecuteExtractionPhase(Item[] items)
         {
             MigrationProgressTracker.CurrentPhase = 2;
             MigrationProgressTracker.PhaseDescription = "Extracting assets";
@@ -148,7 +147,7 @@ namespace iO.Sitecore.Publishing.Services
             return payloads;
         }
 
-        private async Task ExecuteSendingPhaseAsync(System.Collections.Generic.List<AssetUsageEvent> payloads)
+        private async Task ExecuteSendingPhaseAsync(List<AssetUsageEvent> payloads)
         {
             MigrationProgressTracker.CurrentPhase = 3;
             MigrationProgressTracker.PhaseDescription = "Sending to service";
