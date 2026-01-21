@@ -33,21 +33,47 @@ public class DBContext
             new AssetItemLink
             {
                 ItemId = Guid.NewGuid(),
-                AssetIds = new List<int>{34013, 13343},
+                Languages = new Dictionary<string, LanguageAssetData>
+                {
+                    ["en"] = new LanguageAssetData 
+                    { 
+                        AssetIds = new List<int>{34013, 13343},
+                        Version = 1
+                    }
+                },
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
             new AssetItemLink
             {
                 ItemId = Guid.NewGuid(),
-                AssetIds = new List<int>{23213, 34013},
+                Languages = new Dictionary<string, LanguageAssetData>
+                {
+                    ["en"] = new LanguageAssetData 
+                    { 
+                        AssetIds = new List<int>{23213, 34013},
+                        Version = 1
+                    },
+                    ["nl"] = new LanguageAssetData 
+                    { 
+                        AssetIds = new List<int>{23213},
+                        Version = 1
+                    }
+                },
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
             new AssetItemLink
             {
                 ItemId = Guid.NewGuid(),
-                AssetIds = new List<int>{34323, 34013, 32432},
+                Languages = new Dictionary<string, LanguageAssetData>
+                {
+                    ["en"] = new LanguageAssetData 
+                    { 
+                        AssetIds = new List<int>{34323, 34013, 32432},
+                        Version = 2
+                    }
+                },
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             }

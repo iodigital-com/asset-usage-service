@@ -60,6 +60,13 @@ namespace iO.Sitecore.Publishing.Services
                 return;
             }
 
+            // Log the actual language of the retrieved source item
+            loggingService.LogInfo($"ProcessItemProcessing - Retrieved sourceItem:");
+            loggingService.LogInfo($"  ItemId: {sourceItem.ID}");
+            loggingService.LogInfo($"  Language: {sourceItem.Language.Name}");
+            loggingService.LogInfo($"  Version: {sourceItem.Version.Number}");
+            loggingService.LogInfo($"  Path: {sourceItem.Paths.FullPath}");
+
             var itemKey = CreateItemKey(context.ItemId, language, version, hasVersionInfo);
             var (sourceRevisionId, sourceUpdated) = GetItemRevisionInfo(sourceItem);
             var targetItem = GetTargetItem(context, publishContext, language, version);
@@ -69,8 +76,8 @@ namespace iO.Sitecore.Publishing.Services
             {
                 ItemId = context.ItemId,
                 ItemPath = sourceItem.Paths.FullPath,
-                Language = language.Name,
-                Version = version.Number,
+                Language = sourceItem.Language.Name,  // Use the actual language from the source item
+                Version = sourceItem.Version.Number,   // Use the actual version from the source item
                 SourceRevisionId = sourceRevisionId,
                 SourceUpdated = sourceUpdated,
                 TargetRevisionId = targetRevisionId,
@@ -127,6 +134,18 @@ namespace iO.Sitecore.Publishing.Services
                 return;
             }
 
+            loggingService.LogInfo($"ProcessItemProcessed - Retrieved publishedItem:");
+            loggingService.LogInfo($"  ItemId: {publishedItem.ID}");
+            loggingService.LogInfo($"  Language: {publishedItem.Language.Name}");
+            loggingService.LogInfo($"  Version: {publishedItem.Version.Number}");
+            loggingService.LogInfo($"  Expected Language: {language.Name}");
+            loggingService.LogInfo($"  Expected Version: {version.Number}");
+            
+            if (publishedItem.Language.Name != language.Name)
+            {
+                loggingService.LogWarn($"LANGUAGE MISMATCH in ProcessItemProcessed! Expected: {language.Name}, Got: {publishedItem.Language.Name}");
+            }
+
             var (newRevisionId, newUpdated) = GetItemRevisionInfo(publishedItem);
             var result = DeterminePublishResult(processingInfo, newRevisionId, newUpdated, context.Action);
 
@@ -152,8 +171,8 @@ namespace iO.Sitecore.Publishing.Services
                 {
                     ItemId = context.ItemId,
                     ItemPath = processingInfo.ItemPath,
-                    Language = processingInfo.Language,
-                    Version = processingInfo.Version,
+                    Language = publishedItem.Language.Name,  
+                    Version = publishedItem.Version.Number,  
                     OldRevisionId = processingInfo.TargetRevisionId,
                     NewRevisionId = newRevisionId,
                     OldUpdated = processingInfo.TargetUpdated,
@@ -241,22 +260,35 @@ namespace iO.Sitecore.Publishing.Services
         private (Language language, Version version, bool hasVersionInfo) GetLanguageAndVersion(PublishItemContext context, PublishContext publishContext)
         {
             bool hasVersionInfo = context.VersionToPublish != null;
+            
             Language language = hasVersionInfo ? context.VersionToPublish.Language : (publishContext.PublishOptions.Language ?? Language.Parse("en"));
             Version version = hasVersionInfo ? context.VersionToPublish.Version : Version.Latest;
+            
+            loggingService.LogInfo($"  Determined Language: {language.Name}");
+            loggingService.LogInfo($"  Determined Version: {version.Number}");
+            
             return (language, version, hasVersionInfo);
         }
 
         private Item GetSourceItem(PublishItemContext context, PublishContext publishContext, Language language, Version version)
         {
             if (context.ItemId == ID.Null) return null;
-            return publishContext.PublishOptions.SourceDatabase.GetItem(context.ItemId, language, version) ??
-                   publishContext.PublishOptions.SourceDatabase.GetItem(context.ItemId);
+            var item = publishContext.PublishOptions.SourceDatabase.GetItem(context.ItemId, language, version);
+            if (item == null)
+            {
+                item = publishContext.PublishOptions.SourceDatabase.GetItem(context.ItemId, language);
+            }
+            return item;
         }
 
         private Item GetTargetItem(PublishItemContext context, PublishContext publishContext, Language language, Version version)
         {
-            return publishContext.PublishOptions.TargetDatabase.GetItem(context.ItemId, language, version) ??
-                   publishContext.PublishOptions.TargetDatabase.GetItem(context.ItemId);
+            var item = publishContext.PublishOptions.TargetDatabase.GetItem(context.ItemId, language, version);
+            if (item == null)
+            {
+                item = publishContext.PublishOptions.TargetDatabase.GetItem(context.ItemId, language);
+            }
+            return item;
         }
 
         private string CreateItemKey(ID itemId, Language language, Version version, bool hasVersionInfo)
@@ -380,24 +412,48 @@ namespace iO.Sitecore.Publishing.Services
             int successCount = 0;
             int failureCount = 0;
 
+            foreach (var item in updatedItems)
+            {
+                loggingService.LogInfo($"UpdateInfo in queue: ItemId={item.ItemId}, Language={item.Language}, Version={item.Version}, Path={item.ItemPath}");
+            }
+
             foreach (var updateInfo in updatedItems)
             {
                 try
                 {
+                    loggingService.LogInfo($"Processing UpdateInfo: ItemId={updateInfo.ItemId}, Language={updateInfo.Language}, Version={updateInfo.Version}");
+                    
                     var language = Language.Parse(updateInfo.Language);
                     var version = Version.Parse(updateInfo.Version);
 
-                    Item publishedItem = targetDatabase.GetItem(updateInfo.ItemId, language, version) ??
-                                       targetDatabase.GetItem(updateInfo.ItemId);
+                    Item publishedItem = targetDatabase.GetItem(updateInfo.ItemId, language, version);
+
+                    if (publishedItem == null)
+                    {
+                        loggingService.LogInfo($"Item not found with version {version.Number}, trying without version for language {language.Name}");
+                        publishedItem = targetDatabase.GetItem(updateInfo.ItemId, language);
+                    }
 
                     if (publishedItem != null)
                     {
+                        loggingService.LogInfo($"Retrieved item: ID={publishedItem.ID}, Language={publishedItem.Language.Name}, Version={publishedItem.Version.Number}");
+                        
+                        if (publishedItem.Language.Name != updateInfo.Language)
+                        {
+                            loggingService.LogWarn($"Language mismatch! Expected: {updateInfo.Language}, Got: {publishedItem.Language.Name}. Skipping item.");
+                            loggingService.LogCouldNotRetrieveItemFromTarget(updateInfo.ItemId);
+                            failureCount++;
+                            continue;
+                        }
+
+                        loggingService.LogInfo($"Sending to telemetry: ItemId={publishedItem.ID}, Language={publishedItem.Language.Name}, Version={publishedItem.Version.Number}");
                         await RecordItemProcessedAsync(publishedItem, publishOptions, sourceDatabaseName);
                         successCount++;
                         loggingService.LogItemSentToTelemetry(publishedItem.Paths.FullPath);
                     }
                     else
                     {
+                        loggingService.LogWarn($"Could not retrieve item {updateInfo.ItemId} for language {updateInfo.Language}");
                         loggingService.LogCouldNotRetrieveItemFromTarget(updateInfo.ItemId);
                         failureCount++;
                     }
