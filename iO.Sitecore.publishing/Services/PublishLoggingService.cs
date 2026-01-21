@@ -452,5 +452,15 @@ namespace iO.Sitecore.Publishing.Services
             Log.Info($"RecordItemProcessedAsync: Completed successfully for item {itemName} ({itemId})", owner);
             Log.Info("═══════════════════════════════════════════════════════════════", owner);
         }
+
+        public void LogInfo(string message)
+        {
+            Log.Info(message, owner);
+        }
+
+        public void LogWarn(string message)
+        {
+            Log.Warn(message, owner);
+        }
     }
 }

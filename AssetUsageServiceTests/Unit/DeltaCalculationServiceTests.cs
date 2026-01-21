@@ -44,9 +44,11 @@ public class DeltaCalculationServiceTests
         var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
-        _mockRepository.Verify(r => r.InsertAssetItemLinkAsync(
+        _mockRepository.Verify(r => r.UpsertAssetItemLinkAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.SequenceEqual(assetIds)),
+            1,
             It.IsAny<CancellationToken>()), Times.Once);
         
         Assert.NotNull(result);
@@ -77,9 +79,11 @@ public class DeltaCalculationServiceTests
         var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
-        _mockRepository.Verify(r => r.InsertAssetItemLinkAsync(
+        _mockRepository.Verify(r => r.UpsertAssetItemLinkAsync(
             It.IsAny<Guid>(),
+            It.IsAny<string>(),
             It.IsAny<List<int>>(),
+            It.IsAny<int?>(),
             It.IsAny<CancellationToken>()), Times.Never);
         
         Assert.NotNull(result);
@@ -110,10 +114,17 @@ public class DeltaCalculationServiceTests
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AssetItemLink { ItemId = itemId, AssetIds = currentAssetIds });
+            .ReturnsAsync(new AssetItemLink 
+            { 
+                ItemId = itemId, 
+                Languages = new Dictionary<string, LanguageAssetData> 
+                { 
+                    ["en"] = new LanguageAssetData { AssetIds = currentAssetIds, Version = 1 } 
+                } 
+            });
 
         _mockRepository
-            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, "en", It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentAssetIds);
 
         // Act
@@ -122,11 +133,14 @@ public class DeltaCalculationServiceTests
         // Assert
         _mockRepository.Verify(r => r.AddAssetIdsToItemAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.SequenceEqual(expectedToAdd)),
+            2,
             It.IsAny<CancellationToken>()), Times.Once);
 
         _mockRepository.Verify(r => r.RemoveAssetIdsFromItemAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.Count == 0),
             It.IsAny<CancellationToken>()), Times.Once);
         
@@ -154,10 +168,17 @@ public class DeltaCalculationServiceTests
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AssetItemLink { ItemId = itemId, AssetIds = currentAssetIds });
+            .ReturnsAsync(new AssetItemLink 
+            { 
+                ItemId = itemId, 
+                Languages = new Dictionary<string, LanguageAssetData> 
+                { 
+                    ["en"] = new LanguageAssetData { AssetIds = currentAssetIds, Version = 1 } 
+                } 
+            });
 
         _mockRepository
-            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, "en", It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentAssetIds);
 
         // Act
@@ -166,12 +187,15 @@ public class DeltaCalculationServiceTests
         // Assert
         _mockRepository.Verify(r => r.RemoveAssetIdsFromItemAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.SequenceEqual(expectedToRemove)),
             It.IsAny<CancellationToken>()), Times.Once);
 
         _mockRepository.Verify(r => r.AddAssetIdsToItemAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.Count == 0),
+            2,
             It.IsAny<CancellationToken>()), Times.Once);
         
         Assert.NotNull(result);
@@ -199,10 +223,17 @@ public class DeltaCalculationServiceTests
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AssetItemLink { ItemId = itemId, AssetIds = currentAssetIds });
+            .ReturnsAsync(new AssetItemLink 
+            { 
+                ItemId = itemId, 
+                Languages = new Dictionary<string, LanguageAssetData> 
+                { 
+                    ["en"] = new LanguageAssetData { AssetIds = currentAssetIds, Version = 1 } 
+                } 
+            });
 
         _mockRepository
-            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, "en", It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentAssetIds);
 
         // Act
@@ -211,11 +242,14 @@ public class DeltaCalculationServiceTests
         // Assert
         _mockRepository.Verify(r => r.AddAssetIdsToItemAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.SequenceEqual(expectedToAdd)),
+            2,
             It.IsAny<CancellationToken>()), Times.Once);
 
         _mockRepository.Verify(r => r.RemoveAssetIdsFromItemAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.SequenceEqual(expectedToRemove)),
             It.IsAny<CancellationToken>()), Times.Once);
         
@@ -242,10 +276,17 @@ public class DeltaCalculationServiceTests
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AssetItemLink { ItemId = itemId, AssetIds = currentAssetIds });
+            .ReturnsAsync(new AssetItemLink 
+            { 
+                ItemId = itemId, 
+                Languages = new Dictionary<string, LanguageAssetData> 
+                { 
+                    ["en"] = new LanguageAssetData { AssetIds = currentAssetIds, Version = 1 } 
+                } 
+            });
 
         _mockRepository
-            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, "en", It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentAssetIds);
 
         // Act
@@ -254,11 +295,14 @@ public class DeltaCalculationServiceTests
         // Assert
         _mockRepository.Verify(r => r.AddAssetIdsToItemAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.Count == 0),
+            2,
             It.IsAny<CancellationToken>()), Times.Once);
 
         _mockRepository.Verify(r => r.RemoveAssetIdsFromItemAsync(
             itemId,
+            "en",
             It.Is<List<int>>(ids => ids.Count == 0),
             It.IsAny<CancellationToken>()), Times.Once);
         
@@ -272,7 +316,7 @@ public class DeltaCalculationServiceTests
     #region Delete Item Tests
 
     [Fact]
-    public async Task CalculateDeltaAsync_WhenItemExists_AndNoAssetIds_ShouldRemoveItem()
+    public async Task CalculateDeltaAsync_WhenItemExists_AndNoAssetIds_ShouldRemoveLanguage()
     {
         // Arrange
         var itemId = Guid.NewGuid();
@@ -289,18 +333,26 @@ public class DeltaCalculationServiceTests
 
         _mockRepository
             .Setup(r => r.GetAssetItemLinkByItemIdAsync(itemId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AssetItemLink { ItemId = itemId, AssetIds = currentAssetIds });
+            .ReturnsAsync(new AssetItemLink 
+            { 
+                ItemId = itemId, 
+                Languages = new Dictionary<string, LanguageAssetData> 
+                { 
+                    ["en"] = new LanguageAssetData { AssetIds = currentAssetIds, Version = 1 } 
+                } 
+            });
 
         _mockRepository
-            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetAssetIdsFromItemIdAsync(itemId, "en", It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentAssetIds);
 
         // Act
         var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
-        _mockRepository.Verify(r => r.RemoveItemAsync(
+        _mockRepository.Verify(r => r.RemoveLanguageFromItemAsync(
             itemId,
+            "en",
             It.IsAny<CancellationToken>()), Times.Once);
         
         Assert.NotNull(result);
@@ -335,9 +387,11 @@ public class DeltaCalculationServiceTests
         var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
-        _mockRepository.Verify(r => r.InsertAssetItemLinkAsync(
+        _mockRepository.Verify(r => r.UpsertAssetItemLinkAsync(
             It.IsAny<Guid>(),
+            "en",
             It.Is<List<int>>(ids => ids.SequenceEqual(assetIds)),
+            1,
             It.IsAny<CancellationToken>()), Times.Once);
         
         Assert.NotNull(result);
@@ -367,9 +421,11 @@ public class DeltaCalculationServiceTests
         var result = await _service.CalculateDeltaAsync(publishedItem, assetIds);
 
         // Assert
-        _mockRepository.Verify(r => r.InsertAssetItemLinkAsync(
+        _mockRepository.Verify(r => r.UpsertAssetItemLinkAsync(
             It.IsAny<Guid>(),
+            "en",
             It.Is<List<int>>(ids => ids.Count == 1000),
+            1,
             It.IsAny<CancellationToken>()), Times.Once);
         
         Assert.NotNull(result);

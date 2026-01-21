@@ -18,12 +18,14 @@ public class DeltaCalculationService
     public async Task<ItemAssetChanges> CalculateDeltaAsync(PublishedItem item, List<int> newAssetIds, CancellationToken cancellationToken = default)
     {
         var itemId = item.ItemId;
-        var currentAssetIds = await GetCurrentAssetIdsAsync(itemId, cancellationToken);
+        var language = item.Language ?? "en";
+        
+        var currentAssetIds = await GetCurrentAssetIdsAsync(itemId, language, cancellationToken);
         var itemExists = currentAssetIds.Count > 0;
 
         var (assetIdsToAdd, assetIdsToRemove) = CalculateDelta(currentAssetIds, newAssetIds);
 
-        await ApplyChangesAsync(itemId, itemExists, newAssetIds, assetIdsToAdd, assetIdsToRemove, cancellationToken);
+        await ApplyChangesAsync(itemId, language, item.Version, itemExists, newAssetIds, assetIdsToAdd, assetIdsToRemove, cancellationToken);
 
         return new ItemAssetChanges
         {
@@ -33,7 +35,7 @@ public class DeltaCalculationService
         };
     }
 
-    private async Task<List<int>> GetCurrentAssetIdsAsync(Guid itemId, CancellationToken cancellationToken)
+    private async Task<List<int>> GetCurrentAssetIdsAsync(Guid itemId, string language, CancellationToken cancellationToken)
     {
         var existingAssetItemLink = await _assetItemLinkRepository.GetAssetItemLinkByItemIdAsync(itemId, cancellationToken);
 
@@ -42,7 +44,7 @@ public class DeltaCalculationService
             return new List<int>();
         }
 
-        return await _assetItemLinkRepository.GetAssetIdsFromItemIdAsync(itemId, cancellationToken);
+        return await _assetItemLinkRepository.GetAssetIdsFromItemIdAsync(itemId, language, cancellationToken);
     }
 
     private static (List<int> ToAdd, List<int> ToRemove) CalculateDelta(List<int> currentAssetIds, List<int> newAssetIds)
@@ -52,20 +54,23 @@ public class DeltaCalculationService
         return (toAdd, toRemove);
     }
 
-    private async Task ApplyChangesAsync(Guid itemId, bool itemExists, List<int> newAssetIds, List<int> assetIdsToAdd, List<int> assetIdsToRemove, CancellationToken cancellationToken)
+    private async Task ApplyChangesAsync(Guid itemId, string language, int? version, bool itemExists, List<int> newAssetIds, List<int> assetIdsToAdd, List<int> assetIdsToRemove, CancellationToken cancellationToken)
     {
-        if (!itemExists && newAssetIds.Count > 0)
+        if (newAssetIds.Count > 0)
         {
-            await _assetItemLinkRepository.InsertAssetItemLinkAsync(itemId, newAssetIds, cancellationToken);
+            if (!itemExists)
+            {
+                await _assetItemLinkRepository.UpsertAssetItemLinkAsync(itemId, language, newAssetIds, version, cancellationToken);
+            }
+            else
+            {
+                await _assetItemLinkRepository.AddAssetIdsToItemAsync(itemId, language, assetIdsToAdd, version, cancellationToken);
+                await _assetItemLinkRepository.RemoveAssetIdsFromItemAsync(itemId, language, assetIdsToRemove, cancellationToken);
+            }
         }
-        else if (itemExists && newAssetIds.Count > 0)
+        else if (itemExists)
         {
-            await _assetItemLinkRepository.AddAssetIdsToItemAsync(itemId, assetIdsToAdd, cancellationToken);
-            await _assetItemLinkRepository.RemoveAssetIdsFromItemAsync(itemId, assetIdsToRemove, cancellationToken);
-        }
-        else if (itemExists && newAssetIds.Count == 0)
-        {
-            await _assetItemLinkRepository.RemoveItemAsync(itemId, cancellationToken);
+            await _assetItemLinkRepository.RemoveLanguageFromItemAsync(itemId, language, cancellationToken);
         }
     }
 }
