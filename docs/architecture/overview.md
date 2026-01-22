@@ -2,6 +2,9 @@
 
 A microservice for tracking and managing relationships between items and digital assets across Sitecore CMS and ContentHub DAM. Built as an Azure Function application with MongoDB storage.
 
+## Architecture
+
+Microservice diagram:
 ```mermaid
 classDiagram
     %% Integration Layer
@@ -170,9 +173,437 @@ classDiagram
     ItemAssetChanges --> PublishedItem : contains                                                                                                         
 ```
 
-## System Components
+Publishing script diagram:
+```mermaid
+classDiagram
+    %% Sitecore Event Handler
+    class PublishingEventHandler {
+        -AssetExtractionService _assetExtractionService
+        -PublishTelemetryService _telemetryService
+        -PublishLoggingService _loggingService
+        -AuditLoggingService _auditLoggingService
+        -AssetUsageServiceClient _serviceClient
+        +OnItemPublished(sender, args) void
+        -CreateAssetUsageEvent(item, targetDatabase) AssetUsageEvent
+        -SendEventToServiceBus(event) void
+    }
 
-### Core Components
+    %% Services
+    class AssetExtractionService {
+        +ExtractAssetIds(item) List~string~
+        +ExtractPublicLinks(item) List~string~
+    }
+
+    class PublishTelemetryService {
+        +TrackPublishEvent(event) void
+    }
+
+    class PublishLoggingService {
+        +LogEventCreation(event) void
+    }
+
+    class AuditLoggingService {
+        +LogPublishActivity(event) void
+    }
+
+    %% Event Model
+    class AssetUsageEvent {
+        +List~string~ PublicLinks
+        +string ItemId
+        +string ItemPath
+        +string ItemName
+        +string Language
+        +int Version
+        +List~string~ AssetIds
+    }
+    
+    %% External Dependency
+    class AssetUsageServiceClient {
+        <<service>>
+        +SendAsync(event, cancellationToken) Task
+    }
+
+    %% Relationships
+    PublishingEventHandler --> AssetExtractionService : uses
+    PublishingEventHandler --> PublishTelemetryService : uses
+    PublishingEventHandler --> PublishLoggingService : uses
+    PublishingEventHandler --> AuditLoggingService : uses
+    PublishingEventHandler --> AssetUsageServiceClient : uses
+    PublishingEventHandler --> AssetUsageEvent : creates
+
+    PublishTelemetryService --> AssetUsageEvent : tracks
+    PublishLoggingService --> AssetUsageEvent : logs
+    AuditLoggingService --> AssetUsageEvent : logs
+```
+
+### System Components
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        SITECORE CMS                               │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │         iO.Sitecore.Publishing Module                     │   │
+│  │         - PublishEventHandler                             │   │
+│  │         - OnItemProcessing                                │   │
+│  │         - OnItemProcessed                                 │   │
+│  │         - OnPublishEnd                                    │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+└───────────────────────────┼───────────────────────────────────────┘
+                            │
+                            │ HTTP POST
+                            │ (Publish Events)
+                            ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                   ASSET USAGE SERVICE                             │
+│                   (Azure Functions)                               │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │             SitecorePublishAPI                            │   │
+│  │             (HTTP Trigger)                                │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+│  ┌────────────────────────▼─────────────────────────────────┐   │
+│  │           Business Layer                                  │   │
+│  │           - AssetItemController                           │   │
+│  │           - DeltaCalculationService                       │   │
+│  │           - PushToDamHandler                              │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+│  ┌────────────────────────▼─────────────────────────────────┐   │
+│  │           Infrastructure Layer                            │   │
+│  │           - AssetItemLinkRepository                       │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+│  ┌────────────────────────▼─────────────────────────────────┐   │
+│  │           Data Access Layer                               │   │
+│  │           - DBContext                                     │   │
+│  └────────────────────────┬─────────────────────────────────┘   │
+│                           │                                       │
+└───────────────────────────┼───────────────────────────────────────┘
+                            │
+        ┌───────────────────┼────────────────────┐
+        │                   │                    │
+        ▼                   ▼                    ▼
+  ┌──────────┐      ┌──────────────┐    ┌──────────────┐
+  │ MongoDB  │      │  ContentHub  │    │ Application  │
+  │ Database │      │     DAM      │    │   Insights   │
+  └──────────┘      └──────────────┘    └──────────────┘
+```
+
+## Complete Data Flow
+
+### 1. Sitecore Publish Event Flow
+
+```
+SITECORE CMS
+     │
+     │ (1) User publishes item
+     ▼
+┌─────────────────────────────────┐
+│  Sitecore Publishing Pipeline   │
+└──────────────┬──────────────────┘
+               │
+               │ (2) Trigger publish:itemProcessing event
+               ▼
+┌─────────────────────────────────┐
+│ iO.Sitecore.Publishing          │
+│ PublishEventHandler             │
+│ OnItemProcessing()              │
+└──────────────┬──────────────────┘
+               │
+               │ (3) Extract item data:
+               │     - Item ID (Guid)
+               │     - Asset references
+               │     - Public links
+               │     - Metadata
+               ▼
+┌─────────────────────────────────┐
+│ AssetUsageServiceClient         │
+│ SendAsync()                     │
+└──────────────┬──────────────────┘
+               │
+               │ (4) HTTP POST to Asset Usage Service
+               │     Endpoint: /api/SitecorePublishAPI
+               │     Body: AssetUsageEvent {
+               │       "itemId": "guid",
+               │       "assetIds": ["123", "456"],
+               │       "publicLinks": ["..."],
+               │       "itemName": "...",
+               │       "itemPath": "...",
+               │       "language": "en",
+               │       "version": 1
+               │     }
+               ▼
+┌─────────────────────────────────┐
+│ ASSET USAGE SERVICE             │
+│ SitecorePublishAPI Function     │
+└──────────────┬──────────────────┘
+               │
+               │ (5) Process publish event
+               ▼
+     [Continue to Service Processing Flow]
+```
+
+### 2. Asset Usage Service Processing Flow
+
+```
+Asset Usage Service
+     │
+     │ (1) Receive publish event from Sitecore
+     ▼
+┌─────────────────────────────────┐
+│ SitecorePublishAPI              │
+│ (HTTP Trigger)                  │
+└──────────────┬──────────────────┘
+               │
+               │ (2) Validate request
+               │     - Check payload
+               ▼
+┌─────────────────────────────────┐
+│ MessageHandler                  │
+│ HandleMessageAsync()            │
+└──────────────┬──────────────────┘
+               │
+               │ (3) Map DTO to Domain
+               ▼
+┌─────────────────────────────────┐
+│ PublishedItemMapper             │
+│ MapToDomain()                   │
+└──────────────┬──────────────────┘
+               │
+               │ (4) Process published item
+               ▼
+┌─────────────────────────────────┐
+│ AssetItemController             │
+│ ProcessPublishedItemAsync()     │
+└──────────────┬──────────────────┘
+               │
+               │ (5) Get asset IDs from public links
+               ▼
+┌─────────────────────────────────┐
+│ PublishAssetIdsByPublicLinks    │
+│ EventService                    │
+└──────────────┬──────────────────┘
+               │
+               │ (6) Calculate delta changes
+               ▼
+┌─────────────────────────────────┐
+│ DeltaCalculationService         │
+│ CalculateDeltaAsync()           │
+└──────────────┬──────────────────┘
+               │
+               │ (7) Query existing relationships
+               ▼
+┌─────────────────────────────────┐
+│ AssetItemLinkRepository         │
+│ GetAssetItemLinkByItemIdAsync() │
+└──────────────┬──────────────────┘
+               │
+               │ (8) Fetch from MongoDB
+               ▼
+┌─────────────────────────────────┐
+│ MongoDB Database                │
+│ AssetItemLinks Collection       │
+└──────────────┬──────────────────┘
+               │
+               │ (9) Return existing data
+               ▼
+┌─────────────────────────────────┐
+│ DeltaCalculationService         │
+│ - Calculate added assets        │
+│ - Calculate removed assets      │
+└──────────────┬──────────────────┘
+               │
+               │ (10) Update MongoDB
+               ▼
+┌─────────────────────────────────┐
+│ AssetItemLinkRepository         │
+│ InsertAssetItemLinkAsync()      │
+└──────────────┬──────────────────┘
+               │
+               │ (11) Publish DAM events
+               ▼
+┌─────────────────────────────────┐
+│ PublishPushToDamEventsService   │
+│ PublishPushToDamEventsAsync()   │
+└──────────────┬──────────────────┘
+               │
+               │ (12) Handle DAM updates
+               ▼
+     [Continue to ContentHub Flow]
+```
+
+### 3. ContentHub DAM Integration Flow
+
+```
+Asset Usage Service
+     │
+     │ (1) Prepare asset updates
+     ▼
+┌─────────────────────────────────┐
+│ PushToDamHandler                │
+│ Handle(PushToDamEvent)          │
+└──────────────┬──────────────────┘
+               │
+               │ (2) Get ContentHub client
+               ▼
+┌─────────────────────────────────┐
+│ APIGateway                      │
+│ GetContentHubClientAsync()      │
+└──────────────┬──────────────────┘
+               │
+               │ (3) Authenticate
+               ▼
+┌─────────────────────────────────┐
+│ ContentHubConnectionService     │
+│ CreateClient()                  │
+└──────────────┬──────────────────┘
+               │
+               │ (4) OAuth2 Client Credentials
+               │     - ClientId
+               │     - ClientSecret
+               ▼
+┌─────────────────────────────────┐
+│ Stylelabs M.Sdk WebClient       │
+└──────────────┬──────────────────┘
+               │
+               │ (5) HTTPS Connection
+               ▼
+┌─────────────────────────────────┐
+│ Sitecore ContentHub             │
+│ REST API                        │
+└──────────────┬──────────────────┘
+               │
+               │ (6) Update asset relations:
+               │     - Link to Sitecore items
+               │     - Update usage metadata
+               │     - Set relation properties
+               ▼
+┌─────────────────────────────────┐
+│ ContentHub Database             │
+│ Asset Relations Updated         │
+└─────────────────────────────────┘
+```
+
+### 4. Reverse Query Flow (Asset → Items)
+
+```
+External System / ContentHub
+     │
+     │ (1) Query: "Which items use Asset X?"
+     ▼
+┌─────────────────────────────────┐
+│ Asset Usage Service API         │
+│ (Future endpoint)               │
+└──────────────┬──────────────────┘
+               │
+               │ (2) GetItemIdsByAssetId(X)
+               ▼
+┌─────────────────────────────────┐
+│ AssetItemLinkRepository         │
+└──────────────┬──────────────────┘
+               │
+               │ (3) MongoDB Query:
+               │     db.AssetItemLinks.find({
+               │       assetIds: X
+               │     })
+               ▼
+┌─────────────────────────────────┐
+│ MongoDB Database                │
+│ Index Scan on assetIds          │
+└──────────────┬──────────────────┘
+               │
+               │ (4) Return matching documents
+               ▼
+┌─────────────────────────────────┐
+│ Response to Caller              │
+│ [                               │
+│   { itemId: "guid1", ... },     │
+│   { itemId: "guid2", ... }      │
+│ ]                               │
+└─────────────────────────────────┘
+```
+
+### 5. Complete End-to-End Flow
+
+```
+┌─────────────────┐
+│ SITECORE CMS    │
+│                 │
+│ Content Editor  │
+│ publishes item  │
+│ with assets     │
+└────────┬────────┘
+         │
+         │ Publish Pipeline
+         ▼
+┌─────────────────────────────────┐
+│ iO.Sitecore.Publishing          │
+│ Event Handler                   │
+│                                 │
+│ 1. OnItemProcessing             │
+│    - Extract item data          │
+│    - Extract asset IDs          │
+│    - Extract public links       │
+│                                 │
+│ 2. OnItemProcessed              │
+│    - Create AssetUsageEvent     │
+│    - POST to Asset Service      │
+│                                 │
+│ 3. OnPublishEnd                 │
+│    - Batch processing complete  │
+└────────┬────────────────────────┘
+         │
+         │ HTTP POST
+         │ http://localhost:7183/api/SitecorePublishAPI
+         ▼
+┌─────────────────────────────────┐
+│ ASSET USAGE SERVICE             │
+│ (Azure Function)                │
+│                                 │
+│ 1. Receive Event                │
+│    - Validate payload           │
+│    - Map to domain model        │
+│                                 │
+│ 2. Resolve Asset IDs            │
+│    - Convert public links       │
+│                                 │
+│ 3. Query MongoDB                │
+│    - Get current state          │
+│                                 │
+│ 4. Calculate Delta              │
+│    - Compare old vs new         │
+│    - Identify changes           │
+│                                 │
+│ 5. Update MongoDB               │
+│    - Save new relationships     │
+│    - Update timestamps          │
+│                                 │
+│ 6. Sync to ContentHub           │
+│    - Publish DAM events         │
+│    - Update asset metadata      │
+└────────┬────────────────────────┘
+         │
+         │ OAuth2 + REST API
+         ▼
+┌─────────────────────────────────┐
+│ SITECORE CONTENTHUB             │
+│                                 │
+│ 1. Authenticate Request         │
+│                                 │
+│ 2. Update Asset Relations       │
+│    - Link to Sitecore items     │
+│                                 │
+│ 3. Update Metadata              │
+│    - Usage count                │
+│    - Last used date             │
+│    - Related items list         │
+└─────────────────────────────────┘
+```
+
+## Core Components
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
