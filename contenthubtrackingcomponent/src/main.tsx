@@ -25,7 +25,6 @@ const mockEntity = {
                     itemPath: '/sitecore/content/Authors/John Brown',
                     language: 'en',
                     version: 1,
-                    // Single language - old style data
                 },
                 '220e660g-feb6-53fb-0d2d-9b6eg8f81fg0': {
                     itemName: 'Product Detail - Laptop',
@@ -120,7 +119,6 @@ function renderTestPage() {
     const scenario = getTestScenario();
     const entity = getEntityForScenario(scenario);
 
-    // Create navigation
     const nav = document.createElement('div');
     nav.style.cssText = `
         padding: 16px;
@@ -138,7 +136,6 @@ function renderTestPage() {
         <a href="?scenario=no-entity" style="padding: 8px 16px; background: ${scenario === 'no-entity' ? '#6E3FFF' : '#fff'}; color: ${scenario === 'no-entity' ? '#fff' : '#333'}; border: 1px solid #ddd; border-radius: 4px; text-decoration: none;">No Entity (Error)</a>
     `;
 
-    // Create container for component
     const container = document.createElement('div');
     container.style.cssText = `
         max-width: 800px;
@@ -146,7 +143,6 @@ function renderTestPage() {
         padding: 0 24px;
     `;
 
-    // Add scenario info
     const info = document.createElement('div');
     info.style.cssText = `
         padding: 12px 16px;
@@ -159,11 +155,9 @@ function renderTestPage() {
     info.innerHTML = `<strong>Current Scenario:</strong> ${scenario} | <strong>Entity ID:</strong> ${entity?.id ?? 'null'}`;
     container.appendChild(info);
 
-    // Create component mount point
     const componentContainer = document.createElement('div');
     container.appendChild(componentContainer);
 
-    // Mount everything to app
     const app = document.getElementById('app');
     if (app) {
         app.innerHTML = '';
@@ -171,7 +165,6 @@ function renderTestPage() {
         app.appendChild(container);
     }
 
-    // Initialize the component
     const tracker = createAssetUsageTracker(componentContainer);
     tracker.render({ entity });
 }

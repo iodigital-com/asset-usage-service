@@ -225,9 +225,9 @@ function UsageItemRow({ item, isLast }: UsageItemRowProps) {
                 </div>
                 <div style={styles.languagesColumn}>
                     {item.languages.length > 0 ? (
-                        <div style={styles.languagesWrapper}>
-                            <div style={styles.languageCountBadge}>
-                                Used in {item.languages.length} {item.languages.length === 1 ? 'language' : 'languages'}
+                        <div style={styles.languagesTableWrapper}>
+                            <div style={styles.languageCount}>
+                                Used in <span style={styles.countNumberInBadge}>{item.languages.length}</span> {item.languages.length === 1 ? 'language' : 'languages'}
                             </div>
                             <div style={styles.languagesList}>
                                 {visibleLanguages.map((lang, idx) => (
@@ -350,13 +350,13 @@ const styles = {
         flex: 1,
     },
     headerLanguagesColumn: {
-        minWidth: '290px',
-        maxWidth: '290px',
+        minWidth: '200px',
+        maxWidth: '200px',
         textAlign: 'right' as const,
     },
     tableRow: {
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         padding: '10px 0',
     },
     nameColumn: {
@@ -364,48 +364,44 @@ const styles = {
         minWidth: 0,
     },
     languagesColumn: {
-        minWidth: '290px',
-        maxWidth: '290px',
+        minWidth: '200px',
+        maxWidth: '200px',
         display: 'flex',
         justifyContent: 'flex-end',
         alignItems: 'flex-start',
     },
-    languagesWrapper: {
+    languagesTableWrapper: {
         display: 'flex',
-        flexDirection: 'row' as const,
-        alignItems: 'flex-start',
-        gap: '8px',
-        width: '100%',
+        flexDirection: 'column' as const,
+        alignItems: 'flex-end',
+        gap: '4px',
     },
-    languageCountBadge: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#f8f9fa',
-        border: '1px solid #dee2e6',
-        borderRadius: '4px',
-        padding: '4px 8px',
-        fontSize: '11px',
-        fontWeight: 600,
-        color: '#6c757d',
-        whiteSpace: 'nowrap' as const,
+    languageCount: {
+        fontSize: '10px',
+        color: '#c0c0c0ff',
+        fontWeight: 500,
+        textAlign: 'right' as const,
+    },
+    countNumberInBadge: {
+        fontWeight: 700,
+        color: '#535353',
+        margin: '0 2px',
     },
     languagesList: {
         display: 'flex',
         flexDirection: 'column' as const,
         backgroundColor: '#fafafa',
-        border: '1px solid #eee',
         borderRadius: '4px',
+        border: '1px solid #eee',
         overflow: 'hidden',
-        flex: 1,
+        width: '100%',
     },
     languageRow: {
         display: 'grid',
-        gridTemplateColumns: '32px 50px 48px 50px',
+        gridTemplateColumns: '32px 50px 48px 8px',
         alignItems: 'center',
-        padding: '6px 8px',
+        padding: '4px 8px',
         fontSize: '11px',
-        gap: '2px',
     },
     langLabel: {
         color: '#999',
@@ -420,7 +416,7 @@ const styles = {
         fontWeight: 500,
     },
     versionValue: {
-        color: '#6E3FFF',
+        color: '#333',
         fontWeight: 600,
         textAlign: 'left' as const,
     },
