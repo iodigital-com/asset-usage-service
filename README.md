@@ -4,6 +4,7 @@ A microservice for tracking and managing relationships between items and digital
 
 ## Table of Contents
 
+- [Documentation](#documentation)
 - [Prerequisites](#prerequisites)
 - [Development Setup](#development-setup)
 - [Configuration](#configuration)
@@ -14,6 +15,18 @@ A microservice for tracking and managing relationships between items and digital
 - [Initial Migration Script](#initial-migration-script)
 - [Testing](#testing)
 - [Monitoring and Logging](#monitoring-and-logging)
+
+## Documentation
+
+For detailed documentation, see the following guides:
+
+### Architecture
+- [Architecture Overview](docs/architecture/overview.md) - System architecture, components, and design patterns
+- [Data Flows](docs/architecture/flows.md) - Publishing flow, queue processing, and integration patterns
+
+### Troubleshooting
+- [Common Issues](docs/troubleshooting/COMMON-ISSUES.md) - Common issues and their solutions
+- [Integration Troubleshooting](docs/troubleshooting/INTEGRATION.md) - Integration-specific troubleshooting for Sitecore CMS, ContentHub, and Azure services
 
 ## Prerequisites
 
