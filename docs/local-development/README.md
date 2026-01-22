@@ -52,20 +52,18 @@ dotnet restore
 }
 ```
 
-4. Configure Local azure ServiceBus Queues 
-Install [Docker desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running 
-
-Switch to Linux container (right click docker icon in menubar and click `Switch to linux containers...` if you see `Switch to windows containers...` you are already on linux containers) 
-
-To run the azure servicebus Queue local go to the folder **DockerAzureServiceBusQueues** in your terminal and run:
-```zsh
- docker-compose up -d
- ```
-Wait for it to say:
-- Container sqlserver:            `Healthy`
-- Container servicebus-emulator:  `Started`
-
-Check your `local.settings.json` to ensure you have the correct queue names and that the `Disabled` property of the queue functions you want to use is set to `false`
+4. Configure Local Azure ServiceBus Queues:
+   - Install [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running
+   - Switch to Linux containers (right click Docker icon in menubar and click `Switch to linux containers...` - if you see `Switch to windows containers...` you are already on Linux containers)
+   - Run the Azure ServiceBus Queue locally:
+```bash
+cd DockerAzureServiceBusQueues
+docker-compose up -d
+```
+   - Wait for the containers to be ready:
+     - Container sqlserver: `Healthy`
+     - Container servicebus-emulator: `Started`
+   - Check your `local.settings.json` to ensure you have the correct queue names and that the `Disabled` property of the queue functions you want to use is set to `false`
 
 5. Start MongoDB:
 ```bash
