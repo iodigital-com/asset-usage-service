@@ -13,7 +13,6 @@ A microservice for tracking and managing relationships between items and digital
 - [Content Hub React Components Setup](#content-hub-react-components-setup)
 - [Deployment](#deployment)
 - [Initial Migration Script](#initial-migration-script)
-- [Testing](#testing)
 - [Monitoring and Logging](#monitoring-and-logging)
 
 ## Documentation
