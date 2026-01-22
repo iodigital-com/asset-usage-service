@@ -6,6 +6,44 @@
 - Sitecore CMS instance (with iO.Sitecore.Publishing module)
 - Access to Sitecore ContentHub instance
 
+## Development Setup
+
+### Local Development
+
+1. Clone the repository:
+```bash
+git clone https://github.com/weareyou/asset-usage-service.git
+cd asset-usage-service
+```
+
+2. Install dependencies:
+```bash
+dotnet restore
+```
+
+3. Configure local settings:
+```bash
+cp local.settings.json.example local.settings.json
+# Edit local.settings.json with your configuration
+```
+
+4. Start MongoDB:
+```bash
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+```
+
+5. Run the application:
+```bash
+func start
+```
+
+6. Configure Sitecore:
+- Copy `iO.Sitecore.publishing.dll` to your Sitecore instance bin folder
+- Create `iO.Publishing.Events.config` in `App_Config\Include\zzz.iO\`
+- Create `AssetUsageService.config` in `App_Config\Include\`
+- Update `AssetUsageService.ApiEndpoint` to point to your local function
+- Restart Sitecore
+
 ## Configuration
 
 ### Sitecore CMS Configuration
@@ -130,7 +168,6 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 
 - **ServiceBusQueue:PushToDAMQueueName**: The name of the Push To DAM QueueName (For local it is the filled in string)
 
-
 ## Local azure ServiceBus Queues 
 Install [Docker desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running 
 
@@ -145,647 +182,6 @@ Wait for it to say:
 - Container servicebus-emulator:  `Started`
 
 Check your `local.settings.json` to ensure you have the correct queue names and that the `Disabled` property of the queue functions you want to use is set to `false`.
-
-## Initial Migration Script
-
-The Initial Migration Script scans all Sitecore items and registers existing Content Hub asset links with the Asset Usage Service. This is a one-time operation to populate the tracking database with historical data.
-
-### Configuration
-
-Add the following configuration to `App_Config\Include\AssetUsageService.Config`:
-
-**AssetUsageService.Config**
-
-          <!-- Initial Migration Script Configuration -->
-          <setting name="AssetUsageService.RootItemId" value="{THE ROOT ITEM ID FROM SITECORE/CONTENT FROM THE SELECTED DATABASE}" />
-          <setting name="AssetUsageService.MaxConcurrency" value="10" />
-          <setting name="AssetUsageService.DatabaseName" value="DBNAME" />
-
-| Setting | Description |
-|---------|-------------|
-| `AssetUsageService.RootItemId` | Sitecore item ID to start the migration from |
-| `AssetUsageService.MaxConcurrency` | Maximum concurrent requests during migration (The recommended concurrency is 10) |
-| `AssetUsageService.DatabaseName` | Sitecore database to scan (e.g., `master`, `web`) |
-
-### Admin Files
-
-Unfold to copy the following files to `[SITECORE_ROOT]\sitecore\admin\`:
-
-<details>
-<summary><strong>MigrateAssets.html</strong></summary>
-
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Asset Link Migration</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                padding: 20px;
-                max-width: 900px;
-                margin: 0 auto;
-            }
-
-            h1 {
-                color: #333;
-                margin-bottom: 20px;
-            }
-
-            .btn {
-                padding: 12px 24px;
-                background: #007acc;
-                color: white;
-                border: none;
-                cursor: pointer;
-                font-size: 16px;
-                border-radius: 4px;
-            }
-
-            .btn:hover {
-                background: #005a9e;
-            }
-
-            .btn:disabled {
-                background: #ccc;
-                cursor: not-allowed;
-            }
-
-            .info-box {
-                background: #e7f3ff;
-                border-left: 4px solid #007acc;
-                padding: 15px;
-                margin: 20px 0;
-                border-radius: 4px;
-            }
-
-            .info-box p {
-                margin: 0 0 10px 0;
-                line-height: 1.6;
-                color: #333;
-            }
-
-            .info-box p:last-child {
-                margin-bottom: 0;
-            }
-
-            .progress-container {
-                margin-top: 20px;
-                display: none;
-            }
-
-            .phases {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 25px;
-                gap: 10px;
-            }
-
-            .phase {
-                flex: 1;
-                text-align: center;
-                padding: 20px 15px;
-                background: #f5f5f5;
-                border-radius: 8px;
-                border: 2px solid #e0e0e0;
-                transition: all 0.3s;
-            }
-
-            .phase.active {
-                background: #e7f3ff;
-                border-color: #007acc;
-            }
-
-            .phase.completed {
-                background: #d4edda;
-                border-color: #28a745;
-            }
-
-            .phase-number {
-                width: 30px;
-                height: 30px;
-                border-radius: 50%;
-                background: #ccc;
-                color: white;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: bold;
-                margin-bottom: 10px;
-            }
-
-            .phase.active .phase-number {
-                background: #007acc;
-            }
-
-            .phase.completed .phase-number {
-                background: #28a745;
-            }
-
-            .phase-title {
-                font-weight: bold;
-                color: #333;
-                margin-bottom: 5px;
-            }
-
-            .phase-status {
-                font-size: 12px;
-                color: #666;
-            }
-
-            .phase.active .phase-status {
-                color: #007acc;
-            }
-
-            .phase.completed .phase-status {
-                color: #28a745;
-            }
-
-            .progress-bar-bg {
-                width: 100%;
-                height: 30px;
-                background: #e0e0e0;
-                border-radius: 4px;
-                overflow: hidden;
-            }
-
-            .progress-bar {
-                height: 100%;
-                background: #007acc;
-                transition: width 0.3s;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-weight: bold;
-            }
-
-            .stats {
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                gap: 15px;
-                margin-top: 20px;
-            }
-
-            .stat-box {
-                background: #f5f5f5;
-                padding: 15px;
-                border-radius: 4px;
-                text-align: center;
-            }
-
-            .stat-value {
-                font-size: 28px;
-                font-weight: bold;
-                color: #007acc;
-            }
-
-            .stat-label {
-                font-size: 13px;
-                color: #666;
-                margin-top: 5px;
-            }
-
-            .current-item {
-                margin-top: 15px;
-                padding: 10px;
-                background: #f8f9fa;
-                border-left: 4px solid #007acc;
-                font-family: monospace;
-                font-size: 12px;
-                word-break: break-all;
-            }
-
-            .duration-info {
-                margin-top: 15px;
-                color: #666;
-            }
-
-            .error {
-                background: #f8d7da;
-                color: #721c24;
-                padding: 15px;
-                border-radius: 4px;
-                margin-top: 20px;
-            }
-
-            .success {
-                background: #d4edda;
-                color: #155724;
-                padding: 15px;
-                border-radius: 4px;
-                margin-top: 20px;
-            }
-
-            .warning {
-                background: #fff3cd;
-                color: #856404;
-                padding: 15px;
-                border-radius: 4px;
-                margin-top: 20px;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>Initial Asset Link Migration</h1>
-        
-        <div class="info-box">
-            <p><strong>What does this migration do?</strong></p>
-            <p>This script scans all items in the database to identify those that contain Content Hub asset links. Only items with Content Hub references will be sent to the Asset Usage Service for tracking.</p>
-            <p><strong>The migration runs in 3 phases:</strong></p>
-            <p>1. <strong>Count</strong> - Collects all items from the content tree<br>
-               2. <strong>Extract</strong> - Analyzes each item and extracts Content Hub asset references<br>
-               3. <strong>Send</strong> - Sends items with assets to the Asset Usage Service</p>
-        </div>
-        
-        <button id="btnStart" class="btn" onclick="startMigration()">Start Migration</button>
-        
-        <div id="progressContainer" class="progress-container">
-            <div class="phases">
-                <div class="phase" id="phase1">
-                    <div class="phase-number">1</div>
-                    <div class="phase-title">Count</div>
-                    <div class="phase-status" id="phase1Status">Waiting...</div>
-                </div>
-                <div class="phase" id="phase2">
-                    <div class="phase-number">2</div>
-                    <div class="phase-title">Extract</div>
-                    <div class="phase-status" id="phase2Status">Waiting...</div>
-                </div>
-                <div class="phase" id="phase3">
-                    <div class="phase-number">3</div>
-                    <div class="phase-title">Send</div>
-                    <div class="phase-status" id="phase3Status">Waiting...</div>
-                </div>
-            </div>
-
-            <div class="progress-bar-bg">
-                <div id="progressBar" class="progress-bar" style="width: 0%">0%</div>
-            </div>
-            
-            <div class="stats">
-                <div class="stat-box">
-                    <div class="stat-value" id="totalItems">0</div>
-                    <div class="stat-label">Total Items</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-value" id="extractedCount" style="color: #17a2b8;">0</div>
-                    <div class="stat-label">With Assets</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-value" id="successCount" style="color: #28a745;">0</div>
-                    <div class="stat-label">Sent</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-value" id="failureCount" style="color: #dc3545;">0</div>
-                    <div class="stat-label">Failed</div>
-                </div>
-            </div>
-            
-            <div class="current-item">
-                <strong>Current:</strong> <span id="phaseLabel"></span><br>
-                <span id="currentItem">-</span>
-            </div>
-            
-            <div class="duration-info">
-                <strong>Duration:</strong> <span id="duration">0s</span> | 
-                <strong>Progress:</strong> <span id="processedItems">0</span> / <span id="phaseTotal">0</span>
-            </div>
-        </div>
-        
-        <div id="errorMessage" class="error" style="display: none;"></div>
-        <div id="warningMessage" class="warning" style="display: none;"></div>
-        <div id="successMessage" class="success" style="display: none;"></div>
-        
-        <script>
-            let pollInterval;
-            let pollCount = 0;
-            const MAX_POLLS = 5;
-            let lastPhase = 0;
-            let phase1Total = 0;
-            let phase2Total = 0;
-            
-            function startMigration() {
-                document.getElementById('btnStart').disabled = true;
-                document.getElementById('progressContainer').style.display = 'block';
-                document.getElementById('errorMessage').style.display = 'none';
-                document.getElementById('warningMessage').style.display = 'none';
-                document.getElementById('successMessage').style.display = 'none';
-                
-                resetPhases();
-                pollCount = 0;
-                lastPhase = 0;
-                phase1Total = 0;
-                phase2Total = 0;
-                
-                fetch('/sitecore/admin/MigrationHandler.ashx?action=start', { 
-                    method: 'POST' 
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Migration started:', data);
-                    startPolling();
-                })
-                .catch(error => {
-                    document.getElementById('errorMessage').textContent = 'Failed to start migration: ' + error.message;
-                    document.getElementById('errorMessage').style.display = 'block';
-                    document.getElementById('btnStart').disabled = false;
-                });
-            }
-            
-            function resetPhases() {
-                for (let i = 1; i <= 3; i++) {
-                    document.getElementById('phase' + i).className = 'phase';
-                    document.getElementById('phase' + i + 'Status').textContent = 'Waiting...';
-                }
-            }
-            
-            function startPolling() {
-                pollInterval = setInterval(checkStatus, 500);
-            }
-            
-            function stopPolling() {
-                if (pollInterval) {
-                    clearInterval(pollInterval);
-                    pollInterval = null;
-                }
-            }
-            
-            function checkStatus() {
-                pollCount++;
-                
-                fetch('/sitecore/admin/MigrationHandler.ashx?action=status')
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Status:', data);
-                        updateUI(data);
-                        
-                        if (!data.isRunning) {
-                            if (pollCount > MAX_POLLS) {
-                                stopPolling();
-                                showCompletion(data);
-                            }
-                        } else {
-                            pollCount = 0;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Status check failed:', error);
-                        stopPolling();
-                        document.getElementById('errorMessage').textContent = 'Status check failed: ' + error.message;
-                        document.getElementById('errorMessage').style.display = 'block';
-                        document.getElementById('btnStart').disabled = false;
-                    });
-            }
-            
-            function updateUI(data) {
-                updatePhases(data);
-                
-                document.getElementById('progressBar').style.width = data.progressPercentage + '%';
-                document.getElementById('progressBar').textContent = data.progressPercentage + '%';
-                
-                document.getElementById('totalItems').textContent = phase1Total > 0 ? phase1Total : data.totalItems;
-                document.getElementById('extractedCount').textContent = data.extractedCount;
-                document.getElementById('successCount').textContent = data.successCount;
-                document.getElementById('failureCount').textContent = data.failureCount;
-                
-                document.getElementById('phaseLabel').textContent = data.phaseDescription || '';
-                document.getElementById('currentItem').textContent = data.currentItem || '-';
-                
-                document.getElementById('duration').textContent = data.durationSeconds + 's';
-                document.getElementById('processedItems').textContent = data.processedItems;
-                document.getElementById('phaseTotal').textContent = data.totalItems;
-                
-                if (data.errorMessage && data.currentPhase > 0) {
-                    document.getElementById('errorMessage').textContent = 'Error: ' + data.errorMessage;
-                    document.getElementById('errorMessage').style.display = 'block';
-                }
-            }
-            
-            function updatePhases(data) {
-                var currentPhase = data.currentPhase;
-                
-                if (currentPhase === 2 && lastPhase === 1) {
-                    phase1Total = data.totalItems;
-                }
-                if (currentPhase === 3 && lastPhase === 2) {
-                    phase2Total = data.extractedCount;
-                }
-                
-                for (let i = 1; i < currentPhase; i++) {
-                    document.getElementById('phase' + i).className = 'phase completed';
-                    if (i === 1) {
-                        document.getElementById('phase1Status').textContent = phase1Total + ' items';
-                    } else if (i === 2) {
-                        document.getElementById('phase2Status').textContent = data.extractedCount + ' with assets';
-                    }
-                }
-                
-                if (currentPhase >= 1 && currentPhase <= 3) {
-                    document.getElementById('phase' + currentPhase).className = 'phase active';
-                    
-                    if (currentPhase === 1) {
-                        document.getElementById('phase1Status').textContent = 'Counting... ' + data.processedItems;
-                    } else if (currentPhase === 2) {
-                        document.getElementById('phase2Status').textContent = data.processedItems + '/' + data.totalItems;
-                    } else if (currentPhase === 3) {
-                        document.getElementById('phase3Status').textContent = data.processedItems + '/' + data.totalItems;
-                    }
-                }
-                
-                lastPhase = currentPhase;
-            }
-            
-            function showCompletion(data) {
-                document.getElementById('btnStart').disabled = false;
-                
-                for (let i = 1; i <= 3; i++) {
-                    document.getElementById('phase' + i).className = 'phase completed';
-                }
-                document.getElementById('phase1Status').textContent = phase1Total + ' items';
-                document.getElementById('phase2Status').textContent = data.extractedCount + ' with assets';
-                document.getElementById('phase3Status').textContent = data.successCount + ' sent';
-                
-                if (data.errorMessage && data.extractedCount === 0) {
-                    document.getElementById('warningMessage').textContent = data.errorMessage;
-                    document.getElementById('warningMessage').style.display = 'block';
-                } else if (data.failureCount > 0) {
-                    document.getElementById('errorMessage').textContent = 
-                        'Migration completed with ' + data.failureCount + ' failures. Check logs for details.';
-                    document.getElementById('errorMessage').style.display = 'block';
-                } else {
-                    var message = 'Migration completed successfully in ' + data.durationSeconds + 's. ';
-                    message += 'Scanned ' + phase1Total + ' items, found ' + data.extractedCount + ' with assets, ';
-                    message += 'sent ' + data.successCount + ' to service.';
-                    document.getElementById('successMessage').textContent = message;
-                    document.getElementById('successMessage').style.display = 'block';
-                }
-            }
-        </script>
-    </body>
-    </html>
-
-</details>
-
-<details>
-<summary><strong>MigrationHandler.ashx</strong></summary>
-
-    <%@ WebHandler Language="C#" Class="MigrationHandler" %>
-
-    using System;
-    using System.Web;
-    using System.Threading.Tasks;
-    using System.Text.Json;
-    using iO.Sitecore.Publishing.Services;
-    using Sitecore.Diagnostics;
-
-    public class MigrationHandler : IHttpHandler
-    {
-        public void ProcessRequest(HttpContext context)
-        {
-            context.Response.ContentType = "application/json";
-            
-            var action = context.Request.QueryString["action"];
-            
-            if (action == "start")
-            {
-                StartMigration(context);
-            }
-            else if (action == "status")
-            {
-                GetStatus(context);
-            }
-            else
-            {
-                context.Response.StatusCode = 400;
-                context.Response.Write("{\"error\":\"Invalid action\"}");
-            }
-        }
-        
-        private void StartMigration(HttpContext context)
-        {
-            if (MigrationProgressTracker.IsRunning)
-            {
-                context.Response.StatusCode = 400;
-                context.Response.Write("{\"error\":\"Migration is already running\"}");
-                return;
-            }
-            
-            Log.Info("[MigrationHandler] Starting migration via Task.Run", this);
-            
-            Task.Run(async () =>
-            {
-                try
-                {
-                    Log.Info("[MigrationHandler] Inside Task.Run - about to create service", this);
-                    
-                    var service = new InitialItemAssetLinkService();
-                    
-                    Log.Info("[MigrationHandler] Service created, calling ExecuteMigrationAsync()", this);
-                    
-                    await service.ExecuteMigrationAsync();
-                    
-                    Log.Info("[MigrationHandler] ExecuteMigrationAsync() completed", this);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error("[MigrationHandler] EXCEPTION in Task.Run", ex, this);
-                    MigrationProgressTracker.ErrorMessage = ex.Message + " | " + ex.StackTrace;
-                    MigrationProgressTracker.IsRunning = false;
-                    MigrationProgressTracker.EndTime = DateTime.UtcNow;
-                }
-            });
-            
-            Log.Info("[MigrationHandler] Task.Run launched", this);
-            
-            context.Response.Write("{\"message\":\"Migration started\"}");
-        }
-        
-        private void GetStatus(HttpContext context)
-        {
-            var duration = MigrationProgressTracker.StartTime.HasValue
-                ? (MigrationProgressTracker.EndTime ?? DateTime.UtcNow) - MigrationProgressTracker.StartTime.Value
-                : TimeSpan.Zero;
-            
-            var status = new
-            {
-                isRunning = MigrationProgressTracker.IsRunning,
-                currentPhase = MigrationProgressTracker.CurrentPhase,
-                phaseDescription = MigrationProgressTracker.PhaseDescription ?? "",
-                totalItems = MigrationProgressTracker.TotalItems,
-                processedItems = MigrationProgressTracker.ProcessedItems,
-                extractedCount = MigrationProgressTracker.ExtractedCount,
-                successCount = MigrationProgressTracker.SuccessCount,
-                failureCount = MigrationProgressTracker.FailureCount,
-                progressPercentage = MigrationProgressTracker.ProgressPercentage,
-                currentItem = MigrationProgressTracker.CurrentItem ?? "",
-                errorMessage = MigrationProgressTracker.ErrorMessage ?? "",
-                durationSeconds = (int)duration.TotalSeconds
-            };
-            
-            context.Response.Write(JsonSerializer.Serialize(status));
-        }
-        
-        public bool IsReusable
-        {
-            get { return false; }
-        }
-    }
-
-</details>
-
-### Usage
-
-1. Navigate to `https://[SITECORE_INSTANCE]/sitecore/admin/MigrateAssets.html`
-2. Click **Start Migration**
-3. Monitor progress through the three phases:
-   - **Count**: Enumerates all items in the content tree
-   - **Extract**: Identifies items containing Content Hub asset links
-   - **Send**: Transmits asset usage data to the Asset Usage Service
-
-### Notes
-
-- The migration runs asynchronously in the background
-- Progress is displayed in real-time via polling
-- Check Sitecore logs for detailed error information if failures occur
-- The migration can be re-run safely; duplicate entries are handled by the service
-
-## Development Setup
-
-### Local Development
-
-1. Clone the repository:
-```bash
-git clone https://github.com/weareyou/asset-usage-service.git
-cd asset-usage-service
-```
-
-2. Install dependencies:
-```bash
-dotnet restore
-```
-
-3. Configure local settings:
-```bash
-cp local.settings.json.example local.settings.json
-# Edit local.settings.json with your configuration
-```
-
-4. Start MongoDB:
-```bash
-docker run -d -p 27017:27017 --name mongodb mongo:latest
-```
-
-5. Run the application:
-```bash
-func start
-```
-
-6. Configure Sitecore:
-- Copy `iO.Sitecore.publishing.dll` to your Sitecore instance bin folder
-- Create `iO.Publishing.Events.config` in `App_Config\Include\zzz.iO\`
-- Create `AssetUsageService.config` in `App_Config\Include\`
-- Update `AssetUsageService.ApiEndpoint` to point to your local function
-- Restart Sitecore
 
 ## Content Hub settings 
 This configuration is required for the Asset Tracking microservice to securely connect to Sitecore Content Hub and update asset usage data.  
@@ -1511,6 +907,609 @@ For initial deployment or quick updates:
 - **Entra ID Authentication**: [Configure OIDC for Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/how-to-configure-entra-authentication)
 - **Multiple Environments**: Use GitHub Environments feature to separate dev/stage/prod configurations
 
+## Initial Migration Script
+
+The Initial Migration Script scans all Sitecore items and registers existing Content Hub asset links with the Asset Usage Service. This is a one-time operation to populate the tracking database with historical data.
+
+### Configuration
+
+Add the following configuration to `App_Config\Include\AssetUsageService.Config`:
+
+**AssetUsageService.Config**
+
+          <!-- Initial Migration Script Configuration -->
+          <setting name="AssetUsageService.RootItemId" value="{THE ROOT ITEM ID FROM SITECORE/CONTENT FROM THE SELECTED DATABASE}" />
+          <setting name="AssetUsageService.MaxConcurrency" value="10" />
+          <setting name="AssetUsageService.DatabaseName" value="DBNAME" />
+
+| Setting | Description |
+|---------|-------------|
+| `AssetUsageService.RootItemId` | Sitecore item ID to start the migration from |
+| `AssetUsageService.MaxConcurrency` | Maximum concurrent requests during migration (The recommended concurrency is 10) |
+| `AssetUsageService.DatabaseName` | Sitecore database to scan (e.g., `master`, `web`) |
+
+### Admin Files
+
+Unfold to copy the following files to `[SITECORE_ROOT]\sitecore\admin\`:
+
+<details>
+<summary><strong>MigrateAssets.html</strong></summary>
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Asset Link Migration</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                padding: 20px;
+                max-width: 900px;
+                margin: 0 auto;
+            }
+
+            h1 {
+                color: #333;
+                margin-bottom: 20px;
+            }
+
+            .btn {
+                padding: 12px 24px;
+                background: #007acc;
+                color: white;
+                border: none;
+                cursor: pointer;
+                font-size: 16px;
+                border-radius: 4px;
+            }
+
+            .btn:hover {
+                background: #005a9e;
+            }
+
+            .btn:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+
+            .info-box {
+                background: #e7f3ff;
+                border-left: 4px solid #007acc;
+                padding: 15px;
+                margin: 20px 0;
+                border-radius: 4px;
+            }
+
+            .info-box p {
+                margin: 0 0 10px 0;
+                line-height: 1.6;
+                color: #333;
+            }
+
+            .info-box p:last-child {
+                margin-bottom: 0;
+            }
+
+            .progress-container {
+                margin-top: 20px;
+                display: none;
+            }
+
+            .phases {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 25px;
+                gap: 10px;
+            }
+
+            .phase {
+                flex: 1;
+                text-align: center;
+                padding: 20px 15px;
+                background: #f5f5f5;
+                border-radius: 8px;
+                border: 2px solid #e0e0e0;
+                transition: all 0.3s;
+            }
+
+            .phase.active {
+                background: #e7f3ff;
+                border-color: #007acc;
+            }
+
+            .phase.completed {
+                background: #d4edda;
+                border-color: #28a745;
+            }
+
+            .phase-number {
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                background: #ccc;
+                color: white;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                margin-bottom: 10px;
+            }
+
+            .phase.active .phase-number {
+                background: #007acc;
+            }
+
+            .phase.completed .phase-number {
+                background: #28a745;
+            }
+
+            .phase-title {
+                font-weight: bold;
+                color: #333;
+                margin-bottom: 5px;
+            }
+
+            .phase-status {
+                font-size: 12px;
+                color: #666;
+            }
+
+            .phase.active .phase-status {
+                color: #007acc;
+            }
+
+            .phase.completed .phase-status {
+                color: #28a745;
+            }
+
+            .progress-bar-bg {
+                width: 100%;
+                height: 30px;
+                background: #e0e0e0;
+                border-radius: 4px;
+                overflow: hidden;
+            }
+
+            .progress-bar {
+                height: 100%;
+                background: #007acc;
+                transition: width 0.3s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+            }
+
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 15px;
+                margin-top: 20px;
+            }
+
+            .stat-box {
+                background: #f5f5f5;
+                padding: 15px;
+                border-radius: 4px;
+                text-align: center;
+            }
+
+            .stat-value {
+                font-size: 28px;
+                font-weight: bold;
+                color: #007acc;
+            }
+
+            .stat-label {
+                font-size: 13px;
+                color: #666;
+                margin-top: 5px;
+            }
+
+            .current-item {
+                margin-top: 15px;
+                padding: 10px;
+                background: #f8f9fa;
+                border-left: 4px solid #007acc;
+                font-family: monospace;
+                font-size: 12px;
+                word-break: break-all;
+            }
+
+            .duration-info {
+                margin-top: 15px;
+                color: #666;
+            }
+
+            .error {
+                background: #f8d7da;
+                color: #721c24;
+                padding: 15px;
+                border-radius: 4px;
+                margin-top: 20px;
+            }
+
+            .success {
+                background: #d4edda;
+                color: #155724;
+                padding: 15px;
+                border-radius: 4px;
+                margin-top: 20px;
+            }
+
+            .warning {
+                background: #fff3cd;
+                color: #856404;
+                padding: 15px;
+                border-radius: 4px;
+                margin-top: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Initial Asset Link Migration</h1>
+        
+        <div class="info-box">
+            <p><strong>What does this migration do?</strong></p>
+            <p>This script scans all items in the database to identify those that contain Content Hub asset links. Only items with Content Hub references will be sent to the Asset Usage Service for tracking.</p>
+            <p><strong>The migration runs in 3 phases:</strong></p>
+            <p>1. <strong>Count</strong> - Collects all items from the content tree<br>
+               2. <strong>Extract</strong> - Analyzes each item and extracts Content Hub asset references<br>
+               3. <strong>Send</strong> - Sends items with assets to the Asset Usage Service</p>
+        </div>
+        
+        <button id="btnStart" class="btn" onclick="startMigration()">Start Migration</button>
+        
+        <div id="progressContainer" class="progress-container">
+            <div class="phases">
+                <div class="phase" id="phase1">
+                    <div class="phase-number">1</div>
+                    <div class="phase-title">Count</div>
+                    <div class="phase-status" id="phase1Status">Waiting...</div>
+                </div>
+                <div class="phase" id="phase2">
+                    <div class="phase-number">2</div>
+                    <div class="phase-title">Extract</div>
+                    <div class="phase-status" id="phase2Status">Waiting...</div>
+                </div>
+                <div class="phase" id="phase3">
+                    <div class="phase-number">3</div>
+                    <div class="phase-title">Send</div>
+                    <div class="phase-status" id="phase3Status">Waiting...</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-bg">
+                <div id="progressBar" class="progress-bar" style="width: 0%">0%</div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-value" id="totalItems">0</div>
+                    <div class="stat-label">Total Items</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="extractedCount" style="color: #17a2b8;">0</div>
+                    <div class="stat-label">With Assets</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="successCount" style="color: #28a745;">0</div>
+                    <div class="stat-label">Sent</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="failureCount" style="color: #dc3545;">0</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+            </div>
+            
+            <div class="current-item">
+                <strong>Current:</strong> <span id="phaseLabel"></span><br>
+                <span id="currentItem">-</span>
+            </div>
+            
+            <div class="duration-info">
+                <strong>Duration:</strong> <span id="duration">0s</span> | 
+                <strong>Progress:</strong> <span id="processedItems">0</span> / <span id="phaseTotal">0</span>
+            </div>
+        </div>
+        
+        <div id="errorMessage" class="error" style="display: none;"></div>
+        <div id="warningMessage" class="warning" style="display: none;"></div>
+        <div id="successMessage" class="success" style="display: none;"></div>
+        
+        <script>
+            let pollInterval;
+            let pollCount = 0;
+            const MAX_POLLS = 5;
+            let lastPhase = 0;
+            let phase1Total = 0;
+            let phase2Total = 0;
+            
+            function startMigration() {
+                document.getElementById('btnStart').disabled = true;
+                document.getElementById('progressContainer').style.display = 'block';
+                document.getElementById('errorMessage').style.display = 'none';
+                document.getElementById('warningMessage').style.display = 'none';
+                document.getElementById('successMessage').style.display = 'none';
+                
+                resetPhases();
+                pollCount = 0;
+                lastPhase = 0;
+                phase1Total = 0;
+                phase2Total = 0;
+                
+                fetch('/sitecore/admin/MigrationHandler.ashx?action=start', { 
+                    method: 'POST' 
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Migration started:', data);
+                    startPolling();
+                })
+                .catch(error => {
+                    document.getElementById('errorMessage').textContent = 'Failed to start migration: ' + error.message;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    document.getElementById('btnStart').disabled = false;
+                });
+            }
+            
+            function resetPhases() {
+                for (let i = 1; i <= 3; i++) {
+                    document.getElementById('phase' + i).className = 'phase';
+                    document.getElementById('phase' + i + 'Status').textContent = 'Waiting...';
+                }
+            }
+            
+            function startPolling() {
+                pollInterval = setInterval(checkStatus, 500);
+            }
+            
+            function stopPolling() {
+                if (pollInterval) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                }
+            }
+            
+            function checkStatus() {
+                pollCount++;
+                
+                fetch('/sitecore/admin/MigrationHandler.ashx?action=status')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Status:', data);
+                        updateUI(data);
+                        
+                        if (!data.isRunning) {
+                            if (pollCount > MAX_POLLS) {
+                                stopPolling();
+                                showCompletion(data);
+                            }
+                        } else {
+                            pollCount = 0;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Status check failed:', error);
+                        stopPolling();
+                        document.getElementById('errorMessage').textContent = 'Status check failed: ' + error.message;
+                        document.getElementById('errorMessage').style.display = 'block';
+                        document.getElementById('btnStart').disabled = false;
+                    });
+            }
+            
+            function updateUI(data) {
+                updatePhases(data);
+                
+                document.getElementById('progressBar').style.width = data.progressPercentage + '%';
+                document.getElementById('progressBar').textContent = data.progressPercentage + '%';
+                
+                document.getElementById('totalItems').textContent = phase1Total > 0 ? phase1Total : data.totalItems;
+                document.getElementById('extractedCount').textContent = data.extractedCount;
+                document.getElementById('successCount').textContent = data.successCount;
+                document.getElementById('failureCount').textContent = data.failureCount;
+                
+                document.getElementById('phaseLabel').textContent = data.phaseDescription || '';
+                document.getElementById('currentItem').textContent = data.currentItem || '-';
+                
+                document.getElementById('duration').textContent = data.durationSeconds + 's';
+                document.getElementById('processedItems').textContent = data.processedItems;
+                document.getElementById('phaseTotal').textContent = data.totalItems;
+                
+                if (data.errorMessage && data.currentPhase > 0) {
+                    document.getElementById('errorMessage').textContent = 'Error: ' + data.errorMessage;
+                    document.getElementById('errorMessage').style.display = 'block';
+                }
+            }
+            
+            function updatePhases(data) {
+                var currentPhase = data.currentPhase;
+                
+                if (currentPhase === 2 && lastPhase === 1) {
+                    phase1Total = data.totalItems;
+                }
+                if (currentPhase === 3 && lastPhase === 2) {
+                    phase2Total = data.extractedCount;
+                }
+                
+                for (let i = 1; i < currentPhase; i++) {
+                    document.getElementById('phase' + i).className = 'phase completed';
+                    if (i === 1) {
+                        document.getElementById('phase1Status').textContent = phase1Total + ' items';
+                    } else if (i === 2) {
+                        document.getElementById('phase2Status').textContent = data.extractedCount + ' with assets';
+                    }
+                }
+                
+                if (currentPhase >= 1 && currentPhase <= 3) {
+                    document.getElementById('phase' + currentPhase).className = 'phase active';
+                    
+                    if (currentPhase === 1) {
+                        document.getElementById('phase1Status').textContent = 'Counting... ' + data.processedItems;
+                    } else if (currentPhase === 2) {
+                        document.getElementById('phase2Status').textContent = data.processedItems + '/' + data.totalItems;
+                    } else if (currentPhase === 3) {
+                        document.getElementById('phase3Status').textContent = data.processedItems + '/' + data.totalItems;
+                    }
+                }
+                
+                lastPhase = currentPhase;
+            }
+            
+            function showCompletion(data) {
+                document.getElementById('btnStart').disabled = false;
+                
+                for (let i = 1; i <= 3; i++) {
+                    document.getElementById('phase' + i).className = 'phase completed';
+                }
+                document.getElementById('phase1Status').textContent = phase1Total + ' items';
+                document.getElementById('phase2Status').textContent = data.extractedCount + ' with assets';
+                document.getElementById('phase3Status').textContent = data.successCount + ' sent';
+                
+                if (data.errorMessage && data.extractedCount === 0) {
+                    document.getElementById('warningMessage').textContent = data.errorMessage;
+                    document.getElementById('warningMessage').style.display = 'block';
+                } else if (data.failureCount > 0) {
+                    document.getElementById('errorMessage').textContent = 
+                        'Migration completed with ' + data.failureCount + ' failures. Check logs for details.';
+                    document.getElementById('errorMessage').style.display = 'block';
+                } else {
+                    var message = 'Migration completed successfully in ' + data.durationSeconds + 's. ';
+                    message += 'Scanned ' + phase1Total + ' items, found ' + data.extractedCount + ' with assets, ';
+                    message += 'sent ' + data.successCount + ' to service.';
+                    document.getElementById('successMessage').textContent = message;
+                    document.getElementById('successMessage').style.display = 'block';
+                }
+            }
+        </script>
+    </body>
+    </html>
+
+</details>
+
+<details>
+<summary><strong>MigrationHandler.ashx</strong></summary>
+
+    <%@ WebHandler Language="C#" Class="MigrationHandler" %>
+
+    using System;
+    using System.Web;
+    using System.Threading.Tasks;
+    using System.Text.Json;
+    using iO.Sitecore.Publishing.Services;
+    using Sitecore.Diagnostics;
+
+    public class MigrationHandler : IHttpHandler
+    {
+        public void ProcessRequest(HttpContext context)
+        {
+            context.Response.ContentType = "application/json";
+            
+            var action = context.Request.QueryString["action"];
+            
+            if (action == "start")
+            {
+                StartMigration(context);
+            }
+            else if (action == "status")
+            {
+                GetStatus(context);
+            }
+            else
+            {
+                context.Response.StatusCode = 400;
+                context.Response.Write("{\"error\":\"Invalid action\"}");
+            }
+        }
+        
+        private void StartMigration(HttpContext context)
+        {
+            if (MigrationProgressTracker.IsRunning)
+            {
+                context.Response.StatusCode = 400;
+                context.Response.Write("{\"error\":\"Migration is already running\"}");
+                return;
+            }
+            
+            Log.Info("[MigrationHandler] Starting migration via Task.Run", this);
+            
+            Task.Run(async () =>
+            {
+                try
+                {
+                    Log.Info("[MigrationHandler] Inside Task.Run - about to create service", this);
+                    
+                    var service = new InitialItemAssetLinkService();
+                    
+                    Log.Info("[MigrationHandler] Service created, calling ExecuteMigrationAsync()", this);
+                    
+                    await service.ExecuteMigrationAsync();
+                    
+                    Log.Info("[MigrationHandler] ExecuteMigrationAsync() completed", this);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("[MigrationHandler] EXCEPTION in Task.Run", ex, this);
+                    MigrationProgressTracker.ErrorMessage = ex.Message + " | " + ex.StackTrace;
+                    MigrationProgressTracker.IsRunning = false;
+                    MigrationProgressTracker.EndTime = DateTime.UtcNow;
+                }
+            });
+            
+            Log.Info("[MigrationHandler] Task.Run launched", this);
+            
+            context.Response.Write("{\"message\":\"Migration started\"}");
+        }
+        
+        private void GetStatus(HttpContext context)
+        {
+            var duration = MigrationProgressTracker.StartTime.HasValue
+                ? (MigrationProgressTracker.EndTime ?? DateTime.UtcNow) - MigrationProgressTracker.StartTime.Value
+                : TimeSpan.Zero;
+            
+            var status = new
+            {
+                isRunning = MigrationProgressTracker.IsRunning,
+                currentPhase = MigrationProgressTracker.CurrentPhase,
+                phaseDescription = MigrationProgressTracker.PhaseDescription ?? "",
+                totalItems = MigrationProgressTracker.TotalItems,
+                processedItems = MigrationProgressTracker.ProcessedItems,
+                extractedCount = MigrationProgressTracker.ExtractedCount,
+                successCount = MigrationProgressTracker.SuccessCount,
+                failureCount = MigrationProgressTracker.FailureCount,
+                progressPercentage = MigrationProgressTracker.ProgressPercentage,
+                currentItem = MigrationProgressTracker.CurrentItem ?? "",
+                errorMessage = MigrationProgressTracker.ErrorMessage ?? "",
+                durationSeconds = (int)duration.TotalSeconds
+            };
+            
+            context.Response.Write(JsonSerializer.Serialize(status));
+        }
+        
+        public bool IsReusable
+        {
+            get { return false; }
+        }
+    }
+
+</details>
+
+### Usage
+
+1. Navigate to `https://[SITECORE_INSTANCE]/sitecore/admin/MigrateAssets.html`
+2. Click **Start Migration**
+3. Monitor progress through the three phases:
+   - **Count**: Enumerates all items in the content tree
+   - **Extract**: Identifies items containing Content Hub asset links
+   - **Send**: Transmits asset usage data to the Asset Usage Service
+
+### Notes
+
+- The migration runs asynchronously in the background
+- Progress is displayed in real-time via polling
+- Check Sitecore logs for detailed error information if failures occur
+- The migration can be re-run safely; duplicate entries are handled by the service
+
 ## Testing
 
 ### Running Tests
@@ -1571,6 +1570,7 @@ Add the following code:
   </None>
 </ItemGroup>
 ```
+
 ## 
 ### Setup Steps
 
@@ -1607,6 +1607,7 @@ Add the following code:
 2. Navigate to an asset that has a public link
 3. Copy the public link URL
 4. Paste it into `appsettings.Test.json`
+
 ## Monitoring and Logging
 
 ### Application Insights
