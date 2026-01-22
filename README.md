@@ -1,3 +1,20 @@
+# Asset Usage Service
+
+A microservice for tracking and managing relationships between items and digital assets across Sitecore CMS and ContentHub DAM. Built as an Azure Function application with MongoDB storage.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Development Setup](#development-setup)
+- [Configuration](#configuration)
+- [Local azure ServiceBus Queues](#local-azure-servicebus-queues)
+- [Content Hub settings](#content-hub-settings)
+- [Content Hub React Components Setup](#content-hub-react-components-setup)
+- [Deployment](#deployment)
+- [Initial Migration Script](#initial-migration-script)
+- [Testing](#testing)
+- [Monitoring and Logging](#monitoring-and-logging)
+
 ## Prerequisites
 
 - .NET 8.0 SDK or later
