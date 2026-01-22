@@ -17,17 +17,32 @@ cp local.settings.json.example local.settings.json
 # Edit local.settings.json with your configuration
 ```
 
-4. Start MongoDB:
+4. Configure Local azure ServiceBus Queues 
+Install [Docker desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running 
+
+Switch to Linux container (right click docker icon in menubar and click `Switch to linux containers...` if you see `Switch to windows containers...` you are already on linux containers) 
+
+To run the azure servicebus Queue local go to the folder **DockerAzureServiceBusQueues** in your terminal and run:
+```zsh
+ docker-compose up -d
+ ```
+Wait for it to say:
+- Container sqlserver:            `Healthy`
+- Container servicebus-emulator:  `Started`
+
+Check your `local.settings.json` to ensure you have the correct queue names and that the `Disabled` property of the queue functions you want to use is set to `false`
+
+5. Start MongoDB:
 ```bash
 docker run -d -p 27017:27017 --name mongodb mongo:latest
 ```
 
-5. Run the application:
+6. Run the application:
 ```bash
 func start
 ```
 
-6. Configure Sitecore:
+7. Configure Sitecore:
 - Copy `iO.Sitecore.publishing.dll` to your Sitecore instance bin folder
 - Create `iO.Publishing.Events.config` in `App_Config\Include\zzz.iO\`
 - Create `AssetUsageService.config` in `App_Config\Include\`
