@@ -9,13 +9,21 @@ public class AssetItemLink
     [BsonRepresentation(BsonType.String)]
     public Guid ItemId { get; set; }
 
-    [BsonElement("assetIds")]
-    [BsonRepresentation(BsonType.String)]
-    public List<int> AssetIds { get; set; } = new();
+    [BsonElement("languages")]
+    public Dictionary<string, LanguageAssetData> Languages { get; set; } = new();
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class LanguageAssetData
+{
+    [BsonElement("assetIds")]
+    public List<int> AssetIds { get; set; } = new();
+
+    [BsonElement("version")]
+    public int? Version { get; set; }
 }

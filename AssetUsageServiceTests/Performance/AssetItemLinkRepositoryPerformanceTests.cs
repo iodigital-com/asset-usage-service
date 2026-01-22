@@ -70,7 +70,14 @@ public class AssetItemLinkRepositoryPerformanceTests : IAsyncLifetime
                 batchItems.Add(new AssetItemLink
                 {
                     ItemId = itemId,
-                    AssetIds = assetIds,
+                    Languages = new Dictionary<string, LanguageAssetData>
+                    {
+                        ["en"] = new LanguageAssetData
+                        {
+                            AssetIds = assetIds,
+                            Version = 1
+                        }
+                    },
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 });
@@ -98,7 +105,7 @@ public class AssetItemLinkRepositoryPerformanceTests : IAsyncLifetime
         var assetIds = Enumerable.Range(5000, AssetsPerItem).ToList();
         var stopwatch = Stopwatch.StartNew();
 
-        await _repository.InsertAssetItemLinkAsync(itemId, assetIds, CancellationToken.None);
+        await _repository.UpsertAssetItemLinkAsync(itemId, "en", assetIds, 1, CancellationToken.None);
 
         stopwatch.Stop();
         var elapsedMs = stopwatch.ElapsedMilliseconds;
@@ -119,7 +126,7 @@ public class AssetItemLinkRepositoryPerformanceTests : IAsyncLifetime
         for (int index = 0; index < insertCount; index++)
         {
             var assetIds = Enumerable.Range(6000 + index * AssetsPerItem, AssetsPerItem).ToList();
-            await _repository.InsertAssetItemLinkAsync(Guid.NewGuid(), assetIds, CancellationToken.None);
+            await _repository.UpsertAssetItemLinkAsync(Guid.NewGuid(), "en", assetIds, 1, CancellationToken.None);
         }
 
         stopwatch.Stop();
@@ -228,7 +235,7 @@ public class AssetItemLinkRepositoryPerformanceTests : IAsyncLifetime
         var insertTasks = Enumerable.Range(0, parallelInsertCount)
             .Select(index => {
                 var assetIds = Enumerable.Range(7000 + index * AssetsPerItem, AssetsPerItem).ToList();
-                return _repository.InsertAssetItemLinkAsync(Guid.NewGuid(), assetIds, CancellationToken.None);
+                return _repository.UpsertAssetItemLinkAsync(Guid.NewGuid(), "en", assetIds, 1, CancellationToken.None);
             })
             .ToList();
 
@@ -268,7 +275,7 @@ public class AssetItemLinkRepositoryPerformanceTests : IAsyncLifetime
             else
             {
                 var assetIds = Enumerable.Range(8000 + index * AssetsPerItem, AssetsPerItem).ToList();
-                operationTasks.Add(_repository.InsertAssetItemLinkAsync(Guid.NewGuid(), assetIds, CancellationToken.None));
+                operationTasks.Add(_repository.UpsertAssetItemLinkAsync(Guid.NewGuid(), "en", assetIds, 1, CancellationToken.None));
                 writeCount++;
             }
         }
