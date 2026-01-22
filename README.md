@@ -20,7 +20,6 @@ For detailed documentation, see the following guides:
 
 ### Architecture
 - [Architecture Overview](docs/architecture/overview.md) - System architecture, components, and design patterns
-- [Data Flows](docs/architecture/flows.md) - Publishing flow, queue processing, and integration patterns
 
 ### Troubleshooting
 - [Common Issues](docs/troubleshooting/COMMON-ISSUES.md) - Common issues and their solutions
