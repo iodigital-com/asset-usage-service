@@ -1,4 +1,5 @@
 # Local Development
+This local development guide explains how to setup the service locally. In order for this to work, it is required to complete the README in the root directory afterwards.
 
 ## 1. Clone the repository:
 ```bash
