@@ -98,50 +98,6 @@ Create a configuration file in:
 </configuration>
 ```
 
-### Asset Usage Service Configuration
-
-Configure in `local.settings.json` (local) or Azure Function App Configuration (production):
-
-```json
-{
-  "IsEncrypted": false,
-  "Values": {
-
-    // Azure Functions Settings
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-
-    // Microservice Database Settings
-    "MongoDB:ConnectionString": "mongodb://localhost:27017",
-    "MongoDB:DatabaseName": "AssetUsageDb",
-    "MongoDB:SeedData": "false",
-
-    // Content Hub OAuth connection settings
-    "ContentHub:Endpoint": "https://your-instance.stylelabs.cloud",
-    "ContentHub:ClientId": "your-client-id",
-    "ContentHub:ClientSecret": "your-client-secret",
-
-    // Service Bus Connection String
-    "ServiceBusQueue:ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
-
-    // Public Link Queue
-    "ServiceBusQueue:PublicLinkQueueName": "contenthub-publiclinks-requests",
-    "AzureWebJobs.PublicLinkQueueFunction.Disabled": "false",
-    "AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled": "false",
-
-    // Delta Calculation Queue
-    "ServiceBusQueue:DeltaCalculationQueueName": "contenthub-delta-calculation-requests",
-    "AzureWebJobs.DeltaCalculationQueueFunction.Disabled": "true",
-    "AzureWebJobs.MonitorPushToDAMDeadLetterQueue.Disabled": "true",
-
-    // Push to DAM Queue
-    "ServiceBusQueue:PushToDAMQueueName": "push-to-contenthub-requests",
-    "AzureWebJobs.PushToDAMQueueFunction.Disabled": "false",
-    "AzureWebJobs.MonitorPushToDAMDeadLetterQueue.Disabled": "false"
-  }
-}
-```
-
 ### Configuration Options
 
 #### Sitecore Settings
@@ -172,21 +128,6 @@ Configure in `local.settings.json` (local) or Azure Function App Configuration (
 - **ServiceBusQueue:DeltaCalculationQueueName**: The name of the Delta Calculation Queue (For local it is the filled in string)
 
 - **ServiceBusQueue:PushToDAMQueueName**: The name of the Push To DAM QueueName (For local it is the filled in string)
-
-## Local azure ServiceBus Queues 
-Install [Docker desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running 
-
-Switch to Linux container (right click docker icon in menubar and click `Switch to linux containers...` if you see `Switch to windows containers...` you are already on linux containers) 
-
-To run the azure servicebus Queue local go to the folder **DockerAzureServiceBusQueues** in your terminal and run:
-```zsh
- docker-compose up -d
- ```
-Wait for it to say:
-- Container sqlserver:            `Healthy`
-- Container servicebus-emulator:  `Started`
-
-Check your `local.settings.json` to ensure you have the correct queue names and that the `Disabled` property of the queue functions you want to use is set to `false`.
 
 ## Content Hub settings 
 This configuration is required for the Asset Tracking microservice to securely connect to Sitecore Content Hub and update asset usage data.  
