@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 
 interface LanguageVersion {
     language: string;
-    version: number;
+    version?: number | null;
 }
 
 interface ContentHubEntity {
