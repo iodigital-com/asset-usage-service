@@ -1,6 +1,13 @@
 # Local Development
 This local development guide explains how to setup the service locally. In order for this to work, it is required to complete the README in the root directory afterwards.
 
+## Prerequisites
+
+- .NET 8.0 SDK or later
+- Azure Functions Core Tools v4
+- MongoDB instance (local or Azure CosmosDB with MongoDB API)
+- Access to Sitecore ContentHub instance
+
 ## 1. Clone the repository:
 ```bash
 git clone https://github.com/weareyou/asset-usage-service.git
@@ -91,15 +98,3 @@ docker-compose up -d
 ```bash
 docker run -d -p 27017:27017 --name mongodb mongo:latest
 ```
-
-## 6. Run the application:
-```bash
-func start
-```
-
-## 7. Configure Sitecore:
-- Copy `iO.Sitecore.publishing.dll` to your Sitecore instance bin folder
-- Create `iO.Publishing.Events.config` in `App_Config\Include\zzz.iO\`
-- Create `AssetUsageService.config` in `App_Config\Include\`
-- Update `AssetUsageService.ApiEndpoint` to point to your local function
-- Restart Sitecore
