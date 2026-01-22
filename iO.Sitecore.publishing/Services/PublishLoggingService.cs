@@ -66,16 +66,6 @@ namespace iO.Sitecore.Publishing.Services
             Log.Warn($"[ExtractAssetIds] Error for item {itemPath}", exception, typeof(PublishTelemetryService));
         }
 
-        public void LogMalformedPublicLinkXml(string fieldName, Exception exception)
-        {
-            Log.Warn($"[ExtractPublicLink] Malformed link XML in field '{fieldName}'", exception, typeof(PublishTelemetryService));
-        }
-
-        public void LogMalformedFileXml(string fieldName, Exception exception)
-        {
-            Log.Warn($"[ExtractPublicLink] Malformed file XML in field '{fieldName}'", exception, typeof(PublishTelemetryService));
-        }
-
         // Error logs
         public void LogExtractPublicLinkError(string itemPath, Exception exception)
         {
