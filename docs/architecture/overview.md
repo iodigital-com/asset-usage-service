@@ -2,6 +2,174 @@
 
 A microservice for tracking and managing relationships between items and digital assets across Sitecore CMS and ContentHub DAM. Built as an Azure Function application with MongoDB storage.
 
+```mermaid
+classDiagram
+    %% Integration Layer
+    class MessageHandler {
+        -ILogger~MessageHandler~ _logger
+        -PublishedItemMapper _mapper
+        -AssetItemController _controller
+        +MessageHandler(logger, mapper, controller)
+        +ProcessMessageAsync(message, cancellationToken) Task
+    }
+
+    class PublishedItemMapper {
+        -ILogger~PublishedItemMapper~ _logger
+        +PublishedItemMapper(logger)
+        +MapToDomain(dto) PublishedItem
+        -ValidateAndParseItemId(itemIdString) Guid
+        -ParseAssetIds(assetIdStrings) List~int~
+    }
+
+    class APIGateway {
+        +SendRequest() Task
+    }
+
+    class ContentHubConnectionService {
+        +GetAssetsByPublicLinks() Task
+    }
+
+    %% Business Layer
+    class AssetItemController {
+        -PublishAssetIdsByPublicLinksEventService _publishGetAssetIdsByPublicLinksEventService
+        -DeltaCalculationService _deltaCalculationService
+        -PublishPushToDamEventsService _publishPushToDamEventsService
+        -ILogger~AssetItemController~ _logger
+        +AssetItemController(publishService, deltaService, pushService, logger)
+        +ProcessPublishedItemAsync(publishedItem, cancellationToken) Task
+    }
+
+    class DeltaCalculationService {
+        -IAssetItemLinkRepository _assetItemLinkRepository
+        -ILogger~DeltaCalculationService~ _logger
+        +DeltaCalculationService(repository, logger)
+        +CalculateDeltaAsync(item, newAssetIds, cancellationToken) Task~ItemAssetChanges~
+        -GetCurrentAssetIdsAsync(itemId, cancellationToken) Task~List~int~~
+        -CalculateDelta(currentAssetIds, newAssetIds) Tuple
+        -ApplyChangesAsync(itemId, itemExists, newAssetIds, assetIdsToAdd, assetIdsToRemove, cancellationToken) Task
+    }
+
+    class PublishAssetIdsByPublicLinksEventService {
+        -IMediator _mediator
+        -IConfiguration _configuration
+        -ILogger~PublishAssetIdsByPublicLinksEventService~ _logger
+        +PublishAssetIdsByPublicLinksEventService(mediator, configuration, logger)
+        +GetAssetIdsByPublicLinksAsync(publishedItem, cancellationToken) Task~List~int~~
+        -FilterContentHubLinks(publicLinks) List~string~
+    }
+
+    class PublishPushToDamEventsService {
+        -ILogger~PublishPushToDamEventsService~ _logger
+        -IMediator _mediator
+        +PublishPushToDamEventsService(logger, mediator)
+        +PublishPushToDamEventsAsync(itemAssetChanges, cancellationToken) Task
+    }
+
+    class PushToDamHandler {
+        +Handle(event, cancellationToken) Task
+    }
+
+    %% Domain Models
+    class PublishedItem {
+        +Guid ItemId
+        +string Language
+        +string ItemName
+        +int Version
+        +string ItemPath
+        +List~int~ AssetIds
+        +List~string~ PublicLinks
+        -PublishedItem(itemId, language, itemName, version, itemPath, assetIds, publicLinks)
+        +Create(itemId, language, itemName, version, itemPath, assetIds, publicLinks)$ PublishedItem
+        +GetUsageTrackingJson() JObject
+    }
+
+    class PublishedItemDto {
+        +string ItemId
+        +string Language
+        +string ItemName
+        +int Version
+        +string ItemPath
+        +List~string~ AssetIds
+        +List~string~ PublicLinks
+    }
+
+    class ItemAssetChanges {
+        +PublishedItem Item
+        +List~int~ ToAddAssetIds
+        +List~int~ ToRemoveAssetIds
+    }
+
+    class AssetItemLink {
+        +Guid ItemId
+        +List~int~ AssetIds
+        +DateTime CreatedAt
+        +DateTime UpdatedAt
+    }
+
+    %% Events
+    class PushToDamEvent {
+        +PublishedItem Item
+        +List~int~ AssetIds
+        +DamOperation Operation
+    }
+
+    %% Infrastructure
+    class IAssetItemLinkRepository {
+        <<interface>>
+        +InsertAssetItemLinkAsync(itemId, assetIds, cancellationToken) Task~AssetItemLink~
+        +GetAssetItemLinkByItemIdAsync(itemId, cancellationToken) Task~AssetItemLink~
+        +GetAssetIdsFromItemIdAsync(itemId, cancellationToken) Task~List~int~~
+        +GetItemIdsByAssetIdAsync(assetId, cancellationToken) Task~List~AssetItemLink~~
+        +RemoveAssetIdsFromItemAsync(itemId, assetIds, cancellationToken) Task
+        +AddAssetIdsToItemAsync(itemId, assetIds, cancellationToken) Task
+        +RemoveItemAsync(itemId, cancellationToken) Task
+    }
+
+    class AssetItemLinkRepository {
+        +InsertAssetItemLinkAsync(itemId, assetIds, cancellationToken) Task~AssetItemLink~
+        +GetAssetItemLinkByItemIdAsync(itemId, cancellationToken) Task~AssetItemLink~
+        +GetAssetIdsFromItemIdAsync(itemId, cancellationToken) Task~List~int~~
+        +GetItemIdsByAssetIdAsync(assetId, cancellationToken) Task~List~AssetItemLink~~
+        +RemoveAssetIdsFromItemAsync(itemId, assetIds, cancellationToken) Task
+        +AddAssetIdsToItemAsync(itemId, assetIds, cancellationToken) Task
+        +RemoveItemAsync(itemId, cancellationToken) Task
+    }
+
+    class IMediator {
+        <<interface>>
+        +PublishAsync~TEvent~(event, cancellationToken) Task
+    }
+
+    %% Relationships
+    MessageHandler --> PublishedItemMapper : uses
+    MessageHandler --> AssetItemController : uses
+    PublishedItemMapper --> PublishedItemDto : maps from
+    PublishedItemMapper --> PublishedItem : creates
+
+    AssetItemController --> PublishAssetIdsByPublicLinksEventService : uses
+    AssetItemController --> DeltaCalculationService : uses
+    AssetItemController --> PublishPushToDamEventsService : uses
+    AssetItemController --> PublishedItem : processes
+
+    DeltaCalculationService --> IAssetItemLinkRepository : uses
+    DeltaCalculationService --> PublishedItem : uses
+    DeltaCalculationService --> ItemAssetChanges : creates
+
+    PublishAssetIdsByPublicLinksEventService --> IMediator : uses
+    PublishAssetIdsByPublicLinksEventService --> PublishedItem : uses
+
+    PublishPushToDamEventsService --> IMediator : uses
+    PublishPushToDamEventsService --> ItemAssetChanges : uses
+    PublishPushToDamEventsService --> PushToDamEvent : publishes
+
+    PushToDamHandler --> PushToDamEvent : handles
+
+    AssetItemLinkRepository ..|> IAssetItemLinkRepository : implements
+    AssetItemLinkRepository --> AssetItemLink : manages
+
+    ItemAssetChanges --> PublishedItem : contains                                                                                                         
+```
+
 ## System Components
 
 ### Core Components
