@@ -88,7 +88,11 @@ Create a configuration file in:
     <settings>
       <!-- Azure Function endpoint for Asset Usage Service -->
       <setting name="AssetUsageService.ApiEndpoint" value="http://localhost:7183/api/SitecorePublishAPI" />
+
+      <!-- Content Hub endpoint -->
+      <setting name="AssetUsageService.ContentHubEndpoint" value="https://your-instance.sitecoresandbox.cloud" />
     </settings>
+
   </sitecore>
 </configuration>
 ```
