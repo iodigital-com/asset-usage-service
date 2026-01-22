@@ -49,6 +49,11 @@ public sealed class PushToDamHandler : IEventHandler<PushToDamEvent>
                 _logger.LogInformation("Pushing add to DAM: asset {AssetId} for item {ItemId}", assetId, itemId);
 
                 var asset = await contentHubClient.Entities.GetAsync(assetId);
+                if (asset == null)
+                {
+                    _logger.LogWarning("Asset {AssetId} not found in Content Hub, skipping", assetId);
+                    continue;
+                }
                 var usageTrackingProperty = GetOrCreateUsageTrackingProperty(asset, assetId);
                 usageTrackingProperty[itemId.ToString()] = item.GetUsageTrackingJson();
 
@@ -81,6 +86,11 @@ public sealed class PushToDamHandler : IEventHandler<PushToDamEvent>
                 _logger.LogInformation("Pushing remove to DAM: asset {AssetId} for item {ItemId}", assetId, itemId);
 
                 var asset = await contentHubClient.Entities.GetAsync(assetId);
+                if (asset == null)
+                {
+                    _logger.LogWarning("Asset {AssetId} not found in Content Hub, skipping", assetId);
+                    continue;
+                }
                 var usageTrackingProperty = asset.GetPropertyValue<JToken>("UsageTracking");
 
                 if (usageTrackingProperty == null)
