@@ -96,37 +96,6 @@ Create a configuration file in:
 </configuration>
 ```
 
-### Configuration Options
-
-#### Sitecore Settings
-
-- **AssetUsageService.ApiEndpoint**: Asset Usage Service API endpoint (HTTP/HTTPS URL)
-
-#### MongoDB Settings
-
-- **ConnectionString**: MongoDB connection string
-- **DatabaseName**: Database name for asset usage data
-- **SeedData**: Set to `true` to populate test data on startup
-
-#### ContentHub Settings
-
-- **Endpoint**: ContentHub instance URL
-- **ClientId**: OAuth2 client ID
-- **ClientSecret**: OAuth2 client secret
-
-#### ServiceBus Queue Settings
-
-- **ServiceBusQueue:ConnectionString**: ServiceBus Queue connection string (For local it is the filled in string)
-
-- **ServiceBusQueue:PublicLinkQueueName**: The name of the Public Link Queue (For local it is the filled in string)
-- **AzureWebJobs.PublicLinkQueueFunction.Disabled**: If you use the queue set it to false else set it to true
-- **AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled**:  If you use the queue set it to false else set it to true
-
-
-- **ServiceBusQueue:DeltaCalculationQueueName**: The name of the Delta Calculation Queue (For local it is the filled in string)
-
-- **ServiceBusQueue:PushToDAMQueueName**: The name of the Push To DAM QueueName (For local it is the filled in string)
-
 ## Content Hub settings 
 This configuration is required for the Asset Tracking microservice to securely connect to Sitecore Content Hub and update asset usage data.  
 Without this setup, the microservice cannot authenticate safely and modify usage tracking information.
