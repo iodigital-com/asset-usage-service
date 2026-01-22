@@ -42,6 +42,10 @@ For detailed documentation, see the following guides:
 
 See [Local Development Guide](docs/local-development/README.md) for setup instructions.
 
+### Testing
+
+See [Testing Guide](docs/testing/README.md) for test instructions.
+
 ## Configuration
 
 ### Sitecore CMS Configuration
@@ -1511,10 +1515,6 @@ Unfold to copy the following files to `[SITECORE_ROOT]\sitecore\admin\`:
 - Progress is displayed in real-time via polling
 - Check Sitecore logs for detailed error information if failures occur
 - The migration can be re-run safely; duplicate entries are handled by the service
-
-## Testing
-
-See [Testing Guide](docs/testing/README.md) for test instructions.
 
 ## Monitoring and Logging
 
