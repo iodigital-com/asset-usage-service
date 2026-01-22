@@ -8,7 +8,6 @@ A microservice for tracking and managing relationships between items and digital
 - [Prerequisites](#prerequisites)
 - [Development Setup](#development-setup)
 - [Configuration](#configuration)
-- [Local Azure ServiceBus Queues](#local-azure-servicebus-queues)
 - [Content Hub Settings](#content-hub-settings)
 - [Content Hub React Components Setup](#content-hub-react-components-setup)
 - [Deployment](#deployment)
