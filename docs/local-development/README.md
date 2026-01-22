@@ -13,8 +13,43 @@ dotnet restore
 
 3. Configure local settings:
 ```bash
-cp local.settings.json.example local.settings.json
-# Edit local.settings.json with your configuration
+{
+  "IsEncrypted": false,
+  "Values": {
+
+    // Azure Functions Settings
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    // Microservice Database Settings
+    "MongoDB:ConnectionString": "mongodb://localhost:27017",
+    "MongoDB:DatabaseName": "AssetUsageDb",
+    "MongoDB:SeedData": "false",
+
+    // Content Hub OAuth connection settings
+    "ContentHub:Endpoint": "https://your-instance.stylelabs.cloud",
+    "ContentHub:ClientId": "your-client-id",
+    "ContentHub:ClientSecret": "your-client-secret",
+
+    // Service Bus Connection String
+    "ServiceBusQueue:ConnectionString": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+
+    // Public Link Queue
+    "ServiceBusQueue:PublicLinkQueueName": "contenthub-publiclinks-requests",
+    "AzureWebJobs.PublicLinkQueueFunction.Disabled": "false",
+    "AzureWebJobs.MonitorPublicLinkDeadLetterQueue.Disabled": "false",
+
+    // Delta Calculation Queue
+    "ServiceBusQueue:DeltaCalculationQueueName": "contenthub-delta-calculation-requests",
+    "AzureWebJobs.DeltaCalculationQueueFunction.Disabled": "true",
+    "AzureWebJobs.MonitorPushToDAMDeadLetterQueue.Disabled": "true",
+
+    // Push to DAM Queue
+    "ServiceBusQueue:PushToDAMQueueName": "push-to-contenthub-requests",
+    "AzureWebJobs.PushToDAMQueueFunction.Disabled": "false",
+    "AzureWebJobs.MonitorPushToDAMDeadLetterQueue.Disabled": "false"
+  }
+}
 ```
 
 4. Configure Local azure ServiceBus Queues 
