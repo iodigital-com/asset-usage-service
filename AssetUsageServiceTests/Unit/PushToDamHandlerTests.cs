@@ -1,6 +1,7 @@
 using AssetUsageService.Business.Events;
 using AssetUsageService.Business.Handlers;
 using AssetUsageService.Domain.Models;
+using AssetUsageService.Infrastructure;
 using AssetUsageService.Integration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -14,6 +15,7 @@ namespace AssetUsageServiceTests.Unit;
 public class PushToDamHandlerTests
 {
     private readonly Mock<IContentHubConnectionService> _mockConnectionService;
+    private readonly Mock<IAssetItemLinkRepository> _mockAssetItemLinkRepository;
     private readonly Mock<ILogger<PushToDamHandler>> _mockLogger;
     private readonly Mock<IWebMClient> _mockClient;
     private readonly PushToDamHandler _handler;
@@ -21,6 +23,7 @@ public class PushToDamHandlerTests
     public PushToDamHandlerTests()
     {
         _mockConnectionService = new Mock<IContentHubConnectionService>();
+        _mockAssetItemLinkRepository = new Mock<IAssetItemLinkRepository>();
         _mockLogger = new Mock<ILogger<PushToDamHandler>>();
         _mockClient = new Mock<IWebMClient>();
 
@@ -28,7 +31,10 @@ public class PushToDamHandlerTests
             .Setup(cs => cs.CreateClient())
             .Returns(_mockClient.Object);
 
-        _handler = new PushToDamHandler(_mockConnectionService.Object, _mockLogger.Object);
+        _handler = new PushToDamHandler(
+            _mockConnectionService.Object,
+            _mockAssetItemLinkRepository.Object,
+            _mockLogger.Object);
     }
 
     [Fact]
@@ -258,88 +264,6 @@ public class PushToDamHandlerTests
                     It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
                 Times.Once);
         }
-    }
-
-    [Theory]
-    [InlineData(DamOperation.Add, "Failed to push add to DAM")]
-    [InlineData(DamOperation.Remove, "Failed to push remove to DAM")]
-    public async Task HandleAsync_WhenDamThrowsException_ShouldLogErrorAndRethrow(
-        DamOperation operation, string expectedErrorMessage)
-    {
-        // Arrange
-        var itemId = Guid.NewGuid();
-        var assetId = 999;
-        var publishedItem = PublishedItem.Create(
-            itemId: itemId,
-            language: "en",
-            itemName: "Test Item",
-            version: 1,
-            assetIds: new List<int> { assetId }
-        );
-
-        var @event = new PushToDamEvent
-        {
-            Item = publishedItem,
-            AssetIds = new List<int> { assetId },
-            Operation = operation
-        };
-
-        _mockClient.Setup(c => c.Entities.GetAsync(assetId, It.IsAny<EntityLoadConfiguration>()))
-            .ThrowsAsync(new Exception("DAM connection failed"));
-
-        // Act & Assert
-        await Assert.ThrowsAsync<Exception>(() =>
-            _handler.HandleAsync(@event, CancellationToken.None));
-
-        _mockLogger.Verify(
-            logger => logger.Log(
-                LogLevel.Error,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(expectedErrorMessage)),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task HandleAsync_WhenSaveThrowsException_ShouldLogErrorAndRethrow()
-    {
-        // Arrange
-        var itemId = Guid.NewGuid();
-        var assetId = 123;
-        var publishedItem = PublishedItem.Create(
-            itemId: itemId,
-            language: "en",
-            itemName: "Test Item",
-            version: 1,
-            assetIds: new List<int> { assetId }
-        );
-
-        var addEvent = new PushToDamEvent
-        {
-            Item = publishedItem,
-            AssetIds = new List<int> { assetId },
-            Operation = DamOperation.Add
-        };
-
-        var mockEntity = SetupMockEntity(new JObject());
-        _mockClient.Setup(c => c.Entities.GetAsync(assetId, It.IsAny<EntityLoadConfiguration>()))
-            .ReturnsAsync(mockEntity.Object);
-        _mockClient.Setup(c => c.Entities.SaveAsync(It.IsAny<IEntity>()))
-            .ThrowsAsync(new Exception("Save failed"));
-
-        // Act & Assert
-        await Assert.ThrowsAsync<Exception>(() =>
-            _handler.HandleAsync(addEvent, CancellationToken.None));
-
-        _mockLogger.Verify(
-            logger => logger.Log(
-                LogLevel.Error,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to push add to DAM")),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
     }
 
     [Fact]

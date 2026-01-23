@@ -1425,6 +1425,34 @@ Unfold to copy the following files to `[SITECORE_ROOT]\sitecore\admin\`:
 
 ## Monitoring and Logging
 
+### Failed Operations Logging
+
+When an item references an asset that does not exist in Content Hub, the service will:
+
+1. **Rollback the MongoDB operation** - The invalid asset ID is removed from the MongoDB store
+2. **Log the failure** - A detailed error message is written to Application Insights
+
+### Log Format
+
+Failed operations are logged with the `FAILED_OPERATION` prefix:
+<br>
+```json
+FAILED_OPERATION | Item 'Homepage' (ID: a1b2c3d4-...) references asset(s) [12345] that do not exist in Content Hub. Operation: Add | Path: /sitecore/content/home | Language: en | Error: AssetNotFound - Asset 12345 not found in Content Hub
+```
+
+### Logged Information
+
+| Field | Description |
+|-------|-------------|
+| ItemName | Name of the Sitecore item |
+| ItemId | Unique identifier of the item |
+| AssetIds | Asset ID(s) that do not exist in Content Hub |
+| Operation | The operation type (Add/Remove) |
+| ItemPath | Full Sitecore path of the item |
+| Language | Language version of the item |
+| ErrorType | Type of error encountered |
+| ErrorMessage | Detailed error description |
+
 ### Application Insights
 
 The service integrates with Azure Application Insights:
