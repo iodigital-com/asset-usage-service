@@ -1,9 +1,14 @@
 import { createRoot } from "react-dom/client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 // ============================================================================
 // Types & Interfaces
 // ============================================================================
+
+interface LanguageVersion {
+    language: string;
+    version?: number | null;
+}
 
 interface ContentHubEntity {
     id?: number;
@@ -21,16 +26,20 @@ interface UsageTrackingItem {
     itemPath?: string;
     language?: string;
     version?: number;
+    languages?: LanguageVersion[];
 }
 
 interface AssetUsageTrackerProps {
     entity: ContentHubEntity | null;
 }
 
-interface ProcessedUsageItem extends UsageTrackingItem {
+interface ProcessedUsageItem {
     compositeKey: string;
     itemId: string;
     languageKey: string;
+    itemName?: string;
+    itemPath?: string;
+    languages: LanguageVersion[];
 }
 
 interface ContentHubContext {
@@ -59,12 +68,14 @@ const LABELS = {
     USED_IN: 'Used in',
     ITEMS_SUFFIX: 'item(s)',
     COLUMN_NAME: 'Name and path',
-    COLUMN_LANGUAGE: 'Language',
-    COLUMN_VERSION: 'Version',
+    COLUMN_LANGUAGES: 'Languages',
     PATH_PREFIX: 'Path:',
     ITEM_ID_PREFIX: 'Item ID:',
     VERSION_PREFIX: 'V',
     FALLBACK_VALUE: '-',
+    SHOW_MORE: 'Show all',
+    SHOW_LESS: 'Show less',
+    MAX_VISIBLE_LANGUAGES: 2,
 } as const;
 
 // ============================================================================
@@ -83,12 +94,22 @@ function processUsageTrackingData(
             return [];
         }
 
-        return Object.entries(languageItems).map(([itemId, itemData]) => ({
-            ...itemData,
-            compositeKey: `${languageKey}-${itemId}`,
-            itemId,
-            languageKey,
-        }));
+        return Object.entries(languageItems).map(([itemId, itemData]) => {
+            const languages: LanguageVersion[] = itemData.languages && itemData.languages.length > 0
+                ? itemData.languages
+                : itemData.language
+                    ? [{ language: itemData.language, version: itemData.version ?? 1 }]
+                    : [];
+
+            return {
+                compositeKey: `${languageKey}-${itemId}`,
+                itemId,
+                languageKey,
+                itemName: itemData.itemName,
+                itemPath: itemData.itemPath,
+                languages,
+            };
+        });
     });
 }
 
@@ -158,8 +179,7 @@ function TableHeader() {
     return (
         <div style={styles.tableHeader}>
             <div style={styles.headerNameColumn}>{LABELS.COLUMN_NAME}</div>
-            <div style={styles.headerLanguageColumn}>{LABELS.COLUMN_LANGUAGE}</div>
-            <div style={styles.headerVersionColumn}>{LABELS.COLUMN_VERSION}</div>
+            <div style={styles.headerLanguagesColumn}>{LABELS.COLUMN_LANGUAGES}</div>
         </div>
     );
 }
@@ -170,14 +190,25 @@ interface UsageItemRowProps {
 }
 
 function UsageItemRow({ item, isLast }: UsageItemRowProps) {
+    const [expanded, setExpanded] = useState(false);
     const displayItemName = item.itemName || LABELS.FALLBACK_VALUE;
     const displayItemPath = item.itemPath || LABELS.FALLBACK_VALUE;
-    const displayLanguage = item.language || item.languageKey || LABELS.FALLBACK_VALUE;
-    const displayVersion = item.version ?? LABELS.FALLBACK_VALUE;
 
     const rowStyle = {
         ...styles.tableRow,
         borderBottom: isLast ? 'none' : '1px solid #e0e0e0',
+    };
+
+    const hasMoreLanguages = item.languages.length > LABELS.MAX_VISIBLE_LANGUAGES;
+    const visibleLanguages = expanded 
+        ? item.languages 
+        : item.languages.slice(0, LABELS.MAX_VISIBLE_LANGUAGES);
+    const hiddenCount = item.languages.length - LABELS.MAX_VISIBLE_LANGUAGES;
+
+    const handleToggle = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setExpanded(!expanded);
     };
 
     return (
@@ -192,13 +223,42 @@ function UsageItemRow({ item, isLast }: UsageItemRowProps) {
                         {LABELS.ITEM_ID_PREFIX} {item.itemId}
                     </p>
                 </div>
-                <div style={styles.languageColumn}>
-                    <span style={styles.badge}>{displayLanguage}</span>
-                </div>
-                <div style={styles.versionColumn}>
-                    <span style={styles.badge}>
-                        {LABELS.VERSION_PREFIX}{displayVersion}
-                    </span>
+                <div style={styles.languagesColumn}>
+                    {item.languages.length > 0 ? (
+                        <div style={styles.languagesTableWrapper}>
+                            <div style={styles.languageCount}>
+                                Used in <span style={styles.countNumberInBadge}>{item.languages.length}</span> {item.languages.length === 1 ? 'language' : 'languages'}
+                            </div>
+                            <div style={styles.languagesList}>
+                                {visibleLanguages.map((lang, idx) => (
+                                    <div 
+                                        key={`${lang.language}-${idx}`} 
+                                        style={{
+                                            ...styles.languageRow,
+                                            borderBottom: (idx < visibleLanguages.length - 1 || hasMoreLanguages) ? '1px solid #eee' : 'none',
+                                        }}
+                                    >
+                                        <span style={styles.langLabel}>Lang:</span>
+                                        <span style={styles.langValue}>{lang.language}</span>
+                                        <span style={styles.versionLabel}>Version:</span>
+                                        <span style={styles.versionValue}>{lang.version}</span>
+                                    </div>
+                                ))}
+                                {hasMoreLanguages && (
+                                    <div 
+                                        style={styles.toggleRow}
+                                        onClick={handleToggle}
+                                    >
+                                        {expanded 
+                                            ? LABELS.SHOW_LESS 
+                                            : `+${hiddenCount} more`}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <span style={styles.badge}>{LABELS.FALLBACK_VALUE}</span>
+                    )}
                 </div>
             </div>
         </a>
@@ -289,12 +349,10 @@ const styles = {
     headerNameColumn: {
         flex: 1,
     },
-    headerLanguageColumn: {
-        textAlign: 'center' as const,
-    },
-    headerVersionColumn: {
-        minWidth: '60px',
-        textAlign: 'center' as const,
+    headerLanguagesColumn: {
+        minWidth: '200px',
+        maxWidth: '200px',
+        textAlign: 'right' as const,
     },
     tableRow: {
         display: 'flex',
@@ -305,15 +363,71 @@ const styles = {
         flex: 1,
         minWidth: 0,
     },
-    languageColumn: {
+    languagesColumn: {
+        minWidth: '200px',
+        maxWidth: '200px',
         display: 'flex',
-        justifyContent: 'center',
+        justifyContent: 'flex-end',
+        alignItems: 'flex-start',
     },
-    versionColumn: {
-        flex: '0 0 60px',
-        minWidth: '60px',
+    languagesTableWrapper: {
         display: 'flex',
-        justifyContent: 'center',
+        flexDirection: 'column' as const,
+        alignItems: 'flex-end',
+        gap: '4px',
+    },
+    languageCount: {
+        fontSize: '10px',
+        color: '#c0c0c0ff',
+        fontWeight: 500,
+        textAlign: 'right' as const,
+    },
+    countNumberInBadge: {
+        fontWeight: 700,
+        color: '#535353',
+        margin: '0 2px',
+    },
+    languagesList: {
+        display: 'flex',
+        flexDirection: 'column' as const,
+        backgroundColor: '#fafafa',
+        borderRadius: '4px',
+        border: '1px solid #eee',
+        overflow: 'hidden',
+        width: '100%',
+    },
+    languageRow: {
+        display: 'grid',
+        gridTemplateColumns: '32px 50px 48px 8px',
+        alignItems: 'center',
+        padding: '4px 8px',
+        fontSize: '11px',
+    },
+    langLabel: {
+        color: '#999',
+        fontWeight: 500,
+    },
+    langValue: {
+        color: '#333',
+        fontWeight: 600,
+    },
+    versionLabel: {
+        color: '#999',
+        fontWeight: 500,
+    },
+    versionValue: {
+        color: '#333',
+        fontWeight: 600,
+        textAlign: 'left' as const,
+    },
+    toggleRow: {
+        padding: '4px 8px',
+        fontSize: '11px',
+        color: '#6E3FFF',
+        fontWeight: 500,
+        cursor: 'pointer',
+        textAlign: 'center' as const,
+        backgroundColor: '#f5f5f5',
     },
     itemName: {
         margin: '0 0 2px 0',
