@@ -671,6 +671,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
+    <None Include="App_Config\TelerikKeys.config" />
+    <None Include="App_Config\TelerikKeys.config.example" />
     <None Include="packages.config" />
     <None Include="Web.config" />
   </ItemGroup>

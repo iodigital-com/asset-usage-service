@@ -84,15 +84,21 @@ dotnet restore
 ## 4. Configure Local Azure ServiceBus Queues:
    - Install [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running
    - Switch to Linux containers (right click Docker icon in menubar and click `Switch to linux containers...` - if you see `Switch to windows containers...` you are already on Linux containers)
-   - Run the Azure ServiceBus Queue locally:
+   - Create a local `.env` from the example and set a strong SQL SA password (required by SQL Server complexity rules):
 ```bash
 cd DockerAzureServiceBusQueues
+cp .env.example .env
+# Edit .env and set MSSQL_SA_PASSWORD=...
 docker-compose up -d
 ```
    - Wait for the containers to be ready:
      - Container sqlserver: `Healthy`
      - Container servicebus-emulator: `Started`
    - Check your `local.settings.json` to ensure you have the correct queue names and that the `Disabled` property of the queue functions you want to use is set to `false`
+
+### Sitecore Web.config customization (demo / local XP)
+- **Content Hub URL in CSP**: replace `https://your-instance.sitecoresandbox.cloud` in `iO.Sitecore.publishing/Web.config` with your Content Hub host.
+- **Telerik encryption keys**: edit `iO.Sitecore.publishing/App_Config/TelerikKeys.config` (template: `TelerikKeys.config.example`). Replace each `REPLACE_ME_*` value with a long random string before using a shared Sitecore instance.
 
 ## 5. Start MongoDB:
 ```bash

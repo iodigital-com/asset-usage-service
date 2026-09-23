@@ -196,6 +196,8 @@ This document covers integration-specific troubleshooting for connecting the Ass
 2. **Run the emulator**:
    ```bash
    cd DockerAzureServiceBusQueues
+   cp .env.example .env   # first time only
+   # Set MSSQL_SA_PASSWORD in .env (SQL Server requires a strong password)
    docker-compose up -d
    ```
 

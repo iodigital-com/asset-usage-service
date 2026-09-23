@@ -126,6 +126,8 @@ Test-NetConnection <hostname> -Port 443
 
 3. Run from the `DockerAzureServiceBusQueues` folder:
    ```bash
+   cp .env.example .env   # if you do not have a local .env yet
+   # Set MSSQL_SA_PASSWORD in .env (strong password required)
    docker-compose up -d
    ```
 

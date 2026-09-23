@@ -96,6 +96,10 @@ Create a configuration file in:
 </configuration>
 ```
 
+If you use the sample `Web.config` from this repository for a local Sitecore XP instance:
+
+- Replace `https://your-instance.sitecoresandbox.cloud` in the Content-Security-Policy header with your Content Hub host.
+- Set Telerik encryption keys in `iO.Sitecore.publishing/App_Config/TelerikKeys.config` (see `TelerikKeys.config.example`). Use long random strings; do not reuse demo placeholders on a shared environment.
 ## Content Hub settings 
 This configuration is required for the Asset Tracking microservice to securely connect to Sitecore Content Hub and update asset usage data.  
 Without this setup, the microservice cannot authenticate safely and modify usage tracking information.

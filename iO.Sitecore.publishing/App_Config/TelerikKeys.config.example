@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Customize before running Sitecore.
+  1. Copy this file to TelerikKeys.config (same folder)
+  2. Replace each REPLACE_ME_* value with your own long random string
+     (Sitecore typically uses 64+ character random keys)
+
+  PowerShell example to generate a key:
+    -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+
+  These keys are merged into Web.config appSettings via the file= attribute.
+  Do not commit real production keys.
+-->
+<appSettings>
+  <add key="Telerik.AsyncUpload.ConfigurationEncryptionKey" value="REPLACE_ME_TELERIK_ASYNCUPLOAD_CONFIGURATION_ENCRYPTION_KEY" />
+  <add key="Telerik.Upload.ConfigurationHashKey" value="REPLACE_ME_TELERIK_UPLOAD_CONFIGURATION_HASH_KEY" />
+  <add key="Telerik.Web.UI.DialogParametersEncryptionKey" value="REPLACE_ME_TELERIK_DIALOG_PARAMETERS_ENCRYPTION_KEY" />
+</appSettings>
