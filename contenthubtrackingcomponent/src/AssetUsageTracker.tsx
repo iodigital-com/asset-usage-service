@@ -56,7 +56,8 @@ interface ContentHubComponent {
 // ============================================================================
 
 const CONSTANTS = {
-    CMS_BASE_URL: 'https://Sitecore-xp-localsc.dev.local',
+    // Set via VITE_CMS_BASE_URL in .env (see .env.example). Baked in at build time.
+    CMS_BASE_URL: import.meta.env.VITE_CMS_BASE_URL || 'https://your-sitecore-cm.example.com',
     MAX_WRAPPER_HEIGHT: '600px',
     MAX_CONTENT_HEIGHT: '500px',
 } as const;

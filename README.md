@@ -279,7 +279,7 @@ This section describes how to add the usage insights and the custom delete Modal
 - Access to project: `asset-usage-service/contenthubtrackingcomponent`
 - Node.js + npm installed
 - Manage permissions in Content Hub
-- Your Sitecore XP base URL (for `CMS_BASE_URL` constant)
+- Your Sitecore CM base URL (for `VITE_CMS_BASE_URL`)
 
 #### Build & Configure
 1. Install dependencies and navigate into the component folder:
@@ -287,14 +287,16 @@ This section describes how to add the usage insights and the custom delete Modal
    cd asset-usage-service/contenthubtrackingcomponent
    npm install
    ```
-2. Open `src/AssetUsageTracker.tsx`.
-3. Replace the constant `CMS_BASE_URL` with your Sitecore XP URL.
-4. Save the file.
-5. Build:
+2. Copy `.env.example` to `.env` and set your Sitecore CM host:
+   ```bash
+   cp .env.example .env
+   # Edit .env: VITE_CMS_BASE_URL=https://your-sitecore-cm.example.com
+   ```
+3. Build (the URL is embedded into the bundle at build time):
    ```bash
    npm run build:usageTracking
    ```
-6. Result: `dist/AssetUsageTracker.js`.
+4. Result: `dist/AssetUsageTracker.js`.
 
 #### Upload to Content Hub
 1. Log in to your contenthub instance.

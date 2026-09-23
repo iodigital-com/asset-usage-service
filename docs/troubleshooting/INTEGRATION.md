@@ -148,9 +148,10 @@ This document covers integration-specific troubleshooting for connecting the Ass
    - Add External component
    - Set JS bundle source to uploaded file
 
-4. **Verify CMS_BASE_URL**:
-   - Open `src/AssetUsageTracker.tsx`
-   - Ensure `CMS_BASE_URL` points to your Sitecore XP URL
+4. **Verify CMS base URL**:
+   - Copy `contenthubtrackingcomponent/.env.example` to `.env`
+   - Set `VITE_CMS_BASE_URL` to your Sitecore CM host (e.g. `https://your-sitecore-cm.example.com`)
+   - Rebuild with `npm run build:usageTracking` (the value is baked into the bundle at build time)
 
 ---
 

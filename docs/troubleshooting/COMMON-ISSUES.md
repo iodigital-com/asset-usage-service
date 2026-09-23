@@ -237,7 +237,7 @@ Test-NetConnection <hostname> -Port 443
 
 3. **Check browser console** for JavaScript errors
 
-4. **Verify CMS_BASE_URL** is correct in the component source
+4. **Verify `VITE_CMS_BASE_URL`** in `contenthubtrackingcomponent/.env` (see `.env.example`), then rebuild the usage-tracking bundle
 
 ### Delete/Archive Modal Not Appearing
 

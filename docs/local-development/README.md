@@ -100,6 +100,9 @@ docker-compose up -d
 - **Content Hub URL in CSP**: replace `https://your-instance.sitecoresandbox.cloud` in `iO.Sitecore.publishing/Web.config` with your Content Hub host.
 - **Telerik encryption keys**: edit `iO.Sitecore.publishing/App_Config/TelerikKeys.config` (template: `TelerikKeys.config.example`). Replace each `REPLACE_ME_*` value with a long random string before using a shared Sitecore instance.
 
+### Content Hub React extension
+- Copy `contenthubtrackingcomponent/.env.example` to `.env` and set `VITE_CMS_BASE_URL` to your Sitecore CM host before `npm run build:usageTracking`.
+
 ## 5. Start MongoDB:
 ```bash
 docker run -d -p 27017:27017 --name mongodb mongo:latest
